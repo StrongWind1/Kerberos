@@ -134,8 +134,7 @@ nav:
           - Standardization Guide: security/aes-standardization.md
           - Mitigations: security/mitigations.md
       - Troubleshooting: security/troubleshooting.md
-  - Tools:
-      - Etype Calculator: security/etype-calculator.md
+  - Encryption Type Calculator: security/etype-calculator.md
   - Attacks:
       - attacks/index.md
       - Tools Setup: attacks/tools.md
