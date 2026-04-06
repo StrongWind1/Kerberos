@@ -17,10 +17,16 @@ keywords = [
     "security",
     "windows",
 ]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Documentation",
+    "Topic :: Security",
+]
 
 [project.urls]
 Repository = "https://github.com/StrongWind1/Kerberos"
 Documentation = "https://strongwind1.github.io/Kerberos/"
+Changelog = "https://github.com/StrongWind1/Kerberos/blob/main/CHANGELOG.md"
 Issues = "https://github.com/StrongWind1/Kerberos/issues"
 
 [dependency-groups]
