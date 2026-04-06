@@ -84,9 +84,10 @@ is not set (value `0` or absent), the KDC falls back to `DefaultDomainSupportedE
 
 ## Bit Flag Reference
 
-The attribute is a bitmask.  Each bit enables one encryption type:
+The attribute is a bitmask.  Bits 0-5 control encryption types, bits 16-19 are
+protocol feature flags, and bit 31 enables future etypes:
 
-| Bit | Hex | Decimal | Encryption Type | Notes |
+| Bit | Hex | Decimal | Name | Notes |
 |---|---|---|---|---|
 | 0 | `0x1` | 1 | DES-CBC-CRC | Removed in Server 2025 |
 | 1 | `0x2` | 2 | DES-CBC-MD5 | Removed in Server 2025 |
@@ -94,10 +95,21 @@ The attribute is a bitmask.  Each bit enables one encryption type:
 | 3 | `0x8` | 8 | AES128-CTS-HMAC-SHA1-96 | Supported since Server 2008 |
 | 4 | `0x10` | 16 | AES256-CTS-HMAC-SHA1-96 | **Recommended** |
 | 5 | `0x20` | 32 | AES256-CTS-HMAC-SHA1-96-SK | Session key variant (Nov 2022+).  Only honored in `DefaultDomainSupportedEncTypes`. |
-| 6-30 | | | Reserved | |
+| 6-15 | | | Reserved | |
+| 16 | `0x10000` | 65536 | FAST-supported | Kerberos armoring ([RFC 6113]).  Server 2012+. |
+| 17 | `0x20000` | 131072 | Compound-identity-supported | Dynamic Access Control compound identity.  Server 2012+. |
+| 18 | `0x40000` | 262144 | Claims-supported | Claims-based authentication.  Server 2012+. |
+| 19 | `0x80000` | 524288 | Resource-SID-compression-disabled | Disables resource SID compression in the PAC.  Server 2012+. |
+| 20-30 | | | Reserved | |
 | 31 | `0x80000000` | 2147483648 | Future encryption types | Allows future etypes |
 
 Source: [MS-KILE] section 2.2.7 -- Supported Encryption Types Bit Flags.
+
+!!! info "Bits 16-19 are not encryption types"
+    Bits 16-19 are protocol feature flags, not encryption types.  They are only meaningful
+    on the `msDS-SupportedEncryptionTypes` AD attribute.  They have no effect in
+    `DefaultDomainSupportedEncTypes` or `SupportedEncryptionTypes` (GPO).  Use the
+    [Etype Calculator](etype-calculator.md) to decode composite values that include these flags.
 
 ---
 
