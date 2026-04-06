@@ -51,6 +51,14 @@ Already familiar with Kerberos and just need to get your domain to AES? Jump str
 
 ---
 
+## Key Concepts
+
+### SPN-Bearing Account Types { #spn-bearing-account-types }
+
+--8<-- "includes/spn-account-types.md"
+
+---
+
 ## Prerequisites
 
 To get the most out of this guide, you should be comfortable with:

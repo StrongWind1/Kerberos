@@ -219,7 +219,7 @@ Five Active Directory object types can have `servicePrincipalName` registered:
   SPNs; auto-rotating password.
 
 For the full table of defaults, targets, and GPO coverage per type, see
-[SPN-Bearing Account Types](../security/msds-supported.md#spn-bearing-account-types).
+[SPN-Bearing Account Types](../index.md#spn-bearing-account-types).
 
 !!! tip "Pentester note"
     SPNs registered on **user service accounts** (objectCategory=person) are the viable Kerberoasting targets. Computer accounts, gMSA, MSA, and dMSA all use auto-rotating passwords that are infeasible to crack even if you obtain an RC4-encrypted ticket. Focus enumeration on the LDAP filter `(&(servicePrincipalName=*)(objectCategory=person))` to isolate the actionable targets.

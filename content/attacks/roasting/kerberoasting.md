@@ -77,7 +77,7 @@ Set-ADUser svc_sql -Replace @{'msDS-SupportedEncryptionTypes' = 24}
 ```
 
 For per-type bulk queries covering all five account types, see the
-[SPN-bearing account type taxonomy](../../security/msds-supported.md#spn-bearing-account-types).
+[SPN-bearing account type taxonomy](../../index.md#spn-bearing-account-types).
 
 !!! warning "Before the November 2022 security updates (KB5021131, CVE-2022-37966), the KDC would honor the client's etype preference and issue RC4 tickets even when the target account supported AES. After the update, the KDC returns the strongest etype the target account supports regardless of the client's request. See [msDS-SupportedEncryptionTypes](../../security/msds-supported.md) for details."
 

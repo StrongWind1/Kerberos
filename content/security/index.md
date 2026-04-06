@@ -196,7 +196,7 @@ uncrackable, but setting `msDS-SupportedEncryptionTypes = 0x18` on them eliminat
 traffic and satisfies the 2026 deprecation requirements.
 
 For the full account type taxonomy and bulk update commands, see
-[msDS-SupportedEncryptionTypes — SPN-Bearing Account Types](msds-supported.md#spn-bearing-account-types).
+[SPN-Bearing Account Types](../index.md#spn-bearing-account-types).
 
 ---
 

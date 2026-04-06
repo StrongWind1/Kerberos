@@ -70,7 +70,7 @@ The Kerberos GPO handles computer accounts automatically (it writes the registry
 machine updates its own AD attribute).  **All other SPN-bearing account types are not
 covered by GPO** and must be managed manually.  This includes user service accounts,
 gMSA, MSA, and dMSA — for any of these, you must set `msDS-SupportedEncryptionTypes`
-via PowerShell or ADUC.  See the [account type taxonomy](msds-supported.md#spn-bearing-account-types)
+via PowerShell or ADUC.  See the [account type taxonomy](../index.md#spn-bearing-account-types)
 for the full breakdown of defaults and targets.
 
 This is the single most common miss in AES migrations: the account gets a
@@ -452,7 +452,7 @@ Get-ADReplAccount -SamAccountName svc_example -Server dc01.corp.local
 
 The Kerberos GPO handles computer accounts automatically (Step 4).  All other
 SPN-bearing account types must be updated manually: user service accounts, gMSA, MSA,
-and dMSA.  See the [account type taxonomy](msds-supported.md#spn-bearing-account-types)
+and dMSA.  See the [account type taxonomy](../index.md#spn-bearing-account-types)
 for the full list of defaults and targets for each type.
 
 The KDC uses `msDS-SupportedEncryptionTypes` when issuing service tickets.  Without an
