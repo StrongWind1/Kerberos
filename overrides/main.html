@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+
+{% block announce %}
+  <strong>RC4 enforcement begins April 2026.</strong>
+  Accounts without explicit <code>msDS-SupportedEncryptionTypes</code> will default to AES-only.
+  <a href="{{ 'security/rc4-deprecation/' | url }}">Read the timeline &rarr;</a>
+{% endblock %}

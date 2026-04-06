@@ -1,0 +1,175 @@
+site_name: Kerberos in Active Directory
+site_description: Comprehensive guide to Kerberos authentication in Microsoft Windows Active Directory.
+site_url: https://kerbwolf.github.io/kerberos
+repo_url: https://github.com/kerbwolf/kerberos
+repo_name: kerbwolf/kerberos
+edit_uri: edit/main/content/
+copyright: Copyright &copy; 2025 - 2026 StrongWind1
+
+docs_dir: content
+
+theme:
+  name: material
+  custom_dir: overrides
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Dark mode (default) — respects system preference
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+    # Light mode — respects system preference
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+  features:
+    # Navigation
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.sections
+    - navigation.path
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.prune
+    # Table of contents
+    - toc.follow
+    # Search
+    - search.highlight
+    - search.suggest
+    - search.share
+    # Header
+    - header.autohide
+    - announce.dismiss
+    # Content
+    - content.code.copy
+    - content.code.annotate
+    - content.code.select
+    - content.tooltips
+    - content.action.edit
+    - content.action.view
+
+plugins:
+  - search
+  - privacy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.mark
+  - pymdownx.keys
+  - pymdownx.smartsymbols
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.snippets:
+      base_path:
+        - .
+      auto_append:
+        - includes/abbreviations.md
+  - tables
+  - attr_list
+  - md_in_html
+  - def_list
+  - abbr
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+nav:
+  - Home: index.md
+  - Protocol:
+      - protocol/index.md
+      - Active Directory: protocol/active-directory.md
+      - Principals & Realms: protocol/principals.md
+      - Protocol Overview: protocol/overview.md
+      - AS Exchange: protocol/as-exchange.md
+      - TGS Exchange: protocol/tgs-exchange.md
+      - AP Exchange: protocol/ap-exchange.md
+      - Ticket Structure: protocol/tickets.md
+      - Pre-Authentication: protocol/preauth.md
+      - Encryption Types: protocol/encryption.md
+      - S4U Extensions: protocol/s4u.md
+      - Cross-Realm Auth: protocol/cross-realm.md
+      - Delegation: protocol/delegation.md
+  - Security:
+      - security/index.md
+      - Encryption:
+          - Encryption Negotiation: security/etype-negotiation.md
+          - Etype Decision Guide: security/etype-decision-guide.md
+          - Algorithms & Keys: security/algorithms.md
+      - Configuration:
+          - msDS-SupportedEncryptionTypes: security/msds-supported.md
+          - Registry Settings: security/registry.md
+          - Group Policy: security/group-policy.md
+      - Hardening:
+          - RC4 Deprecation: security/rc4-deprecation.md
+          - Auditing Kerberos Keys: security/account-key-audit.md
+          - Standardization Guide: security/aes-standardization.md
+          - Mitigations: security/mitigations.md
+      - Troubleshooting: security/troubleshooting.md
+  - Attacks:
+      - attacks/index.md
+      - Tools Setup: attacks/tools.md
+      - Roasting:
+          - attacks/roasting/index.md
+          - Kerberoasting: attacks/roasting/kerberoasting.md
+          - AS-REP Roasting: attacks/roasting/asrep-roasting.md
+          - AS-REQ Roasting: attacks/roasting/asreq-roasting.md
+      - Credential Theft:
+          - attacks/credential-theft/index.md
+          - Pass-the-Ticket: attacks/credential-theft/pass-the-ticket.md
+          - Pass-the-Key: attacks/credential-theft/pass-the-key.md
+          - Password Spraying: attacks/credential-theft/password-spraying.md
+          - User Enumeration: attacks/credential-theft/user-enumeration.md
+      - Ticket Forgery:
+          - attacks/forgery/index.md
+          - Golden Ticket: attacks/forgery/golden-ticket.md
+          - Silver Ticket: attacks/forgery/silver-ticket.md
+          - Diamond Ticket: attacks/forgery/diamond-ticket.md
+          - Sapphire Ticket: attacks/forgery/sapphire-ticket.md
+      - Delegation:
+          - attacks/delegation/index.md
+          - Delegation Attacks: attacks/delegation/delegation-attacks.md
+          - S4U2Self Abuse: attacks/delegation/s4u2self-abuse.md
+          - SPN-jacking: attacks/delegation/spn-jacking.md
+
+extra:
+  status:
+    new: Recently updated
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kerbwolf/kerberos
+      name: Kerberos Guide on GitHub
+  generator: false
+
+extra_css:
+  - stylesheets/extra.css
+
+strict: true

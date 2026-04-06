@@ -1,0 +1,393 @@
+---
+---
+
+# msDS-SupportedEncryptionTypes
+
+The Active Directory attribute that drives encryption type selection for Kerberos
+tickets.  Getting this attribute right on every account is the single most impactful
+thing you can do to secure Kerberos in your domain.
+
+---
+
+## SPN-Bearing Account Types { #spn-bearing-account-types }
+
+Five AD object types can have `servicePrincipalName` registered.  Each type has a
+different default `msDS-SupportedEncryptionTypes` value, a different password
+management model, and a different remediation path.
+
+| Type | AD objectClass | SPNs | Password | GPO manages msDS-SET? | Default msDS-SET | Target |
+|------|---------------|------|----------|-----------------------|-----------------|--------|
+| User service account | `user` (objectCategory=person) | Manual | Human-set | No | `0` (unset) | `0x18` |
+| Computer account | `computer` | Auto at domain join | Auto-rotated 30 d | Yes | `0x1F` | `0x1F` (GPO) |
+| gMSA | `msDS-GroupManagedServiceAccount` | Explicit | Auto-rotated 240-char | No | `0x1C` | `0x18` |
+| MSA | `msDS-ManagedServiceAccount` | Explicit | Auto-rotated | No | `0x1C` or `0` | `0x18` |
+| dMSA | `msDS-DelegatedManagedServiceAccount` | Explicit | Auto-rotated (Server 2025+) | No | `0` or `0x1C` | `0x18` |
+
+**Vocabulary used throughout this site:**
+
+- **SPN-bearing accounts** — umbrella term for all five types when discussing msDS-SET,
+  etype management, or any context where all types apply.
+- **User service accounts** — `user` objects (objectCategory=person) with manually
+  registered SPNs; the primary Kerberoasting target.
+- **Managed service accounts** — collective for gMSA, MSA, and dMSA when discussing
+  auto-rotating passwords.
+- **Computer accounts** — objectCategory=computer; GPO manages their msDS-SET
+  automatically.
+
+**GPO-managed vs manually-managed:**
+
+- **GPO-managed:** computer accounts only.  The Kerberos GPO auto-writes the AD
+  attribute when the machine processes policy.
+- **Manually-managed:** user service accounts, gMSA, MSA, and dMSA.  You must set
+  `msDS-SupportedEncryptionTypes` explicitly on each one via PowerShell or ADUC.
+
+!!! info "Why managed service accounts still need AES enforcement"
+    gMSA, MSA, and dMSA passwords are auto-generated and uncrackable, so Kerberoasting
+    is not a meaningful threat.  However, if `msDS-SupportedEncryptionTypes` is not set
+    to `0x18`, the KDC issues RC4-encrypted tickets for those accounts.  RC4 traffic is
+    visible on the wire and contributes to the domain's overall RC4 footprint.  Setting
+    `msDS-SET = 0x18` eliminates that traffic, ensures compliance with RC4 deprecation
+    timelines, and keeps the audit baseline clean.
+
+---
+
+## What It Is
+
+`msDS-SupportedEncryptionTypes` is a 32-bit integer attribute on user, computer, Group
+Managed Service Account (gMSA), and trust account objects in Active Directory.  It declares
+which Kerberos encryption types the account supports.
+
+When the KDC processes a TGS-REQ for a service, it reads this attribute on the **target
+account** to determine which etype to use for the service ticket.  If the attribute
+is not set (value `0` or absent), the KDC falls back to `DefaultDomainSupportedEncTypes`.
+
+!!! info "This attribute controls ticket encryption, not key generation"
+    Setting `msDS-SupportedEncryptionTypes` tells the KDC which etypes to *use*.  It does
+    **not** control which keys are generated when the password is set.  AD always generates
+    keys for all supported etypes on password change, regardless of this attribute's value.
+
+---
+
+## Bit Flag Reference
+
+The attribute is a bitmask.  Each bit enables one encryption type:
+
+| Bit | Hex | Decimal | Encryption Type | Notes |
+|---|---|---|---|---|
+| 0 | `0x1` | 1 | DES-CBC-CRC | Removed in Server 2025 |
+| 1 | `0x2` | 2 | DES-CBC-MD5 | Removed in Server 2025 |
+| 2 | `0x4` | 4 | RC4-HMAC | Deprecated (July 2026) |
+| 3 | `0x8` | 8 | AES128-CTS-HMAC-SHA1-96 | Supported since Server 2008 |
+| 4 | `0x10` | 16 | AES256-CTS-HMAC-SHA1-96 | **Recommended** |
+| 5 | `0x20` | 32 | AES256-CTS-HMAC-SHA1-96-SK | Session key variant (Nov 2022+).  Only honored in `DefaultDomainSupportedEncTypes`. |
+| 6-30 | | | Reserved | |
+| 31 | `0x80000000` | 2147483648 | Future encryption types | Allows future etypes |
+
+Source: [MS-KILE] section 2.2.7 -- Supported Encryption Types Bit Flags.
+
+---
+
+## Common Composite Values
+
+| Value (Hex) | Value (Dec) | Meaning | Recommendation |
+|---|---|---|---|
+| `0x0` | 0 | Not set -- falls back to `DefaultDomainSupportedEncTypes` | Risky: RC4 is used by default |
+| `0x4` | 4 | RC4 only | **Bad** -- vulnerable to Kerberoasting |
+| `0x18` | 24 | AES128 + AES256 | **Recommended** for all SPN-bearing accounts |
+| `0x1C` | 28 | RC4 + AES128 + AES256 | Transitional -- still permits RC4 tickets |
+| `0x1F` | 31 | DES + RC4 + AES128 + AES256 | Legacy -- includes DES |
+| `0x38` | 56 | AES128 + AES256 + AES-SK | Recommended for `DefaultDomainSupportedEncTypes` |
+| `0x3C` | 60 | RC4 + AES128 + AES256 + AES-SK | Transitional with AES session keys |
+
+---
+
+## Default Values
+
+### User Accounts
+
+By default, user accounts have `msDS-SupportedEncryptionTypes` **not set** (value 0 or
+absent).  This means the KDC uses `DefaultDomainSupportedEncTypes` to decide, which
+historically included RC4.
+
+This is why **every user account with an SPN** is vulnerable to Kerberoasting out of the box.
+The fix is to explicitly set the attribute to `0x18` (AES only).
+
+### Computer Accounts
+
+Windows machines (Vista / Server 2008 and later) automatically set their own
+`msDS-SupportedEncryptionTypes` when they join the domain or process the
+*Network security: Configure encryption types allowed for Kerberos* Group Policy.
+
+The typical default for a modern Windows computer account is `0x1C` (28) = RC4 + AES128 +
+AES256.
+
+### gMSA Accounts
+
+Group Managed Service Accounts default to `0x1C` (28) = RC4 + AES128 + AES256, and their
+auto-generated 240-character passwords make RC4 cracking infeasible regardless.  Set to
+`0x18` to eliminate RC4 traffic.
+
+### MSA Accounts
+
+Standalone Managed Service Accounts (`msDS-ManagedServiceAccount`) default to `0x1C`
+(28) on Server 2008 R2+ domains, or may show `0` on older deployments.  Like gMSA,
+passwords are auto-rotated and uncrackable, but RC4 tickets are still issued unless
+`msDS-SupportedEncryptionTypes` is explicitly set to `0x18`.
+
+### dMSA Accounts
+
+Delegated Managed Service Accounts (`msDS-DelegatedManagedServiceAccount`), introduced
+in Windows Server 2025, default to `0` (unset) or `0x1C` depending on domain functional
+level and the provisioning tool.  Set `msDS-SupportedEncryptionTypes = 0x18` explicitly
+after creating each dMSA.
+
+### Pre-Server 2008 Accounts
+
+Accounts created before Server 2008 (or before DFL was raised to 2008) may have **no AES
+keys at all**, even if you set `msDS-SupportedEncryptionTypes` to include AES.  The password
+must be reset to generate AES keys -- see
+[The Double-Reset Problem](algorithms.md#the-double-reset-problem) for why very old accounts need
+two resets.
+
+---
+
+## How to View the Attribute
+
+### Single Account
+
+```powershell
+# User account
+Get-ADUser -Identity svc_sql -Properties msDS-SupportedEncryptionTypes |
+  Select-Object Name, msDS-SupportedEncryptionTypes
+
+# Computer account
+Get-ADComputer -Identity DC01 -Properties msDS-SupportedEncryptionTypes |
+  Select-Object Name, msDS-SupportedEncryptionTypes
+
+# gMSA
+Get-ADServiceAccount -Identity gMSA_SQL -Properties msDS-SupportedEncryptionTypes |
+  Select-Object Name, msDS-SupportedEncryptionTypes
+```
+
+### All SPN-Bearing Accounts — Overview (All 5 Types) { #all-spn-bearing-accounts-overview-all-5-types }
+
+--8<-- "includes/spn-overview-query.md"
+
+### All SPN-Bearing Accounts — Detail List
+
+One row per account with type classification, name, current msDS-SET value, and the
+first two SPNs registered on the account:
+
+```powershell title="List all SPN-bearing accounts with type, name, msDS-SET, and SPNs"
+Get-ADObject -LDAPFilter '(servicePrincipalName=*)' `
+  -Properties objectClass, objectCategory, 'msDS-SupportedEncryptionTypes',
+              servicePrincipalName |
+  ForEach-Object {
+    $oc = $_.objectClass
+    $type = if     ($oc -contains 'msDS-DelegatedManagedServiceAccount') { 'dMSA' }
+            elseif ($oc -contains 'msDS-GroupManagedServiceAccount')     { 'gMSA' }
+            elseif ($oc -contains 'msDS-ManagedServiceAccount')          { 'MSA' }
+            elseif ($oc -contains 'computer')                            { 'Computer' }
+            elseif ($_.objectCategory -like '*Person*')                  { 'User service account' }
+            else                                                          { 'Other' }
+    $set = [int]$_.'msDS-SupportedEncryptionTypes'
+    [PSCustomObject]@{
+      Type           = $type
+      Name           = $_.Name
+      'msDS-SET (dec)' = $set
+      'msDS-SET (hex)' = '0x{0:X}' -f $set
+      SPNs           = ($_.servicePrincipalName | Select-Object -First 2) -join '; '
+    }
+  } |
+  Sort-Object Type, Name |
+  Format-Table -AutoSize
+```
+
+---
+
+## How to Set the Attribute
+
+### Single Account (PowerShell)
+
+```powershell title="Set AES-only on a single user account and verify"
+# Set to AES-only (recommended)
+Set-ADUser -Identity svc_sql -Replace @{
+  'msDS-SupportedEncryptionTypes' = 24
+}
+
+# Verify
+Get-ADUser -Identity svc_sql -Properties msDS-SupportedEncryptionTypes |
+  Select-Object Name, msDS-SupportedEncryptionTypes
+```
+
+### Single Account (GUI)
+
+In **Active Directory Users and Computers** (ADUC), open the account properties and go to the
+**Account** tab.  Check:
+
+- "This account supports Kerberos AES 128 bit encryption"
+- "This account supports Kerberos AES 256 bit encryption"
+
+Uncheck any DES or RC4 options.  This sets `msDS-SupportedEncryptionTypes = 0x18` (24).
+
+### Bulk Update: All SPN-Bearing User Accounts
+
+```powershell title="Bulk set AES-only on all SPN-bearing user accounts"
+$target = 24
+
+Get-ADUser -Filter 'servicePrincipalName -like "*"' `
+  -Properties 'msDS-SupportedEncryptionTypes' |
+  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne $target } |
+  ForEach-Object {
+    Set-ADUser -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = $target }
+    Write-Host "Updated: $($_.sAMAccountName)"
+  }
+```
+
+!!! warning "Reset passwords before or after setting AES"
+    If an account does not have AES keys (password was never reset after DFL 2008), setting
+    `msDS-SupportedEncryptionTypes = 0x18` will cause ticket requests to **fail** because the
+    KDC will try to use AES but find no AES keys.  Always reset the password before -- or
+    immediately after -- changing this attribute.  Very old accounts may need
+    [two resets](algorithms.md#the-double-reset-problem).  To find which accounts lack AES keys, see
+    [Auditing Kerberos Keys](account-key-audit.md).
+
+### Bulk Update: All gMSA Accounts
+
+```powershell title="Bulk set AES-only on all gMSA accounts"
+Get-ADServiceAccount -Filter * -Properties objectClass, 'msDS-SupportedEncryptionTypes' |
+  Where-Object { $_.objectClass -contains 'msDS-GroupManagedServiceAccount' } |
+  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
+  ForEach-Object {
+    Set-ADServiceAccount -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
+    Write-Host "Updated gMSA: $($_.sAMAccountName)"
+  }
+```
+
+### Bulk Update: All MSA Accounts
+
+```powershell title="Bulk set AES-only on all MSA accounts"
+Get-ADServiceAccount -Filter * -Properties objectClass, 'msDS-SupportedEncryptionTypes' |
+  Where-Object { $_.objectClass -contains 'msDS-ManagedServiceAccount' } |
+  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
+  ForEach-Object {
+    Set-ADServiceAccount -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
+    Write-Host "Updated MSA: $($_.sAMAccountName)"
+  }
+```
+
+### Bulk Update: All dMSA Accounts
+
+```powershell title="Bulk set AES-only on all dMSA accounts"
+Get-ADObject -LDAPFilter '(&(objectClass=msDS-DelegatedManagedServiceAccount)(servicePrincipalName=*))' `
+  -Properties 'msDS-SupportedEncryptionTypes' |
+  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
+  ForEach-Object {
+    Set-ADObject -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
+    Write-Host "Updated dMSA: $($_.Name)"
+  }
+```
+
+### Bulk Update: Computer Accounts in a Specific OU
+
+```powershell
+Get-ADComputer -Filter * `
+  -SearchBase "OU=Servers,DC=corp,DC=local" `
+  -Properties msDS-SupportedEncryptionTypes |
+  Set-ADComputer -KerberosEncryptionType AES128, AES256
+```
+
+---
+
+## Auditing: Find RC4-Dependent Accounts
+
+### Accounts with RC4 Enabled
+
+```powershell
+# User accounts where RC4 bit (0x4) is set
+Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -band 4' `
+  -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
+  Select-Object sAMAccountName, msDS-SupportedEncryptionTypes, servicePrincipalName
+```
+
+The query above covers user accounts only.  For a cross-type view of every SPN-bearing
+account with the RC4 bit set, use the LDAP bitwise filter below — it works against all
+five account types simultaneously.
+
+### All SPN-Bearing Accounts with RC4 Enabled (All Types)
+
+The LDAP extensible match rule `1.2.840.113556.1.4.803` performs a bitwise AND, so
+this filter matches any account where bit 2 (RC4, value 4) is set and an SPN is registered:
+
+```powershell title="Find all SPN-bearing accounts with the RC4 bit set, across all five account types"
+Get-ADObject `
+  -LDAPFilter '(&(servicePrincipalName=*)(msDS-SupportedEncryptionTypes:1.2.840.113556.1.4.803:=4))' `
+  -Properties objectClass, objectCategory, 'msDS-SupportedEncryptionTypes',
+              servicePrincipalName |
+  ForEach-Object {
+    $oc = $_.objectClass
+    $type = if     ($oc -contains 'msDS-DelegatedManagedServiceAccount') { 'dMSA' }
+            elseif ($oc -contains 'msDS-GroupManagedServiceAccount')     { 'gMSA' }
+            elseif ($oc -contains 'msDS-ManagedServiceAccount')          { 'MSA' }
+            elseif ($oc -contains 'computer')                            { 'Computer' }
+            elseif ($_.objectCategory -like '*Person*')                  { 'User service account' }
+            else                                                          { 'Other' }
+    [PSCustomObject]@{
+      Type             = $type
+      Name             = $_.Name
+      'msDS-SET (dec)' = [int]$_.'msDS-SupportedEncryptionTypes'
+      'msDS-SET (hex)' = '0x{0:X}' -f [int]$_.'msDS-SupportedEncryptionTypes'
+    }
+  } |
+  Sort-Object Type, Name |
+  Format-Table -AutoSize
+```
+
+### Accounts with No Value Set (Using Domain Default)
+
+```powershell title="Find SPN-bearing user accounts with no explicit etype configuration"
+# User accounts with SPNs and no explicit etype configuration
+Get-ADUser -Filter {
+  servicePrincipalName -like "*" -and
+  (msDS-SupportedEncryptionTypes -eq 0 -or
+   msDS-SupportedEncryptionTypes -notlike "*")
+} -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
+  Select-Object sAMAccountName, servicePrincipalName, msDS-SupportedEncryptionTypes
+```
+
+### Accounts with Old Passwords (Likely Missing AES Keys)
+
+--8<-- "includes/old-passwords-query.md"
+
+---
+
+## Edge Cases
+
+### Setting AES Without AES Keys
+
+Setting `msDS-SupportedEncryptionTypes = 0x18` on an account that only has RC4 keys causes
+the KDC to fail the ticket request.  The DC logs **Event ID 16** (TGS) or **Event ID 14**
+(AS) with text like:
+
+```
+The requested etypes were 18 17. The accounts available etypes were 23.
+```
+
+**Fix**: Reset the account password to generate AES keys.
+
+### Computer Accounts Update Themselves
+
+Windows computers periodically update their own `msDS-SupportedEncryptionTypes` based on
+their local configuration (Group Policy or registry).  If you manually set a value, the
+computer may overwrite it after the next policy refresh.  Use Group Policy to manage computer
+account etypes rather than setting the attribute directly.
+
+### The RC4 Compatibility Quirk
+
+Per [MS-KILE] section 3.3.5.7, the KDC historically added RC4 (and DES) to the service
+account's supported encryption list even if `msDS-SupportedEncryptionTypes` did not include
+them.  This was for backward compatibility and meant that setting `msDS-SupportedEncryptionTypes
+= 0x18` (AES only) did not always prevent RC4 tickets on older DCs (pre-Server 2019).
+
+On **Server 2019 and later**, the KDC respects the attribute strictly and returns AES tickets
+when the attribute specifies AES only.

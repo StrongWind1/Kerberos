@@ -1,0 +1,15 @@
+# Build output
+site/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Local reference documents (MS specs, RFCs) — not for the public repo
+docs/
+
+# Lab validation scripts and evidence — internal only
+lab/
