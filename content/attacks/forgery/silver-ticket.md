@@ -114,8 +114,8 @@ will fail this check.
 The service key is most commonly obtained by [Kerberoasting](../roasting/kerberoasting.md) user service
 accounts with weak passwords. Mitigate this by:
 
-- Using **Group Managed Service Accounts (gMSA)**: automatically rotating, 128 random UTF-16 character (256-byte)
-  passwords that cannot be Kerberoasted in practice
+- Using **Group Managed Service Accounts (gMSA)**: automatically rotating, 240-character
+  cryptographic random passwords that cannot be Kerberoasted in practice
 - Setting minimum 25-character random passwords for any user service account
 - Removing SPNs from accounts that do not need them
 

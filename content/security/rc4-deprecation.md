@@ -149,10 +149,7 @@ Follow these steps **before** the April 2026 update to avoid authentication outa
 
 Ensure events 4768 and 4769 are being logged on all DCs:
 
-```powershell title="Verify Kerberos auditing is enabled on DCs"
-auditpol /get /subcategory:"Kerberos Authentication Service"
-auditpol /get /subcategory:"Kerberos Service Ticket Operations"
-```
+--8<-- "includes/verify-kerberos-auditing.md"
 
 Both should show "Success and Failure."  If not, configure via GPO (see
 [Group Policy Settings](group-policy.md)).

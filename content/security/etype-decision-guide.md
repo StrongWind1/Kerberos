@@ -31,6 +31,7 @@ Every input that can influence which etype appears in a Kerberos ticket:
 | 10 | **Target account keys** | `ntds.dit` | The KDC can only encrypt a service ticket with a key that exists.  If the account has no AES keys, AES tickets are impossible regardless of `msDS-SupportedEncryptionTypes`. | Generated on password set/reset.  AES keys require the account's password to have been set at DFL >= 2008. |
 | 11 | **Target account `msDS-SupportedEncryptionTypes`** | AD attribute on the target account | **The primary control** for service ticket etype.  When set and nonzero, overrides `DefaultDomainSupportedEncTypes`.  The KDC picks the strongest etype in this bitmask that it also has keys for. | Admin sets via PowerShell, ADUC, or script. |
 | 12 | **Target computer `SupportedEncryptionTypes`** (registry) | Same paths as input #3, on the target server | Controls the target server's Kerberos client.  The machine then auto-updates its own computer account's `msDS-SupportedEncryptionTypes` in AD (same two-step as input #4). | Group Policy on the target server → machine updates AD. |
+| 13 | **`KdcUseRequestedEtypesForTickets`** | `HKLM\SYSTEM\CurrentControlSet\Services\Kdc` | When set to `1`, the KDC honors the client's etype preference list for **ticket** etype selection instead of picking the strongest.  Default (`0` or not set) = KDC picks strongest.  Only affects the TGT ticket etype in practice (service ticket etype is driven by the target account). | Manual registry edit.  Leave at default in most environments. |
 
 ---
 

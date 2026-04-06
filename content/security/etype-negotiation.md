@@ -190,3 +190,13 @@ Session Key Type:           AES-256-CTS-HMAC-SHA1-96
 
 The fix: set `msDS-SupportedEncryptionTypes = 0x18` (24) on `svc_sql` and reset its password
 to generate AES keys.  After that, both the ticket and session key will use AES256.
+
+---
+
+## Further Reading
+
+For a comprehensive inventory of every input that influences etype selection -- including
+AD attributes, registry keys, and GPO settings across 12 distinct configuration points --
+see the [Etype Decision Guide](etype-decision-guide.md).  It includes Mermaid decision
+flowcharts, the full precedence ladder, common mistakes with fixes, and 14 worked examples
+validated against a live DC with Event 4769 output for each scenario.

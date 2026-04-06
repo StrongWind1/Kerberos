@@ -59,7 +59,7 @@ This finds all enabled user accounts (excluding computers) that have at least on
 
 ### Use Group Managed Service Accounts (gMSA)
 
-gMSA passwords are 128 random UTF-16 characters (256 bytes), automatically rotated by Active Directory. They are immune to offline cracking. Every user service account that supports gMSA should be migrated.
+gMSA passwords are 240 characters of cryptographic random material, automatically rotated by Active Directory. They are immune to offline cracking. Every user service account that supports gMSA should be migrated.
 
 ```powershell
 # Create a gMSA

@@ -87,51 +87,19 @@ Look for `KerbTicket Encryption Type: AES-256-CTS-HMAC-SHA1-96`.
 
 **User service accounts** (objectCategory=person with SPNs):
 
-```powershell title="Enforce AES-only on all SPN-bearing user accounts"
-Get-ADUser -Filter 'servicePrincipalName -like "*"' `
-  -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
-  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
-  ForEach-Object {
-    Set-ADUser -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
-    Write-Host "Enforced AES on: $($_.sAMAccountName)"
-  }
-```
+--8<-- "includes/set-aes-user-accounts.md"
 
 **gMSA accounts:**
 
-```powershell title="Enforce AES-only on all gMSA accounts"
-Get-ADServiceAccount -Filter * -Properties objectClass, 'msDS-SupportedEncryptionTypes' |
-  Where-Object { $_.objectClass -contains 'msDS-GroupManagedServiceAccount' } |
-  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
-  ForEach-Object {
-    Set-ADServiceAccount -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
-    Write-Host "Enforced AES on gMSA: $($_.sAMAccountName)"
-  }
-```
+--8<-- "includes/set-aes-gmsa.md"
 
 **MSA accounts:**
 
-```powershell title="Enforce AES-only on all MSA accounts"
-Get-ADServiceAccount -Filter * -Properties objectClass, 'msDS-SupportedEncryptionTypes' |
-  Where-Object { $_.objectClass -contains 'msDS-ManagedServiceAccount' } |
-  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
-  ForEach-Object {
-    Set-ADServiceAccount -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
-    Write-Host "Enforced AES on MSA: $($_.sAMAccountName)"
-  }
-```
+--8<-- "includes/set-aes-msa.md"
 
 **dMSA accounts:**
 
-```powershell title="Enforce AES-only on all dMSA accounts"
-Get-ADObject -LDAPFilter '(&(objectClass=msDS-DelegatedManagedServiceAccount)(servicePrincipalName=*))' `
-  -Properties 'msDS-SupportedEncryptionTypes' |
-  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
-  ForEach-Object {
-    Set-ADObject -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
-    Write-Host "Enforced AES on dMSA: $($_.Name)"
-  }
-```
+--8<-- "includes/set-aes-dmsa.md"
 
 ---
 

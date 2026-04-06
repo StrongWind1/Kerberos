@@ -352,26 +352,11 @@ Kerberos.
 
 ### Hardening Recommendations
 
-- Set the **"Account is sensitive and cannot be delegated"** flag on high-value accounts (Domain
-  Admins, user service accounts with privileged access). This prevents those accounts from being
-  delegated regardless of the delegation type.
-- Add high-value accounts to the **Protected Users** security group. Members of this group cannot
-  be delegated and their TGTs are not forwardable.
-- Audit all accounts with unconstrained delegation:
-  ```powershell title="Audit unconstrained delegation on computer and user accounts"
-  Get-ADComputer -Filter 'TrustedForDelegation -eq $true' |
-    Select-Object Name, DNSHostName
-  Get-ADUser -Filter 'TrustedForDelegation -eq $true' |
-    Select-Object Name, SamAccountName
-  ```
-- Audit all constrained delegation configurations:
-  ```powershell title="Audit all constrained delegation configurations"
-  Get-ADObject -Filter 'msDS-AllowedToDelegateTo -like "*"' `
-    -Properties msDS-AllowedToDelegateTo |
-    Select-Object Name, ObjectClass, msDS-AllowedToDelegateTo
-  ```
-- Prefer RBCD over constrained delegation when the resource owner should control access, but
-  carefully manage who has write access to computer objects.
+The short version: flag high-value accounts as "sensitive and cannot be delegated" or add
+them to Protected Users, audit all unconstrained and constrained delegation configurations,
+and prefer RBCD where the resource owner should control access.  For the full audit
+commands and priority-ordered hardening checklist, see
+[Mitigations — Delegation Lockdown](../security/mitigations.md#priority-6-delegation-lockdown).
 
 ---
 

@@ -232,17 +232,7 @@ Uncheck any DES or RC4 options.  This sets `msDS-SupportedEncryptionTypes = 0x18
 
 ### Bulk Update: All SPN-Bearing User Accounts
 
-```powershell title="Bulk set AES-only on all SPN-bearing user accounts"
-$target = 24
-
-Get-ADUser -Filter 'servicePrincipalName -like "*"' `
-  -Properties 'msDS-SupportedEncryptionTypes' |
-  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne $target } |
-  ForEach-Object {
-    Set-ADUser -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = $target }
-    Write-Host "Updated: $($_.sAMAccountName)"
-  }
-```
+--8<-- "includes/set-aes-user-accounts.md"
 
 !!! warning "Reset passwords before or after setting AES"
     If an account does not have AES keys (password was never reset after DFL 2008), setting
@@ -254,39 +244,15 @@ Get-ADUser -Filter 'servicePrincipalName -like "*"' `
 
 ### Bulk Update: All gMSA Accounts
 
-```powershell title="Bulk set AES-only on all gMSA accounts"
-Get-ADServiceAccount -Filter * -Properties objectClass, 'msDS-SupportedEncryptionTypes' |
-  Where-Object { $_.objectClass -contains 'msDS-GroupManagedServiceAccount' } |
-  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
-  ForEach-Object {
-    Set-ADServiceAccount -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
-    Write-Host "Updated gMSA: $($_.sAMAccountName)"
-  }
-```
+--8<-- "includes/set-aes-gmsa.md"
 
 ### Bulk Update: All MSA Accounts
 
-```powershell title="Bulk set AES-only on all MSA accounts"
-Get-ADServiceAccount -Filter * -Properties objectClass, 'msDS-SupportedEncryptionTypes' |
-  Where-Object { $_.objectClass -contains 'msDS-ManagedServiceAccount' } |
-  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
-  ForEach-Object {
-    Set-ADServiceAccount -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
-    Write-Host "Updated MSA: $($_.sAMAccountName)"
-  }
-```
+--8<-- "includes/set-aes-msa.md"
 
 ### Bulk Update: All dMSA Accounts
 
-```powershell title="Bulk set AES-only on all dMSA accounts"
-Get-ADObject -LDAPFilter '(&(objectClass=msDS-DelegatedManagedServiceAccount)(servicePrincipalName=*))' `
-  -Properties 'msDS-SupportedEncryptionTypes' |
-  Where-Object { [int]$_.'msDS-SupportedEncryptionTypes' -ne 24 } |
-  ForEach-Object {
-    Set-ADObject -Identity $_ -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
-    Write-Host "Updated dMSA: $($_.Name)"
-  }
-```
+--8<-- "includes/set-aes-dmsa.md"
 
 ### Bulk Update: Computer Accounts in a Specific OU
 
