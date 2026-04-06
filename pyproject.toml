@@ -6,7 +6,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.11,<3.15"
 authors = [
-    { name = "StrongWind1" },
+    {name = "StrongWind1"},
 ]
 keywords = [
     "active-directory",
@@ -17,6 +17,11 @@ keywords = [
     "security",
     "windows",
 ]
+
+[project.urls]
+Repository = "https://github.com/StrongWind1/Kerberos"
+Documentation = "https://strongwind1.github.io/Kerberos/"
+Issues = "https://github.com/StrongWind1/Kerberos/issues"
 
 [dependency-groups]
 docs = [
