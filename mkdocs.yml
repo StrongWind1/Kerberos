@@ -1,8 +1,8 @@
 site_name: Kerberos in Active Directory
 site_description: Comprehensive guide to Kerberos authentication in Microsoft Windows Active Directory.
-site_url: https://kerbwolf.github.io/kerberos
-repo_url: https://github.com/kerbwolf/kerberos
-repo_name: kerbwolf/kerberos
+site_url: https://strongwind1.github.io/Kerberos/
+repo_url: https://github.com/StrongWind1/Kerberos
+repo_name: StrongWind1/Kerberos
 edit_uri: edit/main/content/
 copyright: Copyright &copy; 2025 - 2026 StrongWind1
 
