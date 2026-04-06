@@ -76,6 +76,16 @@ Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\KDC" `
     If an account has `msDS-SupportedEncryptionTypes` explicitly set to any non-zero value,
     `DefaultDomainSupportedEncTypes` is completely ignored for that account.
 
+!!! warning "DDSET is filtered by the KDC's own allowed etypes"
+    `DefaultDomainSupportedEncTypes` is **not** used in isolation — the KDC intersects it
+    with the etypes it is configured to allow (via `SupportedEncryptionTypes` GPO or the
+    KDC's built-in etype list).  If the KDC does not support RC4 (because Group Policy
+    restricts it to AES-only), RC4 will **not** be used even if
+    `DefaultDomainSupportedEncTypes` includes it.  Conversely, if
+    `DefaultDomainSupportedEncTypes` is set to AES-only but the KDC's GPO allows RC4,
+    the KDC will still only assume AES for unconfigured accounts — the DDSET value is the
+    ceiling, not a floor.
+
 ---
 
 ## KdcUseRequestedEtypesForTickets

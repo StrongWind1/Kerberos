@@ -405,7 +405,54 @@ password reset is needed — they have the AES **configuration** but no AES **ke
 Look for Event ID 4768 (AS-REQ) or 4769 (TGS-REQ) where the ticket encryption type is
 `0x17` (RC4-HMAC) for accounts you have already configured for AES.
 
-**Splunk query:**
+#### Event 4768 / 4769 Property Index Reference
+
+Recent Windows updates (January 2025+) extended events 4768 and 4769 with new
+properties for `msDS-SupportedEncryptionTypes`, account keys, and the session key etype.
+The table below shows the property indices used in the PowerShell examples on this page.
+
+**Event 4769** (TGS-REQ) — 21 properties in the new format:
+
+| Index | Field | Example Value |
+|---|---|---|
+| 0 | Requesting account (UPN) | `svc_sql@CORP.LOCAL` |
+| 2 | Target service name | `MSSQLSvc/sql01.corp.local` |
+| 5 | **Ticket encryption type** | `18` (AES256-SHA1) or `23` (RC4) |
+| 6 | Client IP address | `192.168.1.50` |
+| 15 | msDS-SupportedEncryptionTypes string | `0x1C (RC4, AES128-SHA96, AES256-SHA96)` |
+| 16 | Account key types | `AES128-SHA96, AES256-SHA96, RC4` |
+| 20 | **Session key encryption type** | `18` |
+
+**Event 4768** (AS-REQ) — 24 properties in the new format:
+
+| Index | Field | Example Value |
+|---|---|---|
+| 0 | Account name | `jsmith` |
+| 3 | Target service | `krbtgt` |
+| 7 | **Ticket encryption type** | `18` or `23` |
+| 9 | Client IP address | `192.168.1.50` |
+| 15 | msDS-SupportedEncryptionTypes string | `0x18 (AES128-SHA96, AES256-SHA96)` |
+| 16 | Account key types | `AES128-SHA96, AES256-SHA96` |
+| 22 | **Session key encryption type** | `18` |
+
+!!! warning "Event format varies by Windows version"
+    These property indices require the **new event format** from January 2025+ updates.
+    Events from unpatched DCs have fewer properties (< 21 for 4769, < 24 for 4768) and
+    do not contain the session key etype, account keys, or `msDS-SupportedEncryptionTypes`
+    fields.
+
+    Additionally, the account key string format differs between versions:
+
+    - **Server 2022**: keys reported as `"AES-SHA1, RC4"` (aggregated)
+    - **Server 2025+**: keys reported individually as `"AES128-SHA96, AES256-SHA96, RC4"`
+
+    Microsoft's
+    [`List-AccountKeys.ps1`](https://github.com/microsoft/Kerberos-Crypto/tree/main/scripts)
+    normalizes both formats automatically.
+
+#### Queries
+
+**Splunk:**
 
 ```spl title="Find accounts configured for AES but still getting RC4 tickets"
 index=wineventlog EventCode IN (4768, 4769) Ticket_Encryption_Type=0x17
@@ -434,19 +481,27 @@ $aesAccounts = Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -ge 8' `
   Where-Object { $_.servicePrincipalName } |
   Select-Object -ExpandProperty sAMAccountName
 
-# Check event logs for RC4 tickets issued to those accounts
+# Check event logs for RC4 tickets or RC4 session keys issued to those accounts.
+# Properties[5] = ticket etype, Properties[20] = session key etype (new format).
 Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 4769 } |
   Where-Object {
-    $_.Properties[5].Value -eq '0x17' -and
-    $aesAccounts -contains $_.Properties[2].Value
+    $_.Properties.Count -ge 21 -and
+    $aesAccounts -contains $_.Properties[2].Value -and
+    ($_.Properties[5].Value -eq '0x17' -or $_.Properties[20].Value -eq '0x17')
   } |
   Select-Object TimeCreated,
     @{N='Account'; E={$_.Properties[2].Value}},
     @{N='Service'; E={$_.Properties[0].Value}},
-    @{N='Etype'; E={$_.Properties[5].Value}} |
+    @{N='TicketEtype'; E={$_.Properties[5].Value}},
+    @{N='SessionKeyEtype'; E={$_.Properties[20].Value}} |
   Sort-Object Account -Unique |
   Format-Table -AutoSize
 ```
+
+The query checks both the ticket etype and the session key etype.  An account using the
+[AES-SK split](etype-decision-guide.md#the-aes-sk-split-when-ticket-and-session-key-differ) may show an AES ticket etype
+but an RC4 session key etype — both fields must be checked.  The `Properties.Count -ge
+21` guard ensures only events in the new format (January 2025+ updates) are processed.
 
 Each account that appears in this output needs a password reset (or the
 [FGPP same-password technique](#generating-aes-keys-without-changing-the-password) above)

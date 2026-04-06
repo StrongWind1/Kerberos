@@ -151,3 +151,19 @@ Attack pages use [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impack
 | `List-AccountKeys.ps1` | List Kerberos key types stored for each account |
 
 See [Detect Kerberos RC4 usage](https://learn.microsoft.com/en-us/windows-server/security/kerberos/detect-rc4) for Microsoft's official usage guidance.  These scripts are used directly in the [RC4 Deprecation](security/rc4-deprecation.md#step-2-identify-rc4-usage) pre-enforcement checklist.
+
+### PSKerb
+
+[PSKerb](https://github.com/microsoft/Kerberos-Crypto/tree/main/PSKerb) -- PowerShell module for reading and writing Kerberos client registry configuration on Windows:
+
+```powershell
+Install-Module -Name PSKerb
+```
+
+| Command | Purpose |
+|---|---|
+| `Get-KerbConfig` | Display all Kerberos client registry settings with human-readable values |
+| `Set-KerbConfig` | Set one or more Kerberos registry settings (e.g. `-SupportedEncryptionTypes AES256-SHA96`) |
+| `Clear-KerbConfig` | Remove registry overrides, reverting settings to defaults |
+
+Covers 22 settings under `HKLM\...\Policies\System\Kerberos\Parameters` including `SupportedEncryptionTypes`, `DefaultEncryptionType`, `MaxTokenSize`, and timeout/retry tuning.  See [Registry Settings](security/registry.md) for the security-relevant subset.

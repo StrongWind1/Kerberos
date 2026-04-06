@@ -220,10 +220,28 @@ They are only meaningful on the AD attribute, not in registry-based settings.
 | 18 | `0x40000` | 262144 | Claims-supported | Server 2012 | Account supports claims-based authentication |
 | 19 | `0x80000` | 524288 | Resource-SID-compression-disabled | Server 2012 | Disables resource SID compression in the PAC |
 
+### AES-SHA2 Encryption Types (6-7)
+
+Windows Server 2025 introduces two new AES encryption types that use SHA-2 based key
+derivation instead of SHA-1[^aes-sha2].  These bits are defined in the bitmask but are
+**not yet active in etype negotiation** as of April 2026.
+
+| Bit | Hex | Decimal | Name | Etype # | Status |
+|---|---|---|---|---|---|
+| 6 | `0x40` | 64 | AES128-CTS-HMAC-SHA256-128 | 19 | Defined, not yet active |
+| 7 | `0x80` | 128 | AES256-CTS-HMAC-SHA384-192 | 20 | Defined, not yet active |
+
+[^aes-sha2]: These algorithms are defined in Microsoft's
+    [PSKerb](https://github.com/microsoft/Kerberos-Crypto/tree/main/PSKerb) module and
+    appear in the `Get-KerbEncryptionUsage.ps1` etype table.  They correspond to
+    [RFC 8009](https://datatracker.ietf.org/doc/html/rfc8009) (AES Encryption with
+    HMAC-SHA2 for Kerberos 5).  When activated, they will replace the SHA-1 based AES
+    variants (bits 3-4) as the strongest available etypes.
+
 ### Reserved and Future Bits
 
 | Bit | Hex | Decimal | Name | Notes |
 |---|---|---|---|---|
-| 6-15 | — | — | Reserved | Must be zero |
+| 8-15 | — | — | Reserved | Must be zero |
 | 20-30 | — | — | Reserved | Must be zero |
 | 31 | `0x80000000` | 2147483648 | Future encryption types | Allows future etypes added by Microsoft |
