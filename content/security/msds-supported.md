@@ -40,7 +40,7 @@ SPN).  It is safe to clear.
 ### Find Non-SPN User Accounts with msDS-SET Configured
 
 ```powershell title="Find user accounts without SPNs that have msDS-SupportedEncryptionTypes set (unnecessary)"
-Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -ge 1' `
+Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -like "*"' `
   -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
   Where-Object { -not $_.servicePrincipalName } |
   Select-Object sAMAccountName,
@@ -54,7 +54,7 @@ Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -ge 1' `
 If the list is non-empty, you can clear the unnecessary attribute:
 
 ```powershell title="Clear msDS-SupportedEncryptionTypes from non-SPN user accounts"
-Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -ge 1' `
+Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -like "*"' `
   -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
   Where-Object { -not $_.servicePrincipalName } |
   ForEach-Object {
