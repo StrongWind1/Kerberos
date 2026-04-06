@@ -15,6 +15,56 @@ thing you can do to secure Kerberos in your domain.
 
 ---
 
+## Accounts Without SPNs: msDS-SET Does Not Matter { #no-spn-accounts }
+
+The KDC only reads `msDS-SupportedEncryptionTypes` on the **target account** of a
+TGS-REQ — the account that owns the SPN the client is requesting a service ticket for.
+Regular user accounts without SPNs are never the target of a TGS-REQ, so their
+`msDS-SupportedEncryptionTypes` value is never consulted during normal Kerberos
+operation.
+
+What **does** affect a non-SPN user's Kerberos experience:
+
+| Kerberos component | What controls it | `msDS-SET` involved? |
+|---|---|---|
+| Pre-authentication etype | User's stored keys + client etype list | No |
+| TGT ticket encryption | `krbtgt`'s keys (always AES256 on DFL >= 2008) | No |
+| TGT session key | Client etype list + KDC config | No |
+| Service tickets *to* this user | Never issued (no SPN = no service ticket) | N/A |
+
+Setting `msDS-SupportedEncryptionTypes` on a user account without an SPN has no effect
+on Kerberos behavior.  If you find accounts configured this way, the attribute was likely
+set by mistake (bulk script that didn't filter by SPN, or leftover config from a removed
+SPN).  It is safe to clear.
+
+### Find Non-SPN User Accounts with msDS-SET Configured
+
+```powershell title="Find user accounts without SPNs that have msDS-SupportedEncryptionTypes set (unnecessary)"
+Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -ge 1' `
+  -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
+  Where-Object { -not $_.servicePrincipalName } |
+  Select-Object sAMAccountName,
+    @{N='msDS-SET (dec)'; E={[int]$_.'msDS-SupportedEncryptionTypes'}},
+    @{N='msDS-SET (hex)'; E={'0x{0:X}' -f [int]$_.'msDS-SupportedEncryptionTypes'}},
+    Enabled |
+  Sort-Object 'msDS-SET (dec)' -Descending |
+  Format-Table -AutoSize
+```
+
+If the list is non-empty, you can clear the unnecessary attribute:
+
+```powershell title="Clear msDS-SupportedEncryptionTypes from non-SPN user accounts"
+Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -ge 1' `
+  -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
+  Where-Object { -not $_.servicePrincipalName } |
+  ForEach-Object {
+    Set-ADUser -Identity $_ -Clear 'msDS-SupportedEncryptionTypes'
+    Write-Host "Cleared msDS-SET on: $($_.sAMAccountName)"
+  }
+```
+
+---
+
 ## What It Is
 
 `msDS-SupportedEncryptionTypes` is a 32-bit integer attribute on user, computer, Group
