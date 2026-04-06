@@ -1,4 +1,6 @@
 ---
+hide:
+  - toc
 ---
 
 # Encryption Type Calculator
@@ -11,8 +13,6 @@ For the full reference on each setting, see
 [msDS-SupportedEncryptionTypes](msds-supported.md),
 [Registry Settings](registry.md), and
 [Group Policy](group-policy.md).
-
----
 
 <div id="etype-calculator">
 <div class="etype-tabs">
