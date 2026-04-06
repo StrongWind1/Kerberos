@@ -10,6 +10,13 @@
   "use strict";
 
   /* ------------------------------------------------------------------ */
+  /*  Constants                                                          */
+  /* ------------------------------------------------------------------ */
+
+  /** Maximum valid unsigned 32-bit value. */
+  var MAX_U32 = 0xFFFFFFFF;
+
+  /* ------------------------------------------------------------------ */
   /*  Bit definitions — [MS-KILE] §2.2.7                                */
   /* ------------------------------------------------------------------ */
 
@@ -24,7 +31,7 @@
     { bit: 17, hex: "0x20000", dec: 131072, name: "Compound-identity-supported", etype: null, status: "feature", note: "Server 2012+" },
     { bit: 18, hex: "0x40000", dec: 262144, name: "Claims-supported", etype: null, status: "feature", note: "Server 2012+" },
     { bit: 19, hex: "0x80000", dec: 524288, name: "Resource-SID-compression-disabled", etype: null, status: "feature", note: "Server 2012+" },
-    { bit: 31, hex: "0x80000000", dec: 2147483648, name: "Future encryption types", etype: null, status: "neutral", note: "" }
+    { bit: 31, hex: "0x80000000", dec: 2147483648, name: "Future encryption types", etype: null, status: "special", note: "" }
   ];
 
   /* ------------------------------------------------------------------ */
@@ -36,12 +43,11 @@
       id: "msds",
       label: "msDS-SupportedEncryptionTypes",
       desc: "AD attribute on each account — controls which etypes the KDC uses for this account's service tickets.  Also carries protocol feature flags (bits 16-19).",
-      ignoredBits: [5],
+      ignoredBits: [5, 31],
       presets: [
         { label: "AES-only", value: 0x18, rec: true },
         { label: "RC4 + AES", value: 0x1C },
-        { label: "Legacy (DES+RC4+AES)", value: 0x1F },
-        { label: "Clear (0)", value: 0 }
+        { label: "Clear", value: 0 }
       ],
       powershell: function (v) {
         return 'Set-ADUser -Identity <account> -Replace @{\n  \'msDS-SupportedEncryptionTypes\' = ' + v + "\n}";
@@ -51,7 +57,7 @@
       id: "default",
       label: "DefaultDomainSupportedEncTypes",
       desc: "Registry on each DC — assumed etypes for accounts with no explicit msDS-SupportedEncryptionTypes.",
-      ignoredBits: [16, 17, 18, 19],
+      ignoredBits: [16, 17, 18, 19, 31],
       presets: [
         { label: "AES-only", value: 0x18, rec: true },
         { label: "AES + AES-SK", value: 0x38 },
@@ -85,6 +91,8 @@
 
   var currentSetting = "msds";
   var currentValue = 0;
+  /** Track which preset (by value) is actively selected, or null for custom. */
+  var activePresetValue = null;
 
   /* ------------------------------------------------------------------ */
   /*  DOM references (set in init)                                      */
@@ -92,18 +100,33 @@
 
   var root;
 
-  function q(sel) { return root.querySelector(sel); }
-  function qa(sel) { return root.querySelectorAll(sel); }
+  /** Safe querySelector — returns null instead of crashing on missing markup. */
+  function q(sel) { return root ? root.querySelector(sel) : null; }
+  function qa(sel) { return root ? root.querySelectorAll(sel) : []; }
+
+  /* ------------------------------------------------------------------ */
+  /*  Validation helpers                                                */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Clamp a numeric value to the unsigned 32-bit range [0, 0xFFFFFFFF].
+   * Returns NaN if the input is not a finite number.
+   */
+  function toU32(v) {
+    if (!isFinite(v) || isNaN(v)) return NaN;
+    if (v < 0 || v > MAX_U32) return NaN;
+    return v >>> 0;
+  }
 
   /* ------------------------------------------------------------------ */
   /*  Core logic                                                        */
   /* ------------------------------------------------------------------ */
 
-  /** Read checkboxes and compute the integer value. */
+  /** Read checkboxes and compute the integer value using bitwise OR. */
   function valueFromCheckboxes() {
     var v = 0;
     qa(".etype-cb").forEach(function (cb) {
-      if (cb.checked) v = (v + parseInt(cb.value, 10)) >>> 0;
+      if (cb.checked) v = (v | parseInt(cb.value, 10)) >>> 0;
     });
     return v;
   }
@@ -122,11 +145,29 @@
     return "0x" + (v >>> 0).toString(16).toUpperCase();
   }
 
-  /** Parse a hex string (with or without 0x prefix). */
+  /**
+   * Parse a hex string (with or without 0x prefix).
+   * Returns NaN if the string is not valid hex or exceeds 32 bits.
+   */
   function parseHex(s) {
     s = s.replace(/^0x/i, "").trim();
-    if (!/^[0-9a-fA-F]+$/.test(s)) return NaN;
-    return parseInt(s, 16) >>> 0;
+    if (!s || !/^[0-9a-fA-F]+$/.test(s)) return NaN;
+    /* Reject values that exceed 8 hex digits (> 0xFFFFFFFF) */
+    if (s.replace(/^0+/, "").length > 8) return NaN;
+    var v = parseInt(s, 16);
+    return toU32(v);
+  }
+
+  /**
+   * Parse a value string as either hex (0x prefix) or decimal.
+   * Returns NaN if invalid or out of range.
+   */
+  function parseValue(s) {
+    s = (s || "").trim();
+    if (/^0x/i.test(s)) return parseHex(s);
+    var v = Number(s);
+    if (!Number.isInteger(v)) return NaN;
+    return toU32(v);
   }
 
   /** Build comma-separated flag name list from value. */
@@ -137,6 +178,21 @@
       if (((v & b.dec) >>> 0) === (b.dec >>> 0)) names.push(b.name);
     });
     return names.join(", ");
+  }
+
+  /** Build a bitmask of all ignored bits for the current setting. */
+  function ignoredBitMask(settingId) {
+    var mask = 0;
+    var ignored = SETTINGS[settingId].ignoredBits;
+    for (var i = 0; i < ignored.length; i++) {
+      mask = (mask | (1 << ignored[i])) >>> 0;
+    }
+    return mask;
+  }
+
+  /** Strip ignored bits from a value so we only store meaningful bits. */
+  function normalizeValue(v, settingId) {
+    return (v & ~ignoredBitMask(settingId)) >>> 0;
   }
 
   /** Evaluate the security status of the current value + setting. */
@@ -168,6 +224,10 @@
     if ((v & 0x20) !== 0 && settingId !== "default") {
       w.push("The AES-SK bit (0x20) is only honored in DefaultDomainSupportedEncTypes. It has no effect in " + SETTINGS[settingId].label + ".");
     }
+    /* Warn about feature flags in non-msds settings */
+    if (settingId !== "msds" && (v & 0xF0000) !== 0) {
+      w.push("Feature flag bits 16-19 are only meaningful on msDS-SupportedEncryptionTypes. They have no effect in " + SETTINGS[settingId].label + ".");
+    }
     if (v === 0 && settingId === "msds") {
       w.push("Value 0 means the attribute is not set. The KDC falls back to DefaultDomainSupportedEncTypes, which includes RC4 by default.");
     }
@@ -183,76 +243,121 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /*  Preset matching                                                   */
+  /* ------------------------------------------------------------------ */
+
+  /** Check if the current value matches any preset for the current setting. */
+  function findMatchingPreset() {
+    var presets = SETTINGS[currentSetting].presets;
+    for (var i = 0; i < presets.length; i++) {
+      if ((presets[i].value >>> 0) === currentValue) return presets[i].value;
+    }
+    return null;
+  }
+
+  /* ------------------------------------------------------------------ */
   /*  UI update                                                         */
   /* ------------------------------------------------------------------ */
 
   function updateUI() {
     var setting = SETTINGS[currentSetting];
 
+    /* Normalize: strip ignored bits for the active setting.  Centralized here
+       so every code path (hash load, input, checkbox, preset, tab switch) is
+       guaranteed to produce a clean value before display. */
+    currentValue = normalizeValue(currentValue, currentSetting);
+
     /* Update value displays */
-    q("#etype-dec").value = currentValue;
-    q("#etype-hex").value = toHex(currentValue);
-    q("#etype-flags").value = flagNames(currentValue);
+    var decEl = q("#etype-dec");
+    var hexEl = q("#etype-hex");
+    var flagsEl = q("#etype-flags");
+    if (decEl) decEl.value = currentValue;
+    if (hexEl) hexEl.value = toHex(currentValue);
+    if (flagsEl) flagsEl.value = flagNames(currentValue);
 
-    /* Update checkboxes */
+    /* Update checkboxes + disable ignored bits */
     setCheckboxes(currentValue);
-
-    /* Disable/annotate ignored bits */
     qa(".etype-cb").forEach(function (cb) {
       var bitVal = parseInt(cb.value, 10);
-      var bitNum = Math.log2(bitVal);
+      var bitNum = BITS.reduce(function (found, b) {
+        return b.dec === bitVal ? b.bit : found;
+      }, -1);
       var row = cb.closest(".etype-bit-row");
-      if (setting.ignoredBits.indexOf(bitNum) !== -1) {
-        row.classList.add("etype-bit--ignored");
-        row.querySelector(".etype-bit-ignored-note").textContent = "(ignored for this setting)";
-      } else {
-        row.classList.remove("etype-bit--ignored");
-        row.querySelector(".etype-bit-ignored-note").textContent = "";
+      var isIgnored = bitNum !== -1 && setting.ignoredBits.indexOf(bitNum) !== -1;
+      if (row) {
+        row.classList.toggle("etype-bit--ignored", isIgnored);
+        var noteEl = row.querySelector(".etype-bit-ignored-note");
+        if (noteEl) noteEl.textContent = isIgnored ? "(ignored for this setting)" : "";
       }
+      /* Actually disable ignored checkboxes so users cannot set meaningless bits */
+      cb.disabled = isIgnored;
+      if (isIgnored) cb.checked = false;
     });
 
     /* Status badge */
     var status = evaluateStatus(currentValue, currentSetting);
     var badge = q("#etype-status");
-    badge.className = "etype-status " + status.cls;
-    badge.textContent = status.text;
+    if (badge) {
+      badge.className = "etype-status " + status.cls;
+      badge.textContent = status.text;
+    }
 
-    /* Warnings */
+    /* Warnings — use safe DOM creation instead of innerHTML */
     var warnings = getWarnings(currentValue, currentSetting);
     var warnEl = q("#etype-warnings");
     var noWarnEl = q("#etype-no-warnings");
-    if (warnings.length === 0) {
-      warnEl.style.display = "none";
+    if (warnEl) {
       warnEl.innerHTML = "";
-      if (noWarnEl) noWarnEl.style.display = "";
-    } else {
-      warnEl.style.display = "block";
-      warnEl.innerHTML = warnings.map(function (w) {
-        return '<div class="etype-warning-item">' + w + "</div>";
-      }).join("");
-      if (noWarnEl) noWarnEl.style.display = "none";
+      if (warnings.length === 0) {
+        warnEl.style.display = "none";
+        if (noWarnEl) noWarnEl.style.display = "";
+      } else {
+        warnEl.style.display = "block";
+        warnings.forEach(function (w) {
+          var div = document.createElement("div");
+          div.className = "etype-warning-item";
+          div.textContent = w;
+          warnEl.appendChild(div);
+        });
+        if (noWarnEl) noWarnEl.style.display = "none";
+      }
     }
 
     /* PowerShell */
-    q("#etype-powershell").textContent = getPowershell(currentValue, currentSetting);
+    var psEl = q("#etype-powershell");
+    if (psEl) psEl.textContent = getPowershell(currentValue, currentSetting);
 
     /* Setting description */
-    q("#etype-setting-desc").textContent = setting.desc;
+    var descEl = q("#etype-setting-desc");
+    if (descEl) descEl.textContent = setting.desc;
 
-    /* Presets */
+    /* Presets — rebuild with checkmark on active match */
+    activePresetValue = findMatchingPreset();
     var presetsEl = q("#etype-presets");
-    presetsEl.innerHTML = "";
-    setting.presets.forEach(function (p) {
-      var btn = document.createElement("button");
-      btn.className = "etype-preset-btn" + (p.rec ? " etype-preset-btn--rec" : "");
-      btn.textContent = p.label + " (" + toHex(p.value) + ")";
-      btn.addEventListener("click", function () {
-        currentValue = p.value >>> 0;
-        updateUI();
-        pushHash();
+    if (presetsEl) {
+      presetsEl.innerHTML = "";
+      setting.presets.forEach(function (p) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        var isActive = activePresetValue !== null && (p.value >>> 0) === (activePresetValue >>> 0);
+        btn.className = "etype-preset-btn"
+          + (p.rec ? " etype-preset-btn--rec" : "")
+          + (isActive ? " etype-preset-btn--active" : "");
+        btn.textContent = (isActive ? "\u2713 " : "") + p.label + " (" + toHex(p.value) + ")";
+        btn.addEventListener("click", function () {
+          var newVal = p.value >>> 0;
+          if (currentValue === newVal) {
+            /* Clicking the already-active preset deselects it (resets to 0) */
+            currentValue = 0;
+          } else {
+            currentValue = newVal;
+          }
+          updateUI();
+          pushHash();
+        });
+        presetsEl.appendChild(btn);
       });
-      presetsEl.appendChild(btn);
-    });
+    }
 
     /* Tab active states */
     qa(".etype-tab").forEach(function (tab) {
@@ -264,21 +369,31 @@
   /*  URL hash                                                          */
   /* ------------------------------------------------------------------ */
 
+  /** Write the current state to the URL hash in hex format. */
   function pushHash() {
-    var hash = "#" + currentSetting + "=" + currentValue;
-    if (history.replaceState) {
-      history.replaceState(null, "", hash);
+    try {
+      var hash = "#" + currentSetting + "=" + toHex(currentValue);
+      if (history.replaceState) {
+        history.replaceState(null, "", hash);
+      }
+    } catch (_) {
+      /* Swallow SecurityError in sandboxed iframes etc. */
     }
   }
 
+  /** Read state from the URL hash.  Accepts both decimal and hex values. */
   function readHash() {
-    var h = location.hash.replace(/^#/, "");
-    if (!h) return;
-    var parts = h.split("=");
-    if (parts.length === 2 && SETTINGS[parts[0]]) {
-      currentSetting = parts[0];
-      var v = parseInt(parts[1], 10);
-      if (!isNaN(v)) currentValue = v >>> 0;
+    try {
+      var h = location.hash.replace(/^#/, "");
+      if (!h) return;
+      var parts = h.split("=");
+      if (parts.length === 2 && SETTINGS[parts[0]]) {
+        currentSetting = parts[0];
+        var v = parseValue(parts[1]);
+        if (!isNaN(v)) currentValue = v;
+      }
+    } catch (_) {
+      /* Swallow if location is inaccessible */
     }
   }
 
@@ -287,7 +402,9 @@
   /* ------------------------------------------------------------------ */
 
   function copyText(text, btn) {
-    navigator.clipboard.writeText(text).then(function () {
+    if (!btn) return;
+    /* Try the modern clipboard API first, fall back to execCommand */
+    var done = function () {
       var orig = btn.textContent;
       btn.textContent = "Copied";
       btn.classList.add("etype-copy-btn--copied");
@@ -295,7 +412,34 @@
         btn.textContent = orig;
         btn.classList.remove("etype-copy-btn--copied");
       }, 1200);
-    });
+    };
+    var fail = function () {
+      var orig = btn.textContent;
+      btn.textContent = "Failed";
+      btn.classList.add("etype-copy-btn--failed");
+      setTimeout(function () {
+        btn.textContent = orig;
+        btn.classList.remove("etype-copy-btn--failed");
+      }, 1500);
+    };
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+    } else {
+      /* Fallback: temporary textarea + execCommand */
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) { done(); } else { fail(); }
+      } catch (_) {
+        fail();
+      }
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -309,16 +453,33 @@
   }
 
   function onDecInput() {
-    var v = parseInt(q("#etype-dec").value, 10);
-    if (isNaN(v) || v < 0) v = 0;
+    var el = q("#etype-dec");
+    if (!el) return;
+    var raw = el.value.trim();
+    if (raw === "") return; /* Let the user clear the field without side effects */
+    var v = Number(raw);
+    if (!Number.isInteger(v) || v < 0 || v > MAX_U32) {
+      el.classList.add("etype-input--invalid");
+      return;
+    }
+    el.classList.remove("etype-input--invalid");
     currentValue = v >>> 0;
     updateUI();
     pushHash();
   }
 
   function onHexInput() {
-    var v = parseHex(q("#etype-hex").value);
-    if (isNaN(v)) return;
+    var el = q("#etype-hex");
+    if (!el) return;
+    var raw = el.value.trim();
+    /* Allow partial typing states like empty, "0", "0x" without flickering */
+    if (raw === "" || raw === "0" || /^0x$/i.test(raw)) return;
+    var v = parseHex(raw);
+    if (isNaN(v)) {
+      el.classList.add("etype-input--invalid");
+      return;
+    }
+    el.classList.remove("etype-input--invalid");
     currentValue = v;
     updateUI();
     pushHash();
@@ -326,9 +487,20 @@
 
   function onTabClick(e) {
     var tab = e.currentTarget;
+    if (!tab || !tab.dataset.setting || !SETTINGS[tab.dataset.setting]) return;
     currentSetting = tab.dataset.setting;
     updateUI();
     pushHash();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /*  Safe event binding helper                                         */
+  /* ------------------------------------------------------------------ */
+
+  /** Bind an event listener only if the element exists. */
+  function on(sel, event, handler) {
+    var el = q(sel);
+    if (el) el.addEventListener(event, handler);
   }
 
   /* ------------------------------------------------------------------ */
@@ -336,54 +508,69 @@
   /* ------------------------------------------------------------------ */
 
   function init() {
-    root = document.getElementById("etype-calculator");
-    if (!root) return;
+    try {
+      root = document.getElementById("etype-calculator");
+      if (!root) return;
 
-    /* Prevent duplicate listeners on instant nav re-init */
-    if (root.dataset.etypeInit) return;
-    root.dataset.etypeInit = "1";
+      /* Prevent duplicate listeners on instant nav re-init */
+      if (root.dataset.etypeInit) return;
+      root.dataset.etypeInit = "1";
 
-    /* Reset state for fresh page load */
-    currentSetting = "msds";
-    currentValue = 0;
+      /* Mark body for page-specific CSS (back-to-top hiding) */
+      document.body.classList.add("etype-calculator-page");
 
-    /* Tab clicks */
-    qa(".etype-tab").forEach(function (tab) {
-      tab.addEventListener("click", onTabClick);
-    });
+      /* Reset state for fresh page load */
+      currentSetting = "msds";
+      currentValue = 0;
+      activePresetValue = null;
 
-    /* Checkbox changes */
-    qa(".etype-cb").forEach(function (cb) {
-      cb.addEventListener("change", onCheckboxChange);
-    });
+      /* Tab clicks */
+      qa(".etype-tab").forEach(function (tab) {
+        tab.addEventListener("click", onTabClick);
+      });
 
-    /* Decimal input */
-    q("#etype-dec").addEventListener("input", onDecInput);
-    q("#etype-dec").addEventListener("change", onDecInput);
+      /* Checkbox changes */
+      qa(".etype-cb").forEach(function (cb) {
+        cb.addEventListener("change", onCheckboxChange);
+      });
 
-    /* Hex input */
-    q("#etype-hex").addEventListener("input", onHexInput);
-    q("#etype-hex").addEventListener("change", onHexInput);
+      /* Decimal input */
+      on("#etype-dec", "input", onDecInput);
+      on("#etype-dec", "change", onDecInput);
 
-    /* Copy buttons */
-    q("#etype-copy-dec").addEventListener("click", function () {
-      copyText(q("#etype-dec").value, this);
-    });
-    q("#etype-copy-hex").addEventListener("click", function () {
-      copyText(q("#etype-hex").value, this);
-    });
-    q("#etype-copy-flags").addEventListener("click", function () {
-      copyText(q("#etype-flags").value, this);
-    });
-    q("#etype-copy-ps").addEventListener("click", function () {
-      copyText(q("#etype-powershell").textContent, this);
-    });
+      /* Hex input */
+      on("#etype-hex", "input", onHexInput);
+      on("#etype-hex", "change", onHexInput);
 
-    /* Read URL hash */
-    readHash();
+      /* Copy buttons */
+      on("#etype-copy-dec", "click", function () {
+        var el = q("#etype-dec");
+        if (el) copyText(el.value, this);
+      });
+      on("#etype-copy-hex", "click", function () {
+        var el = q("#etype-hex");
+        if (el) copyText(el.value, this);
+      });
+      on("#etype-copy-flags", "click", function () {
+        var el = q("#etype-flags");
+        if (el) copyText(el.value, this);
+      });
+      on("#etype-copy-ps", "click", function () {
+        var el = q("#etype-powershell");
+        if (el) copyText(el.textContent, this);
+      });
 
-    /* Initial render */
-    updateUI();
+      /* Read URL hash */
+      readHash();
+
+      /* Initial render */
+      updateUI();
+    } catch (err) {
+      /* Degrade gracefully — log but do not break the page */
+      if (typeof console !== "undefined" && console.error) {
+        console.error("etype-calculator init failed:", err);
+      }
+    }
   }
 
   /* Run after DOM is ready — handles both instant navigation and first load */
@@ -393,8 +580,12 @@
     init();
   }
 
-  /* mkdocs-material instant navigation re-triggers on page swap */
+  /* mkdocs-material instant navigation re-triggers on page swap.
+     Remove the body class first so it does not persist on non-calculator pages. */
   if (typeof document$ !== "undefined") {
-    document$.subscribe(function () { init(); });
+    document$.subscribe(function () {
+      document.body.classList.remove("etype-calculator-page");
+      init();
+    });
   }
 })();

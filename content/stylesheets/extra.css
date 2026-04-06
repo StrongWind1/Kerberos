@@ -176,7 +176,12 @@
 .etype-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid var(--md-default-bg-color--lightest, #1c2d42);
+  /* Use inset box-shadow instead of border-bottom for the divider line.
+     overflow-x:auto forces overflow-y:auto (CSS spec), which clips the
+     margin-bottom:-2px trick that made tab borders overlap the container
+     border.  An inset shadow renders inside the padding box and is not
+     affected by overflow clipping. */
+  box-shadow: inset 0 -2px 0 0 var(--md-default-bg-color--lightest, #1c2d42);
   margin-bottom: 1rem;
   overflow-x: auto;
 }
@@ -191,7 +196,6 @@
   cursor: pointer;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
   transition: color 0.15s, border-color 0.15s;
 }
 
@@ -459,6 +463,11 @@
   border-color: var(--md-accent-fg-color, #ffd740);
 }
 
+.etype-input-row input.etype-input--invalid {
+  border-color: #f87171;
+  background: #3a1a1a;
+}
+
 .etype-input-row input[readonly] {
   cursor: default;
 }
@@ -486,6 +495,12 @@
   background: #1a3a2a;
   color: #4ade80;
   border-color: #22633a;
+}
+
+.etype-copy-btn--failed {
+  background: #3a1a1a;
+  color: #f87171;
+  border-color: #7f1d1d;
 }
 
 /* Preset buttons */
@@ -517,9 +532,10 @@
   background: #0d1a2d;
 }
 
-.etype-preset-btn--rec::before {
-  content: "\2713 ";
-  color: #4ade80;
+/* Active preset — matches the current value */
+.etype-preset-btn--active {
+  border-color: var(--md-accent-fg-color, #ffd740);
+  background: var(--md-default-bg-color--lightest, #1c2d42);
 }
 
 /* Warnings */
@@ -556,6 +572,22 @@
   color: #92400e;
 }
 
+[data-md-color-scheme="default"] .etype-preset-btn--active {
+  border-color: #f57f17;
+  background: #fff8e1;
+}
+
+[data-md-color-scheme="default"] .etype-copy-btn--failed {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+[data-md-color-scheme="default"] .etype-input-row input.etype-input--invalid {
+  border-color: #f87171;
+  background: #fee2e2;
+}
+
 /* PowerShell block */
 .etype-ps-block {
   position: relative;
@@ -579,4 +611,16 @@
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
+}
+
+/* Hide back-to-top button on the calculator page.
+   CSS :has() for modern browsers; body class fallback set by JS init. */
+body:has(#etype-calculator) .md-top,
+body.etype-calculator-page .md-top {
+  display: none !important;
+}
+
+/* Disabled checkboxes in ignored rows */
+.etype-bit--ignored label {
+  cursor: default;
 }
