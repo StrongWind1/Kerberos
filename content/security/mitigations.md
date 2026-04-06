@@ -366,12 +366,66 @@ original key entirely.
 ### Safe Rotation Process
 
 1. Verify replication health: `repadmin /replsummary`
-2. Reset KRBTGT password (use a script like Microsoft's
-   `Reset-KrbTgt-Password-For-RWDCs-And-RODCs.ps1`).
-3. Wait for replication to complete on all DCs: `repadmin /syncall /e /d`
-4. Reset KRBTGT password a second time.
-5. Wait for replication again.
-6. Monitor for authentication failures (users may need to re-authenticate).
+2. Reset the KRBTGT password using Microsoft's
+   [`New-KrbtgtKeys.ps1`](https://github.com/microsoft/New-KrbtgtKeys.ps1) script.
+3. Force replication and verify it completes on **every** DC:
+   ```powershell
+   repadmin /syncall /e /d /A /P
+   repadmin /replsummary
+   ```
+4. **Wait at least 10-12 hours** (2x the default TGT lifetime of 10 hours) before the
+   second rotation.  This ensures all outstanding TGTs encrypted with the now-previous
+   key have expired.
+5. Reset the KRBTGT password a second time.
+6. Wait for replication again and verify:
+   ```powershell
+   repadmin /syncall /e /d /A /P
+   ```
+7. Validate the new key version and last password set time:
+   ```powershell
+   Get-ADUser krbtgt -Properties msDS-KeyVersionNumber, PasswordLastSet |
+     Select-Object Name, msDS-KeyVersionNumber, PasswordLastSet
+   ```
+8. Monitor for authentication failures (users may need to re-authenticate).
+
+!!! note "AzureADKerberos (Entra Cloud Kerberos Trust)"
+    If your domain uses Azure AD / Entra Cloud Kerberos Trust, there will be a computer
+    object named `AzureADKerberos` in the Domain Controllers OU.  This is a **proxy
+    object**, not a real domain controller — exclude it from DC counts and encryption
+    assessments.
+
+    The `AzureADKerberos` object has its own `krbtgt_AzureAD` account whose keys are
+    **not** rotated by the standard KRBTGT rotation process.  Rotate it separately:
+
+    ```powershell
+    Set-AzureADKerberosServer -Domain "corp.local" -RotateServerKey
+    ```
+
+    Similarly, each **Read-Only Domain Controller** has its own `krbtgt_XXXXX` account
+    (where `XXXXX` is the RODC's connection ID).  These must be rotated independently of
+    the primary KRBTGT — the `New-KrbtgtKeys.ps1` script handles RODCs when run with the
+    `-RODC` parameter.
+
+!!! note "Linux keytab impact"
+    Password rotation on any service account — including KRBTGT — **invalidates existing
+    Kerberos keytab files** that contain the old key.  This affects any Linux or Unix
+    service authenticating via AD Kerberos: Apache (`mod_auth_gssapi`), SSSD, Samba,
+    PostgreSQL, and others.
+
+    After rotating a service account password, regenerate the keytab on each host:
+
+    ```bash
+    # Windows: generate keytab
+    ktpass -out /etc/krb5.keytab -princ HTTP/web.corp.local@CORP.LOCAL \
+      -mapUser corp\svc_web -mapOp set -pass <password> \
+      -ptype KRB5_NT_PRINCIPAL -crypto AES256-SHA1
+
+    # Linux: verify the keytab works
+    kinit -kt /etc/krb5.keytab HTTP/web.corp.local@CORP.LOCAL
+    ```
+
+    For KRBTGT specifically, this is less of an operational concern (services do not hold
+    KRBTGT keytabs), but the principle applies to any Priority 2 password reset.
 
 ---
 
@@ -384,6 +438,55 @@ SPN-bearing accounts with no explicit etype configuration falling back to RC4.  
 [Registry Settings](registry.md#defaultdomainsupportedenctypes) for the commands and the
 [Standardization Guide](aes-standardization.md#step-5-set-defaultdomainsupportedenctypes-on-every-dc)
 for the full per-DC verification workflow.
+
+---
+
+## Priority 11: Trust Encryption Types
+
+Cross-domain and cross-forest trusts have their own `msDS-SupportedEncryptionTypes` value
+on the Trusted Domain Object (TDO).  After the November 2022 update (KB5021131 /
+CVE-2022-37966), trusts with `msDS-SupportedEncryptionTypes = 0` default to **AES** — a
+change from the previous RC4 default.  This means most trusts created or updated after
+November 2022 already use AES with no action required.
+
+However, trusts that have an **explicit** value containing DES or RC4 bits will continue
+using those weaker algorithms regardless of the new default behavior.
+
+### Find Trusts with Explicit RC4 or DES
+
+```powershell title="Find trust objects with explicit RC4 or DES encryption types"
+Get-ADObject -Filter 'objectClass -eq "trustedDomain"' `
+  -Properties msDS-SupportedEncryptionTypes, trustDirection, trustType, flatName |
+  Where-Object {
+    $set = [int]$_.'msDS-SupportedEncryptionTypes'
+    # Bit 0x4 = RC4, bits 0x1/0x2 = DES
+    $set -gt 0 -and ($set -band 0x7)
+  } |
+  Select-Object flatName, trustDirection, trustType,
+    @{N='msDS-SET (dec)'; E={[int]$_.'msDS-SupportedEncryptionTypes'}},
+    @{N='msDS-SET (hex)'; E={'0x{0:X}' -f [int]$_.'msDS-SupportedEncryptionTypes'}} |
+  Format-Table -AutoSize
+```
+
+### Remediation
+
+For trusts that show RC4 or DES in the output above, either:
+
+1. **Clear the attribute** to let it default to AES (recommended for post-November 2022
+   DCs):
+   ```powershell
+   Set-ADObject -Identity "CN=PARTNER,CN=System,DC=corp,DC=local" `
+     -Clear 'msDS-SupportedEncryptionTypes'
+   ```
+
+2. **Set it explicitly to AES-only** (`0x18`):
+   ```powershell
+   Set-ADObject -Identity "CN=PARTNER,CN=System,DC=corp,DC=local" `
+     -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
+   ```
+
+After changing trust encryption, reset the trust password from both sides (`netdom trust
+/resetOnTrust`) and verify cross-domain authentication still works.
 
 ---
 
@@ -401,3 +504,4 @@ for the full per-DC verification workflow.
 | 8 | Deploy honeypot SPN accounts | Kerberoast detection |
 | 9 | Rotate KRBTGT password regularly | Golden Ticket |
 | 10 | Set `DefaultDomainSupportedEncTypes = 0x18` on all DCs | Kerberoasting (domain-wide default) |
+| 11 | Audit and remediate trust encryption types | RC4/DES on cross-domain trusts |

@@ -140,3 +140,14 @@ Attack pages use [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impack
 | `kw-asrep` | AS-REP roasting |
 | `kw-extract` | Offline hash extraction from pcap captures |
 | `kw-tgt` | TGT acquisition (pass-the-key / overpass-the-hash) |
+
+### Microsoft Kerberos-Crypto
+
+[Kerberos-Crypto](https://github.com/microsoft/Kerberos-Crypto) -- Microsoft's official PowerShell scripts for assessing RC4 usage and key readiness:
+
+| Script | Purpose |
+|---|---|
+| `Get-KerbEncryptionUsage.ps1` | Detect RC4 usage from Event IDs 4768/4769 across all KDCs |
+| `List-AccountKeys.ps1` | List Kerberos key types stored for each account |
+
+See [Detect Kerberos RC4 usage](https://learn.microsoft.com/en-us/windows-server/security/kerberos/detect-rc4) for Microsoft's official usage guidance.  These scripts are used directly in the [RC4 Deprecation](security/rc4-deprecation.md#step-2-identify-rc4-usage) pre-enforcement checklist.

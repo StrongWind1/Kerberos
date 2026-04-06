@@ -346,3 +346,108 @@ rm -rf ./ntds_output
 | Definitive audit from a Linux attack/audit box | Method 3 (secretsdump) |
 | Definitive audit, cannot trigger DCSync alerts | Method 4 (ntdsutil + ntdissector) |
 | Regular ongoing monitoring (scheduled task) | Method 1 for triage, Method 2 for periodic verification |
+
+---
+
+## Generating AES Keys Without Changing the Password
+
+Some service accounts cannot have their password changed without coordinated downtime
+across multiple systems.  In these cases, you can generate AES keys by resetting the
+password **to the same value** — AD generates new key material on every password set
+operation, regardless of whether the actual password string changes.
+
+The catch: Active Directory's password history policy normally blocks reuse.  A temporary
+Fine-Grained Password Policy (FGPP) with `PasswordHistoryCount = 0` bypasses this check
+for the duration of the operation.
+
+### Step-by-Step
+
+```powershell title="Generate AES keys by resetting to the same password via temporary FGPP"
+# 1. Create a temporary FGPP that allows password reuse
+New-ADFineGrainedPasswordPolicy -Name "Temp-NoHistory" `
+  -Precedence 1 `
+  -PasswordHistoryCount 0 `
+  -MinPasswordAge "00:00:00" `
+  -MaxPasswordAge "00:00:00" `
+  -MinPasswordLength 0 `
+  -ComplexityEnabled $false
+
+# 2. Apply the FGPP to the target account
+Add-ADFineGrainedPasswordPolicySubject -Identity "Temp-NoHistory" `
+  -Subjects "svc_example"
+
+# 3. Reset the password to the same value
+#    (the operator must know the current password)
+Set-ADAccountPassword -Identity "svc_example" `
+  -Reset -NewPassword (ConvertTo-SecureString "ExistingP@ssw0rd" -AsPlainText -Force)
+
+# 4. Remove the temporary FGPP immediately
+Remove-ADFineGrainedPasswordPolicySubject -Identity "Temp-NoHistory" `
+  -Subjects "svc_example"
+Remove-ADFineGrainedPasswordPolicy -Identity "Temp-NoHistory" -Confirm:$false
+```
+
+After the reset, the account's supplemental credentials will contain AES128 and AES256
+keys derived from the (unchanged) password.  You can verify this with
+[DSInternals](#method-2-dsinternals-definitive-online) or
+[ntdissector](#method-4-ntdsutil-ntdissector-definitive-offline).
+
+!!! warning "The FGPP must be removed immediately"
+    Leaving a `PasswordHistoryCount = 0` FGPP in place disables password history for
+    the affected account.  Always remove the FGPP and verify removal as the final step.
+
+### Detecting Accounts That Need Password Reset via Event Logs
+
+Accounts that have `msDS-SupportedEncryptionTypes` set to include AES but still show
+RC4-encrypted tickets (etype `0x17`) in event logs are the clearest signal that a
+password reset is needed — they have the AES **configuration** but no AES **keys**.
+
+Look for Event ID 4768 (AS-REQ) or 4769 (TGS-REQ) where the ticket encryption type is
+`0x17` (RC4-HMAC) for accounts you have already configured for AES.
+
+**Splunk query:**
+
+```spl title="Find accounts configured for AES but still getting RC4 tickets"
+index=wineventlog EventCode IN (4768, 4769) Ticket_Encryption_Type=0x17
+| stats count dc(src) as KDC_count by Account_Name
+| lookup ad_accounts sAMAccountName as Account_Name
+    OUTPUT msDS_SupportedEncryptionTypes
+| where msDS_SupportedEncryptionTypes >= 8
+| table Account_Name msDS_SupportedEncryptionTypes count KDC_count
+```
+
+**KQL (Microsoft Sentinel):**
+
+```kql title="Find AES-configured accounts receiving RC4 tickets"
+SecurityEvent
+| where EventID in (4768, 4769)
+| where TicketEncryptionType == "0x17"
+| summarize EventCount = count(), KDCs = dcount(Computer) by TargetAccount
+```
+
+**PowerShell cross-reference:**
+
+```powershell title="Cross-reference AD etype config against event log RC4 usage"
+# Get accounts configured for AES (bit 0x8 or 0x10 set)
+$aesAccounts = Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -ge 8' `
+  -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
+  Where-Object { $_.servicePrincipalName } |
+  Select-Object -ExpandProperty sAMAccountName
+
+# Check event logs for RC4 tickets issued to those accounts
+Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 4769 } |
+  Where-Object {
+    $_.Properties[5].Value -eq '0x17' -and
+    $aesAccounts -contains $_.Properties[2].Value
+  } |
+  Select-Object TimeCreated,
+    @{N='Account'; E={$_.Properties[2].Value}},
+    @{N='Service'; E={$_.Properties[0].Value}},
+    @{N='Etype'; E={$_.Properties[5].Value}} |
+  Sort-Object Account -Unique |
+  Format-Table -AutoSize
+```
+
+Each account that appears in this output needs a password reset (or the
+[FGPP same-password technique](#generating-aes-keys-without-changing-the-password) above)
+to generate AES keys.

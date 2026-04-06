@@ -264,6 +264,47 @@ Set-ItemProperty `
   -Name "RC4DefaultDisablementPhase" -Value 2
 ```
 
+### Step 9: Managing RC4 Exceptions
+
+Some accounts will not migrate cleanly to AES — legacy hardware, third-party appliances,
+or software that hard-codes RC4.  Use this workflow to handle exceptions without
+undermining the domain-wide AES migration.
+
+**Step 1: Try AES first.**  For every account flagged by Kdcsvc events 201/202, attempt
+the standard remediation:
+
+1. Set `msDS-SupportedEncryptionTypes = 0x18` (AES-only).
+2. Reset the password to generate AES keys (or use the
+   [FGPP same-password technique](account-key-audit.md#generating-aes-keys-without-changing-the-password)).
+3. Purge cached tickets on the client: `klist purge`.
+4. Test the service.
+
+**Step 2: If AES fails**, add a per-account RC4 exception.  Set
+`msDS-SupportedEncryptionTypes = 0x1C` (RC4 + AES128 + AES256) on **that specific
+account only**:
+
+```powershell title="Add a per-account RC4 exception for a legacy service"
+Set-ADUser -Identity svc_legacy -Replace @{
+  'msDS-SupportedEncryptionTypes' = 28  # 0x1C = RC4 + AES128 + AES256
+}
+```
+
+This keeps AES as the preferred etype while allowing RC4 fallback for clients that
+require it.
+
+**Step 3: Document and plan removal.**  Every RC4 exception should be tracked with:
+
+- The account name and SPN
+- The system or vendor that requires RC4
+- The vendor case or upgrade timeline for AES support
+- A review date (no more than 6 months out)
+
+!!! danger "Never use domain-wide RC4 as a permanent fix"
+    Setting `DefaultDomainSupportedEncTypes = 0x1C` on all DCs re-enables RC4 for
+    **every** account that lacks explicit `msDS-SupportedEncryptionTypes` — undoing all
+    hardening work.  Always use per-account exceptions (`msDS-SupportedEncryptionTypes =
+    0x1C` on the specific account) instead of domain-wide rollback.
+
 ---
 
 ## Frequently Asked Questions

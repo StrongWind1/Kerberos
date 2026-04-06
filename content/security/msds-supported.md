@@ -383,3 +383,35 @@ them.  This was for backward compatibility and meant that setting `msDS-Supporte
 
 On **Server 2019 and later**, the KDC respects the attribute strictly and returns AES tickets
 when the attribute specifies AES only.
+
+### The USE_DES_KEY_ONLY Override
+
+The `UF_USE_DES_KEY_ONLY` flag (`0x200000` / 2097152) in `UserAccountControl` forces the
+account to use **DES encryption only**, regardless of what `msDS-SupportedEncryptionTypes`
+is set to.  This is a legacy flag from the Windows 2000 / Server 2003 era that predates
+the `msDS-SupportedEncryptionTypes` attribute entirely ([MS-ADTS] §2.2.16).
+
+When this flag is set, the KDC ignores `msDS-SupportedEncryptionTypes` and only issues
+DES-encrypted tickets.  Since DES was removed in Server 2025, accounts with this flag will
+fail to authenticate entirely on Server 2025 DCs.
+
+```powershell title="Find accounts with USE_DES_KEY_ONLY set"
+# UF_USE_DES_KEY_ONLY = 0x200000 = 2097152
+Get-ADUser -Filter 'UserAccountControl -band 2097152' `
+  -Properties UserAccountControl, msDS-SupportedEncryptionTypes, servicePrincipalName |
+  Select-Object sAMAccountName,
+    @{N='UAC (hex)'; E={'0x{0:X}' -f $_.UserAccountControl}},
+    @{N='msDS-SET'; E={$_.'msDS-SupportedEncryptionTypes'}},
+    @{N='HasSPN'; E={[bool]$_.servicePrincipalName}},
+    Enabled |
+  Format-Table -AutoSize
+```
+
+**Remediation**: clear the flag on every account found:
+
+```powershell
+Set-ADAccountControl -Identity <account> -UseDESKeyOnly $false
+```
+
+After clearing the flag, reset the account password to generate fresh AES keys, then set
+`msDS-SupportedEncryptionTypes = 0x18`.
