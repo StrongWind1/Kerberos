@@ -56,6 +56,14 @@ for a service ticket based on the implicit default.
 
 ### April 2026 -- Enforcement with Rollback
 
+!!! info "Lab note: auto-enablement not yet verified"
+    The enforcement mechanism works when manually configured: setting
+    `RC4DefaultDisablementPhase = 2` and restarting the KDC successfully switches the
+    default to AES-only for msDS-SET=0 accounts.  However, the specific CU that
+    auto-enables enforcement (sets the value to 2 by default) has not been verified in
+    lab testing as of April 2026.  The timeline below reflects Microsoft's published
+    schedule.
+
 **What happens**: the KDC changes its default behavior for accounts without
 `msDS-SupportedEncryptionTypes`.  Instead of assuming RC4 is acceptable, it assumes
 AES-only (`0x18`).  Accounts that still depend on RC4 implicitly will fail.
@@ -68,11 +76,17 @@ AES-only (`0x18`).  Accounts that still depend on RC4 implicitly will fail.
 
 **Rollback option**: set `RC4DefaultDisablementPhase = 1` on DCs to revert to audit mode.
 
+!!! warning "KDC restart required"
+    `RC4DefaultDisablementPhase` requires a KDC restart to take effect, unlike
+    `DefaultDomainSupportedEncTypes` which is immediate.  After setting or changing this
+    value, run `Restart-Service kdc` on the DC.
+
 ```powershell title="Roll back RC4 enforcement to audit mode"
 # Roll back to audit mode
 Set-ItemProperty `
   -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters" `
   -Name "RC4DefaultDisablementPhase" -Value 1
+Restart-Service kdc
 ```
 
 ### July 2026 -- Final Enforcement

@@ -171,9 +171,11 @@ Before November 2022, ticket etype and session key etype were always the same.  
 ticket was RC4, the session key was also RC4, exposing the session to compromise.  The
 `-SK` flag fixes the session while the ticket migration catches up.
 
-The `0x20` bit is only honored in `DefaultDomainSupportedEncTypes`, not in
-per-account `msDS-SupportedEncryptionTypes`.  Setting `0x20` on a per-account
-attribute has no effect -- the KDC reads it only from the DC-level registry value.
+The `0x20` bit is honored in both `DefaultDomainSupportedEncTypes` and per-account
+`msDS-SupportedEncryptionTypes`.  Setting `msDS-SupportedEncryptionTypes = 0x24`
+(RC4 + AES-SK) on an individual account produces RC4 tickets with AES256 session keys,
+even when DDSET lacks the AES-SK bit.  This allows per-account AES session key
+upgrades during RC4-to-AES migration.
 
 !!! tip "AES-SK is a stopgap, not a solution"
     AES session keys protect the live session, but the ticket is still RC4 and still

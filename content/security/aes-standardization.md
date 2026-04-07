@@ -866,21 +866,28 @@ the KDC will use for AS-REP encryption (the reply a user decrypts with their own
 during login).  On workstations, the same GPO only controls the client's etype
 advertisement.  Different OU, different impact.
 
-### The trap: GPO filter without DefaultDomain alignment
+### How the GPO filter interacts with DefaultDomainSupportedEncTypes
+
+The GPO `SupportedEncryptionTypes` filter and `DefaultDomainSupportedEncTypes` are two
+independent mechanisms.  The filter **overrides** DDSET for ticket issuance — it does not
+intersect with it.
 
 If the DC GPO blocks RC4 but `DefaultDomainSupportedEncTypes` still says `0x27`
 (includes RC4), the KDC will:
 
 1. Look up the target account → `msDS-SET = 0` → fall back to `DefaultDomainSupportedEncTypes = 0x27`
-2. Select RC4 as the strongest standard etype in `0x27`
-3. Check the GPO filter → RC4 is blocked → **KDC_ERR_ETYPE_NOSUPP**
+2. The Event 4769 `msDSSET` field shows `0x27` (from DDSET)
+3. The GPO filter overrides and issues an AES ticket (the strongest etype the filter allows)
 
-The result is an authentication failure, not an AES ticket.
+The result is an **AES ticket**, not an authentication failure — the GPO filter takes
+precedence.  However, you should still align both settings for clarity: set
+`DefaultDomainSupportedEncTypes = 0x18` so the `msDSSET` event field and the actual ticket
+etype agree, and to ensure correct behavior if the GPO filter is ever removed.
 
-**You must complete Step 5 before or simultaneously with Step 6.**  If
-`DefaultDomainSupportedEncTypes = 0x18` and the GPO allows AES, unconfigured accounts
-get AES tickets.  If `DefaultDomainSupportedEncTypes` is not set (defaults to `0x27`)
-and the GPO blocks RC4, unconfigured accounts get errors.
+!!! warning "KDC restart required"
+    The GPO filter (`SupportedEncryptionTypes`) is only read at KDC service start.  After
+    applying or changing the GPO on a DC, run `Restart-Service kdc`.  Without the restart,
+    the old filter (or no filter) remains active.
 
 The specific GPO checkboxes for the Domain Controllers OU depend on which path you are
 following.  See the path-specific sections below.

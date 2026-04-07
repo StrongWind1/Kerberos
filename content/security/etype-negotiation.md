@@ -106,7 +106,7 @@ The KDC must choose etypes for three things:
 | Component | How the Etype Is Chosen |
 |---|---|
 | **Service ticket encryption** | Determined by the **target account's** available keys and its `msDS-SupportedEncryptionTypes` attribute, intersected with the KDC's allowed etypes.  The strongest common etype wins.  The client's preference is **not** consulted. |
-| **Service ticket session key** | Intersection of the **client's** etype list, the **target account's** `msDS-SupportedEncryptionTypes`, and the **KDC's** allowed etypes.  Strongest common etype wins. |
+| **Service ticket session key** | Selected from the intersection of the **client's** etype list and the **KDC's** allowed etypes.  The target account's `msDS-SupportedEncryptionTypes` constrains the ticket encryption etype but does not strictly bound the session key etype — the session key can use a different etype than the ticket.  If no common etype exists in the client/KDC intersection, the TGS request fails with `KDC_ERR_ETYPE_NOSUPP`. |
 | **TGS-REP encrypted part** | Same etype as the TGT session key (since the client uses the TGT session key to decrypt this portion). |
 
 !!! warning "Service ticket etype depends on the target account, not the client"
@@ -145,7 +145,7 @@ The following table summarizes what determines each etype:
 | What | AS Exchange | TGS Exchange |
 |---|---|---|
 | **Ticket encryption** | KRBTGT's keys + KDC config (always AES256 on DFL >= 2008) | Target account's keys + `msDS-SupportedEncryptionTypes` + KDC config |
-| **Session key** | Client etype list + KDC config (strongest common) | Client etype list + target account's `msDS-SupportedEncryptionTypes` + KDC config (strongest common) |
+| **Session key** | Client etype list + KDC config (strongest common) | Client etype list + KDC config (strongest common).  The target's `msDS-SupportedEncryptionTypes` constrains ticket etype but does not strictly bound the session key. |
 | **Reply encrypted part** | Same etype as pre-auth (client's key) | Same etype as TGT session key |
 
 !!! tip "Reading klist output"

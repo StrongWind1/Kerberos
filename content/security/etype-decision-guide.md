@@ -87,12 +87,16 @@ flowchart LR
 | Component | Determined by | Notes |
 |---|---|---|
 | **Service ticket encryption** | Target account's `msDS-SupportedEncryptionTypes` (#11) -- or `DefaultDomainSupportedEncTypes` (#7) if the attribute is 0 -- intersected with the target's available keys (#10) and the KDC's etype filter (#8).  Strongest surviving etype wins. | **This is the etype that matters for Kerberoasting.**  The client's etype preference is NOT consulted for ticket encryption. |
-| **Service ticket session key** | Intersection of client's etype list (#3), target's `msDS-SupportedEncryptionTypes` (#11), and KDC's allowed etypes (#8). | Post-Nov 2022, the AES-SK bit (`0x20`) can force AES session keys even when the ticket itself is RC4. |
+| **Service ticket session key** | Intersection of client's etype list (#3) and KDC's allowed etypes (#8).  The target's `msDS-SupportedEncryptionTypes` constrains ticket etype but does not strictly bound the session key. | Post-Nov 2022, the AES-SK bit (`0x20`) in DDSET or per-account msDS-SET can force AES session keys even when the ticket itself is RC4. |
 | **TGS-REP encrypted part** | Same etype as the TGT session key. | The client decrypts this with its TGT session key. |
 
-**Key point**: The client's etype preference has **no effect** on the service ticket
-encryption etype.  A Kerberoasting attacker cannot force RC4 on a properly configured
-account by requesting RC4 in their TGS-REQ.
+**Key point**: By default (`KdcUseRequestedEtypesForTickets = 0`), the client's etype
+preference has **no effect** on the service ticket encryption etype.  A Kerberoasting
+attacker cannot force RC4 on a properly configured account by requesting RC4 in their
+TGS-REQ.  However, if `KdcUseRequestedEtypesForTickets` is set to `1`, the KDC ignores
+the target's `msDS-SupportedEncryptionTypes` and honors the client's preference —
+allowing attackers to force RC4 on any account.  See
+[Registry Settings](registry.md#kdcuserequestedetypesfortickets) for details.
 
 ---
 
@@ -123,8 +127,11 @@ When the KDC selects the etype for a **service ticket**, it evaluates in this or
 2. **DC `DefaultDomainSupportedEncTypes`** (input #7) -- if the target has no
    `msDS-SupportedEncryptionTypes`, the KDC substitutes this value as the assumed etype
    list.
-3. **KDC etype filter** (input #8, from GPO) -- hard filter.  The KDC will **not** issue a
-   ticket with an etype absent from this list, even if step 1 or 2 selected it.
+3. **KDC etype filter** (input #8, from GPO `SupportedEncryptionTypes`) -- hard filter that
+   **overrides** (not intersects) the DDSET/msDS-SET etype list.  The KDC will not issue a
+   ticket with an etype absent from this filter.  The `Lsa\Kerberos\Parameters` path (input
+   not shown) also functions as a filter with lower precedence than the Policies path.
+   **Requires KDC restart** to take effect — unlike DDSET which is immediate.
 4. **Available keys on the target account** (input #10) -- the KDC cannot use an etype if
    the key does not exist.  An account with `msDS-SupportedEncryptionTypes = 0x18` but no
    AES keys (password never reset after DFL 2008) will fail, not fall back to RC4.
@@ -176,19 +183,23 @@ Session Key Type:           AES-256-CTS-HMAC-SHA1-96   ← AES (from 0x20 flag)
 
 ### When AES-SK applies
 
-The AES-SK split only happens when **all three** conditions are met:
+The AES-SK split happens when **both** conditions are met:
 
-1. The target account has `msDS-SupportedEncryptionTypes = 0` (not set), so the KDC falls
-   back to `DefaultDomainSupportedEncTypes`.
-2. `DefaultDomainSupportedEncTypes` includes the `0x20` (AES-SK) bit (true by default).
-3. The **client** advertises AES in its TGS-REQ etype list.
+1. The etype set used by the KDC includes the `0x20` (AES-SK) bit.  This can come from
+   either `DefaultDomainSupportedEncTypes` (for accounts with `msDS-SET = 0`) **or**
+   from a per-account `msDS-SupportedEncryptionTypes` that includes `0x20`.
+2. The **client** advertises AES in its TGS-REQ etype list.
 
-If any condition is missing, the session key matches the ticket etype:
+If either condition is missing, the session key matches the ticket etype:
 
-- Account has explicit `msDS-SupportedEncryptionTypes` (even RC4-only) → no AES-SK, because
-  `DefaultDomainSupportedEncTypes` is not consulted.
+- Neither DDSET nor per-account msDS-SET includes `0x20` → no AES-SK.
 - Client only advertises RC4 → no AES session key, because the KDC cannot negotiate AES with
   a client that does not support it.
+
+!!! info "AES-SK works on per-account msDS-SET"
+    Setting `msDS-SupportedEncryptionTypes = 0x24` (RC4 + AES-SK) on an individual account
+    produces RC4 tickets with AES256 session keys, even when DDSET lacks the AES-SK bit.
+    This allows per-account session key upgrades during migration.
 
 ### Why it matters
 
@@ -206,16 +217,20 @@ account so the ticket itself uses AES.
 ### 1. "I set AES-only GPO on DCs but services still get RC4 tickets"
 
 The GPO writes `SupportedEncryptionTypes` (the policy cache path), which acts as the KDC's
-**etype filter**.  But the KDC first determines what the account wants using
-`msDS-SupportedEncryptionTypes` or `DefaultDomainSupportedEncTypes`.
+**etype filter** after a KDC restart.  Two common causes:
 
-If `DefaultDomainSupportedEncTypes` still includes RC4 (the default `0x27`) and the service
-account has no `msDS-SupportedEncryptionTypes`, the KDC thinks the account wants RC4.  The
-GPO filter then **blocks** RC4, and the result is an authentication failure -- not an AES
-ticket.
+1. **Forgot to restart the KDC**: The `SupportedEncryptionTypes` filter is only read at KDC
+   service start.  Run `Restart-Service kdc` after applying the GPO.
+2. **GPO allows RC4**: The GPO includes the RC4 checkbox, so RC4 is not filtered out.
 
-**Fix**: Set `DefaultDomainSupportedEncTypes = 0x18` on every DC, *and* set
-`msDS-SupportedEncryptionTypes = 0x18` on each SPN-bearing account.
+When the GPO filter is correctly set to AES-only and the KDC has been restarted, the filter
+overrides `DefaultDomainSupportedEncTypes` — even if DDSET includes RC4, the KDC will issue
+AES tickets (no authentication failure).  However, for clarity and alignment, you should
+still set `DefaultDomainSupportedEncTypes = 0x18` on every DC.
+
+**Fix**: Set `DefaultDomainSupportedEncTypes = 0x18` on every DC, set
+`msDS-SupportedEncryptionTypes = 0x18` on each SPN-bearing account, and restart the KDC
+after GPO changes.
 
 ### 2. "I set `msDS-SupportedEncryptionTypes = 0x18` on a service but still see RC4 tickets"
 
@@ -250,16 +265,20 @@ The GPO does **not** update:
 
 ### 5. "I see `KDC_ERR_ETYPE_NOSUPP` after enabling AES-only on the DC GPO"
 
-The GPO filter now blocks RC4, but the target account either:
+The GPO filter now blocks RC4 (after KDC restart), but the target account:
 
-- Has `msDS-SupportedEncryptionTypes = 0` and `DefaultDomainSupportedEncTypes` includes
-  only RC4 (the KDC's assumed etype list has no overlap with the filter), or
-- Has `msDS-SupportedEncryptionTypes = 0x04` (RC4-only, explicitly), or
-- Has no AES keys (password never reset).
+- Has `msDS-SupportedEncryptionTypes = 0x04` (RC4-only, explicitly) and the filter removes
+  RC4, leaving no viable etype, or
+- Has no AES keys (password never reset after DFL 2008) — the KDC tries AES but finds no key.
+
+Note: accounts with `msDS-SupportedEncryptionTypes = 0` and
+`DefaultDomainSupportedEncTypes = 0x27` will **not** fail — the GPO filter overrides DDSET
+and issues AES tickets (assuming AES keys exist).  The failure scenario requires explicit
+RC4-only configuration or missing AES keys.
 
 **Fix**: Work through the [RC4 deprecation checklist](rc4-deprecation.md) to identify every
-account that lacks AES keys or explicit AES etype configuration before enforcing AES-only on
-DCs.
+account that lacks AES keys or has explicit RC4-only etype configuration before enforcing
+AES-only on DCs.
 
 ---
 

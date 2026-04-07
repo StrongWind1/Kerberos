@@ -36,7 +36,7 @@ The primary GPO for controlling Kerberos encryption types.
 
 | Applied To | Effect |
 |---|---|
-| **Domain controllers** | Controls what the **KDC will accept and issue**.  This is the most impactful setting -- it acts as a hard filter on all ticket operations.  If RC4 is not checked here, the KDC will not issue RC4 tickets even if the target account allows RC4. |
+| **Domain controllers** | Controls what the **KDC will accept and issue** for both AS and TGS exchanges.  This is the most impactful setting -- it acts as a hard filter on all ticket operations.  If RC4 is not checked here, the KDC will not issue RC4 tickets even if the target account allows RC4.  It also blocks pre-authentication with etypes not in the filter, which means new logon sessions will fail if the client only supports excluded etypes.  **Requires a KDC restart** (`Restart-Service kdc`) to take effect -- the KDC reads this value only at service start. |
 | **Client workstations** | Controls what the **Kerberos client will request** in AS-REQ and TGS-REQ messages.  The client will not advertise etypes that are not enabled here. |
 | **Member servers** | Controls what the **server's Kerberos client** will request, and updates the computer account's `msDS-SupportedEncryptionTypes` in AD. |
 
@@ -84,9 +84,13 @@ to a domain controller, the DC updates its own computer account (e.g., `DC01$`),
 !!! warning "The GPO does NOT set `DefaultDomainSupportedEncTypes`"
     This GPO writes `SupportedEncryptionTypes` (the KDC etype filter), **not**
     `DefaultDomainSupportedEncTypes` (the fallback for unconfigured accounts).  These are
-    different registry keys with different effects.  See
+    different registry keys with different effects — and they operate independently.
+
+    When both exist, `SupportedEncryptionTypes` overrides `DefaultDomainSupportedEncTypes`
+    for ticket issuance.  The KDC does **not** intersect them: if the GPO filter allows only
+    AES but DDSET says RC4, the KDC issues AES tickets (no error).  See
     [Registry Settings — Commonly Confused Keys](registry.md#commonly-confused-keys) for the
-    distinction and why you need both aligned.
+    full interaction model.
 
 ### Windows Server 2025 Security Baseline
 

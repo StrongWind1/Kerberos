@@ -10,7 +10,7 @@
 
 /* ---------- Custom primary color (both schemes) ---------- */
 
-:root > * {
+:root>* {
   --md-primary-fg-color: #0d1b2a;
   --md-primary-fg-color--light: #1b2838;
   --md-primary-fg-color--dark: #060e18;
@@ -433,7 +433,7 @@
   margin-bottom: 0.75rem;
 }
 
-.etype-field > label {
+.etype-field>label {
   display: block;
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -527,11 +527,6 @@
   border-color: var(--md-accent-fg-color, #ffd740);
 }
 
-.etype-preset-btn--rec {
-  border-color: #22633a;
-  background: #0d1a2d;
-}
-
 /* Active preset — matches the current value */
 .etype-preset-btn--active {
   border-color: var(--md-accent-fg-color, #ffd740);
@@ -553,7 +548,7 @@
   color: #fbbf24;
 }
 
-.etype-warning-item + .etype-warning-item {
+.etype-warning-item+.etype-warning-item {
   border-top: 1px solid var(--md-default-bg-color--lightest, #1c2d42);
 }
 
@@ -623,4 +618,451 @@ body.etype-calculator-page .md-top {
 /* Disabled checkboxes in ignored rows */
 .etype-bit--ignored label {
   cursor: default;
+}
+
+/* ================================================================== */
+/*  Event Decoder                                                      */
+/* ================================================================== */
+
+/* Hide back-to-top on the decoder page */
+body:has(#event-decoder) .md-top,
+body.event-decoder-page .md-top {
+  display: none !important;
+}
+
+/* --- Input section --- */
+
+.evdec-label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.evdec-textarea {
+  width: 100%;
+  min-height: 8rem;
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  padding: 0.75rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.3rem;
+  background: var(--md-code-bg-color);
+  color: var(--md-code-fg-color);
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.evdec-textarea:focus {
+  outline: none;
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 0 0 2px rgba(var(--md-accent-fg-color--rgb, 255 183 77), 0.25);
+}
+
+.evdec-textarea::placeholder {
+  color: var(--md-default-fg-color--lighter);
+  opacity: 0.7;
+}
+
+.evdec-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.evdec-hint {
+  font-size: 0.75rem;
+  color: var(--md-default-fg-color--lighter);
+  margin-left: auto;
+}
+
+/* --- Buttons --- */
+
+.evdec-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.25rem;
+  background: var(--md-code-bg-color);
+  color: var(--md-default-fg-color--light);
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.evdec-btn:hover {
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-accent-fg-color);
+}
+
+.evdec-btn--primary {
+  background: var(--md-accent-fg-color);
+  color: var(--md-accent-bg-color, #000);
+  border-color: var(--md-accent-fg-color);
+  font-weight: 600;
+}
+
+.evdec-btn--primary:hover {
+  filter: brightness(1.1);
+  color: var(--md-accent-bg-color, #000);
+}
+
+.evdec-btn--copied {
+  background: #2e7d32 !important;
+  border-color: #2e7d32 !important;
+  color: #fff !important;
+}
+
+/* --- Example buttons --- */
+
+.evdec-examples {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.evdec-examples-label {
+  font-size: 0.8rem;
+  color: var(--md-default-fg-color--lighter);
+  margin-right: 0.2rem;
+}
+
+.evdec-example-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.evdec-example-btn:hover {
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-accent-fg-color);
+}
+
+/* --- Error display --- */
+
+.evdec-error {
+  margin-top: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-left: 4px solid #e53935;
+  background: rgba(229, 57, 53, 0.08);
+  border-radius: 0 0.3rem 0.3rem 0;
+  color: var(--md-default-fg-color);
+  font-size: 0.85rem;
+}
+
+/* --- Results area --- */
+
+.evdec-results {
+  margin-top: 1.25rem;
+}
+
+/* --- Header --- */
+
+.evdec-header {
+  margin-bottom: 1rem;
+}
+
+.evdec-header-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.evdec-event-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--md-accent-fg-color);
+  color: var(--md-accent-bg-color, #000);
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 1.1rem;
+  font-weight: 700;
+  border-radius: 0.3rem;
+}
+
+.evdec-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.evdec-event-name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--md-default-fg-color);
+}
+
+.evdec-event-desc {
+  font-size: 0.8rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.evdec-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.7rem;
+  border-radius: 1rem;
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.evdec-status--success {
+  background: rgba(46, 125, 50, 0.15);
+  color: #2e7d32;
+  border: 1px solid rgba(46, 125, 50, 0.3);
+}
+
+.evdec-status--failure {
+  background: rgba(229, 57, 53, 0.12);
+  color: #e53935;
+  border: 1px solid rgba(229, 57, 53, 0.3);
+}
+
+.evdec-header-meta {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.evdec-meta-item {
+  font-size: 0.78rem;
+  color: var(--md-default-fg-color--lighter);
+  font-family: var(--md-code-font-family, monospace);
+}
+
+/* --- Warnings --- */
+
+.evdec-warnings {
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.8rem;
+  border-left: 4px solid var(--md-accent-fg-color);
+  background: rgba(255, 183, 77, 0.08);
+  border-radius: 0 0.3rem 0.3rem 0;
+}
+
+.evdec-warning-item {
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
+  color: var(--md-default-fg-color);
+  line-height: 1.4;
+}
+
+.evdec-warning-item::before {
+  content: "\26a0\fe0f ";
+}
+
+.evdec-warning-item + .evdec-warning-item {
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+}
+
+/* --- Fields table --- */
+
+.evdec-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  table-layout: fixed;
+}
+
+.evdec-table th {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 2px solid var(--md-default-fg-color--lightest);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--md-default-fg-color--light);
+}
+
+.evdec-table th:nth-child(1) { width: 22%; }
+.evdec-table th:nth-child(2) { width: 28%; }
+.evdec-table th:nth-child(3) { width: 50%; }
+
+.evdec-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  vertical-align: top;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.evdec-table tbody tr:hover {
+  background: rgba(var(--md-accent-fg-color--rgb, 255 183 77), 0.06);
+}
+
+.evdec-field-name {
+  font-weight: 600;
+  color: var(--md-default-fg-color);
+  white-space: nowrap;
+}
+
+.evdec-field-raw code {
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.82rem;
+  background: var(--md-code-bg-color);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.2rem;
+  word-break: break-all;
+}
+
+.evdec-field-decoded {
+  color: var(--md-default-fg-color);
+}
+
+.evdec-causes {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--md-default-fg-color--light);
+  font-style: italic;
+}
+
+.evdec-field-source {
+  margin-top: 0.3rem;
+  padding-top: 0.25rem;
+  font-size: 0.73rem;
+  line-height: 1.35;
+  color: var(--md-default-fg-color--lighter);
+  border-top: 1px dashed var(--md-default-fg-color--lightest);
+}
+
+.evdec-note {
+  font-size: 0.78rem;
+  color: var(--md-default-fg-color--lighter);
+}
+
+/* --- Badges (encryption type security assessment) --- */
+
+.evdec-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.evdec-badge--removed {
+  background: rgba(229, 57, 53, 0.12);
+  color: #e53935;
+}
+
+.evdec-badge--deprecated {
+  background: rgba(255, 152, 0, 0.12);
+  color: #ef6c00;
+}
+
+.evdec-badge--recommended {
+  background: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+}
+
+.evdec-badge--error {
+  background: rgba(229, 57, 53, 0.12);
+  color: #e53935;
+}
+
+.evdec-badge--neutral {
+  background: rgba(120, 120, 120, 0.12);
+  color: var(--md-default-fg-color--light);
+}
+
+/* --- Ticket Options breakdown --- */
+
+.evdec-ticket-options {
+  margin-top: 1.25rem;
+}
+
+.evdec-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+  color: var(--md-default-fg-color);
+}
+
+.evdec-flag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.evdec-flag-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--md-code-bg-color);
+  border-radius: 0.25rem;
+  border-left: 3px solid var(--md-accent-fg-color);
+}
+
+.evdec-flag-bit {
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.75rem;
+  color: var(--md-default-fg-color--lighter);
+  min-width: 3rem;
+  flex-shrink: 0;
+}
+
+.evdec-flag-name {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--md-default-fg-color);
+  min-width: 10rem;
+  flex-shrink: 0;
+}
+
+.evdec-flag-desc {
+  font-size: 0.78rem;
+  color: var(--md-default-fg-color--light);
+  line-height: 1.35;
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 50em) {
+  .evdec-table th:nth-child(1),
+  .evdec-table th:nth-child(2),
+  .evdec-table th:nth-child(3) {
+    width: auto;
+  }
+
+  .evdec-field-name {
+    white-space: normal;
+  }
+
+  .evdec-flag-item {
+    flex-wrap: wrap;
+  }
+
+  .evdec-flag-name {
+    min-width: auto;
+  }
+
+  .evdec-status {
+    margin-left: 0;
+  }
 }

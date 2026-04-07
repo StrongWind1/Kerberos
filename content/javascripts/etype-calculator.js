@@ -16,6 +16,15 @@
   /** Maximum valid unsigned 32-bit value. */
   var MAX_U32 = 0xFFFFFFFF;
 
+  /**
+   * The Windows GPO "Future encryption types" checkbox sets bits 5-30
+   * (0x7FFFFFE0), NOT bit 31 as some documentation implies.  Lab-validated
+   * April 2026 against Windows Server 2022.  The GPO editor has exactly
+   * 6 checkboxes: DES_CBC_CRC(0x1), DES_CBC_MD5(0x2), RC4(0x4),
+   * AES128(0x8), AES256(0x10), Future(0x7FFFFFE0).
+   */
+  var GPO_FUTURE_VALUE = 0x7FFFFFE0;
+
   /* ------------------------------------------------------------------ */
   /*  Bit definitions — [MS-KILE] §2.2.7                                */
   /* ------------------------------------------------------------------ */
@@ -34,18 +43,31 @@
     { bit: 31, hex: "0x80000000", dec: 2147483648, name: "Future encryption types", etype: null, status: "special", note: "" }
   ];
 
+  /** Index into BITS for the "Future encryption types" entry (bit 31). */
+  var FUTURE_BIT_INDEX = BITS.length - 1;
+
   /* ------------------------------------------------------------------ */
   /*  Setting profiles                                                  */
+  /*                                                                    */
+  /*  ignoredBits  — bits STRIPPED from values (truly meaningless here)  */
+  /*  disabledBits — checkboxes disabled in UI but bits NOT stripped     */
+  /*                 (meaningful when set by other means, e.g. "Future") */
+  /*  futureValue  — what the "Future encryption types" checkbox         */
+  /*                 represents for this setting (0x80000000 or          */
+  /*                 0x7FFFFFE0 for GPO)                                */
   /* ------------------------------------------------------------------ */
 
   var SETTINGS = {
     msds: {
       id: "msds",
       label: "msDS-SupportedEncryptionTypes",
-      desc: "AD attribute on each account — controls which etypes the KDC uses for this account's service tickets.  Also carries protocol feature flags (bits 16-19).",
-      ignoredBits: [5, 31],
+      desc: "AD attribute on each account — controls which etypes the KDC uses for this account's service tickets.  Carries etype bits (0-5), protocol feature flags (16-19), and the future flag (31).",
+      ignoredBits: [],
+      disabledBits: [],
+      futureValue: 0x80000000,
       presets: [
         { label: "AES-only", value: 0x18, rec: true },
+        { label: "AES + AES-SK", value: 0x38 },
         { label: "RC4 + AES", value: 0x1C },
         { label: "Clear", value: 0 }
       ],
@@ -56,8 +78,10 @@
     default: {
       id: "default",
       label: "DefaultDomainSupportedEncTypes",
-      desc: "Registry on each DC — assumed etypes for accounts with no explicit msDS-SupportedEncryptionTypes.",
+      desc: "Registry on each DC — assumed etypes for accounts with no explicit msDS-SupportedEncryptionTypes.  Honors AES-SK (bit 5).",
       ignoredBits: [16, 17, 18, 19, 31],
+      disabledBits: [16, 17, 18, 19, 31],
+      futureValue: 0x80000000,
       presets: [
         { label: "AES-only", value: 0x18, rec: true },
         { label: "AES + AES-SK", value: 0x38 },
@@ -71,13 +95,15 @@
     gpo: {
       id: "gpo",
       label: "SupportedEncryptionTypes (GPO)",
-      desc: "Registry written by Group Policy — controls which etypes the machine's Kerberos client requests and, on DCs, which etypes the KDC will issue.",
-      ignoredBits: [5, 16, 17, 18, 19],
+      desc: "Registry written by Group Policy — controls which etypes the machine's Kerberos client requests and, on DCs, which etypes the KDC will issue.  The GPO \"Future encryption types\" checkbox sets bits 5-30 (0x7FFFFFE0).",
+      ignoredBits: [],
+      disabledBits: [5, 16, 17, 18, 19],
+      futureValue: GPO_FUTURE_VALUE,
       presets: [
         { label: "AES-only", value: 0x18, rec: true },
-        { label: "AES + Future", value: 0x80000018 },
+        { label: "AES + Future", value: (0x18 | GPO_FUTURE_VALUE) >>> 0 },
         { label: "RC4 + AES", value: 0x1C },
-        { label: "RC4 + AES + Future", value: 0x8000001C }
+        { label: "RC4 + AES + Future", value: (0x1C | GPO_FUTURE_VALUE) >>> 0 }
       ],
       powershell: function (v) {
         return "# GPO: Network security: Configure encryption types allowed for Kerberos\n# Path: Computer Configuration > Policies > Windows Settings >\n#        Security Settings > Local Policies > Security Options\n# Set the decimal value to: " + v;
@@ -135,7 +161,7 @@
   function setCheckboxes(v) {
     qa(".etype-cb").forEach(function (cb) {
       var bit = parseInt(cb.value, 10);
-      /* Use unsigned right-shift to handle bit 31 (0x80000000) correctly */
+      /* Use unsigned right-shift to handle bit 31 and multi-bit values correctly */
       cb.checked = ((v & bit) >>> 0) === (bit >>> 0);
     });
   }
@@ -173,9 +199,12 @@
   /** Build comma-separated flag name list from value. */
   function flagNames(v) {
     if (v === 0) return "(not set)";
+    var setting = SETTINGS[currentSetting];
     var names = [];
-    BITS.forEach(function (b) {
-      if (((v & b.dec) >>> 0) === (b.dec >>> 0)) names.push(b.name);
+    BITS.forEach(function (b, idx) {
+      /* Use the active futureValue for the "Future" checkbox */
+      var checkVal = (idx === FUTURE_BIT_INDEX) ? (setting.futureValue >>> 0) : b.dec;
+      if (((v & checkVal) >>> 0) === (checkVal >>> 0)) names.push(b.name);
     });
     return names.join(", ");
   }
@@ -193,6 +222,12 @@
   /** Strip ignored bits from a value so we only store meaningful bits. */
   function normalizeValue(v, settingId) {
     return (v & ~ignoredBitMask(settingId)) >>> 0;
+  }
+
+  /** Get the disabled bits for a setting (disabledBits if present, else ignoredBits). */
+  function getDisabledBits(settingId) {
+    var s = SETTINGS[settingId];
+    return s.disabledBits || s.ignoredBits;
   }
 
   /** Evaluate the security status of the current value + setting. */
@@ -221,11 +256,11 @@
     if ((v & 0x4) !== 0) {
       w.push("RC4-HMAC is deprecated. The April 2026 update enables enforcement by default; the July 2026 update makes it permanent (CVE-2026-20833).");
     }
-    if ((v & 0x20) !== 0 && settingId !== "default") {
-      w.push("The AES-SK bit (0x20) is only honored in DefaultDomainSupportedEncTypes. It has no effect in " + SETTINGS[settingId].label + ".");
+    if ((v & 0x20) !== 0 && settingId === "gpo") {
+      w.push("In the GPO, the AES-SK bit (0x20) is part of the \"Future encryption types\" checkbox (bits 5-30).  It does not independently control AES session keys.");
     }
     /* Warn about feature flags in non-msds settings */
-    if (settingId !== "msds" && (v & 0xF0000) !== 0) {
+    if (settingId !== "msds" && settingId !== "gpo" && (v & 0xF0000) !== 0) {
       w.push("Feature flag bits 16-19 are only meaningful on msDS-SupportedEncryptionTypes. They have no effect in " + SETTINGS[settingId].label + ".");
     }
     if (v === 0 && settingId === "msds") {
@@ -261,11 +296,37 @@
 
   function updateUI() {
     var setting = SETTINGS[currentSetting];
+    var disabledBits = getDisabledBits(currentSetting);
 
-    /* Normalize: strip ignored bits for the active setting.  Centralized here
-       so every code path (hash load, input, checkbox, preset, tab switch) is
-       guaranteed to produce a clean value before display. */
+    /* Normalize: strip truly ignored bits for the active setting. */
     currentValue = normalizeValue(currentValue, currentSetting);
+
+    /* Update the "Future encryption types" checkbox value to match the
+       active setting.  For GPO this is 0x7FFFFFE0 (bits 5-30); for
+       msDS-SET and DDSET it is 0x80000000 (bit 31). */
+    var futureVal = setting.futureValue >>> 0;
+    var futureCbs = qa(".etype-cb");
+    futureCbs.forEach(function (cb) {
+      var bitEntry = BITS[FUTURE_BIT_INDEX];
+      if (parseInt(cb.value, 10) === (bitEntry.dec >>> 0) || cb.dataset.futureCb === "1") {
+        cb.value = String(futureVal);
+        cb.dataset.futureCb = "1";
+        /* Update the hex/dec display in the checkbox row */
+        var row = cb.closest(".etype-bit-row");
+        if (row) {
+          var infoEl = row.querySelector(".etype-bit-info");
+          if (infoEl) {
+            var code = infoEl.querySelector("code");
+            if (code) code.textContent = toHex(futureVal);
+            /* Update the decimal display if present (the text after the code) */
+            var textAfterCode = infoEl.lastChild;
+            if (textAfterCode && textAfterCode.nodeType === 3) {
+              textAfterCode.textContent = " (" + futureVal + ")";
+            }
+          }
+        }
+      }
+    });
 
     /* Update value displays */
     var decEl = q("#etype-dec");
@@ -275,23 +336,37 @@
     if (hexEl) hexEl.value = toHex(currentValue);
     if (flagsEl) flagsEl.value = flagNames(currentValue);
 
-    /* Update checkboxes + disable ignored bits */
+    /* Update checkboxes + disable per-setting bits */
     setCheckboxes(currentValue);
     qa(".etype-cb").forEach(function (cb) {
       var bitVal = parseInt(cb.value, 10);
-      var bitNum = BITS.reduce(function (found, b) {
-        return b.dec === bitVal ? b.bit : found;
-      }, -1);
-      var row = cb.closest(".etype-bit-row");
-      var isIgnored = bitNum !== -1 && setting.ignoredBits.indexOf(bitNum) !== -1;
-      if (row) {
-        row.classList.toggle("etype-bit--ignored", isIgnored);
-        var noteEl = row.querySelector(".etype-bit-ignored-note");
-        if (noteEl) noteEl.textContent = isIgnored ? "(ignored for this setting)" : "";
+      /* Find the bit number for this checkbox.  For the "Future" checkbox the
+         value changes per-tab, so match on the data attribute instead. */
+      var bitNum;
+      if (cb.dataset.futureCb === "1") {
+        bitNum = 31;
+      } else {
+        bitNum = BITS.reduce(function (found, b) {
+          return b.dec === bitVal ? b.bit : found;
+        }, -1);
       }
-      /* Actually disable ignored checkboxes so users cannot set meaningless bits */
-      cb.disabled = isIgnored;
-      if (isIgnored) cb.checked = false;
+      var row = cb.closest(".etype-bit-row");
+      var isDisabled = bitNum !== -1 && disabledBits.indexOf(bitNum) !== -1;
+      if (row) {
+        row.classList.toggle("etype-bit--ignored", isDisabled);
+        var noteEl = row.querySelector(".etype-bit-ignored-note");
+        if (noteEl) {
+          if (isDisabled && currentSetting === "gpo" && (bitNum === 5 || (bitNum >= 16 && bitNum <= 19))) {
+            noteEl.textContent = "(covered by Future encryption types)";
+          } else if (isDisabled) {
+            noteEl.textContent = "(not meaningful for this setting)";
+          } else {
+            noteEl.textContent = "";
+          }
+        }
+      }
+      cb.disabled = isDisabled;
+      if (isDisabled) cb.checked = false;
     });
 
     /* Status badge */

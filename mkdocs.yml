@@ -127,6 +127,7 @@ nav:
       - Configuration:
           - msDS-SupportedEncryptionTypes: security/msds-supported.md
           - Registry Settings: security/registry.md
+          - Registry Audit: security/registry-audit.md
           - Group Policy: security/group-policy.md
       - Hardening:
           - RC4 Deprecation: security/rc4-deprecation.md
@@ -135,6 +136,7 @@ nav:
           - Mitigations: security/mitigations.md
       - Troubleshooting: security/troubleshooting.md
   - Encryption Type Calculator: security/etype-calculator.md
+  - Event Decoder: security/event-decoder.md
   - Attacks:
       - attacks/index.md
       - Tools Setup: attacks/tools.md
@@ -175,5 +177,6 @@ extra_css:
 
 extra_javascript:
   - javascripts/etype-calculator.js
+  - javascripts/event-decoder.js
 
 strict: true

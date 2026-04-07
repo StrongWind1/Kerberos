@@ -30,3 +30,9 @@
 *[RODC]: Read-Only Domain Controller
 *[IFM]: Install From Media -- offline AD database backup method
 *[OG]: OpenGraph
+*[msDS-SET]: msDS-SupportedEncryptionTypes -- AD attribute declaring which encryption types an account supports
+*[DDSET]: DefaultDomainSupportedEncTypes -- registry value on the DC that provides the etype fallback for accounts with msDS-SET = 0
+*[AES-SK]: AES Session Key -- bit 5 (0x20) in the etype bitmask; forces AES for session keys even when the ticket body uses RC4
+*[AS-REQ]: Authentication Service Request -- the initial Kerberos message requesting a TGT
+*[TGS-REQ]: Ticket-Granting Service Request -- the Kerberos message requesting a service ticket using a TGT
+*[FAST]: Flexible Authentication Secure Tunneling -- Kerberos armoring that protects the pre-authentication exchange (RFC 6113)

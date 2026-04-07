@@ -72,10 +72,10 @@ failures.
 | **4** (2026) | `RC4DefaultDisablementPhase` | Registry on each DC | Overrides the KDC's internal default for accounts without explicit config.  `1` = audit, `2` = enforce. | `2` (enforce) |
 
 **Layer 1 always wins.**  If `msDS-SupportedEncryptionTypes` is set on an account, layers
-2-4 are irrelevant for that account's ticket encryption.  The most common misconfiguration
-is setting AES-only on the GPO (layer 3) without also setting
-`DefaultDomainSupportedEncTypes` (layer 2) -- which causes authentication failures, not
-AES tickets.
+2-4 are irrelevant for that account's ticket encryption.  When the GPO (layer 3) is set on
+a DC, it acts as a hard KDC filter (after KDC restart) that overrides
+`DefaultDomainSupportedEncTypes` (layer 2) for ticket issuance — the filter takes
+precedence, not an intersection.  For clean configuration, align both layers.
 
 For the full 12-input decision logic with 14 worked examples, see
 [Encryption Type Negotiation](etype-negotiation.md) and

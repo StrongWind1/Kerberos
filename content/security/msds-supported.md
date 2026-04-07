@@ -94,7 +94,7 @@ protocol feature flags, and bit 31 enables future etypes:
 | 2 | `0x4` | 4 | RC4-HMAC | Deprecated (July 2026) |
 | 3 | `0x8` | 8 | AES128-CTS-HMAC-SHA1-96 | Supported since Server 2008 |
 | 4 | `0x10` | 16 | AES256-CTS-HMAC-SHA1-96 | **Recommended** |
-| 5 | `0x20` | 32 | AES256-CTS-HMAC-SHA1-96-SK | Session key variant (Nov 2022+).  Only honored in `DefaultDomainSupportedEncTypes`. |
+| 5 | `0x20` | 32 | AES256-CTS-HMAC-SHA1-96-SK | Session key variant (Nov 2022+).  Honored in both `DefaultDomainSupportedEncTypes` and per-account `msDS-SupportedEncryptionTypes`. |
 | 6-15 | | | Reserved | |
 | 16 | `0x10000` | 65536 | FAST-supported | Kerberos armoring ([RFC 6113]).  Server 2012+. |
 | 17 | `0x20000` | 131072 | Compound-identity-supported | Dynamic Access Control compound identity.  Server 2012+. |

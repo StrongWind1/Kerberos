@@ -183,9 +183,9 @@ interpret certain bits differently.
 
 | Setting | Where | Scope | Key Difference |
 |---|---|---|---|
-| `msDS-SupportedEncryptionTypes` | AD attribute on each account | Per-account | Carries both etype bits (0-5) and protocol feature flags (16-19).  Always overrides the other two settings. |
-| `DefaultDomainSupportedEncTypes` | `HKLM\...\Services\KDC` on each DC | Per-DC (not replicated) | Bit 5 (AES-SK) is **honored** — the only setting where the session key split works.  Bits 16-19 are not meaningful here. |
-| `SupportedEncryptionTypes` | `HKLM\...\Policies\System\Kerberos\Parameters` | Per-machine (written by GPO) | Acts as a hard **filter**.  Bits 5 and 16-19 are not meaningful here.  Bit 31 is stripped when auto-written to AD. |
+| `msDS-SupportedEncryptionTypes` | AD attribute on each account | Per-account | Carries etype bits (0-5), protocol feature flags (16-19), and the future flag (31).  AES-SK (bit 5) is honored here.  Always overrides the other two settings. |
+| `DefaultDomainSupportedEncTypes` | `HKLM\...\Services\KDC` on each DC | Per-DC (not replicated) | AES-SK (bit 5) is **honored** here.  Bits 16-19 and 31 are not meaningful. |
+| `SupportedEncryptionTypes` | `HKLM\...\Policies\System\Kerberos\Parameters` | Per-machine (written by GPO) | Acts as a hard **filter**.  The GPO "Future encryption types" checkbox sets bits 5-30 (`0x7FFFFFE0`), not bit 31.  High bits are stripped when the machine auto-writes its AD attribute. |
 
 For the full precedence rules and 14 worked examples, see
 [Etype Decision Guide](etype-decision-guide.md).
@@ -205,7 +205,7 @@ Source: [MS-KILE] section 2.2.7 — Supported Encryption Types Bit Flags.
 | 2 | `0x4` | 4 | RC4-HMAC | 23 | Deprecated (July 2026) |
 | 3 | `0x8` | 8 | AES128-CTS-HMAC-SHA1-96 | 17 | **Recommended** |
 | 4 | `0x10` | 16 | AES256-CTS-HMAC-SHA1-96 | 18 | **Recommended** |
-| 5 | `0x20` | 32 | AES256-CTS-HMAC-SHA1-96-SK | — | Session key variant (Nov 2022+).  Only honored in `DefaultDomainSupportedEncTypes`. |
+| 5 | `0x20` | 32 | AES256-CTS-HMAC-SHA1-96-SK | — | Session key variant (Nov 2022+).  Honored in both `DefaultDomainSupportedEncTypes` and per-account `msDS-SupportedEncryptionTypes`. |
 
 ### Protocol Feature Flags (16-19)
 
