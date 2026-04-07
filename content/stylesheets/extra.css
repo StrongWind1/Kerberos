@@ -851,6 +851,15 @@ body.event-decoder-page .md-top {
   font-family: var(--md-code-font-family, monospace);
 }
 
+/* --- Result actions bar (Copy Details) --- */
+
+.evdec-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
 /* --- Warnings --- */
 
 .evdec-warnings {

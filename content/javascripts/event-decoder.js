@@ -495,13 +495,20 @@
   /*  Main rendering                                                    */
   /* ------------------------------------------------------------------ */
 
+  /** Stash the last parsed result so the copy button can access it. */
+  var lastParsed = null;
+
   function render(parsed) {
+    lastParsed = parsed;
     var resultsEl = q("#evdec-results");
     var headerEl = q("#evdec-header");
     var warningsEl = q("#evdec-warnings");
     var fieldsEl = q("#evdec-fields");
     var ticketOptsEl = q("#evdec-ticket-options");
+    var actionsEl = q("#evdec-result-actions");
     if (!resultsEl || !headerEl || !warningsEl || !fieldsEl || !ticketOptsEl) return;
+
+    if (actionsEl) actionsEl.style.display = "flex";
 
     /* --- Header --- */
     headerEl.innerHTML = "";
@@ -745,6 +752,130 @@
     pipelineEl.appendChild(pipe);
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  Copy Details — plain-text summary for troubleshooting              */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Build a plain-text summary of the decoded event with all etype
+   * negotiation inputs and outputs.  Designed for pasting into tickets,
+   * chat, or forum posts.
+   */
+  function buildCopyText(parsed) {
+    var meta = EVENT_TYPES[parsed.eventId];
+    var f = parsed.fields;
+    var lines = [];
+
+    /* Title line */
+    var isSuccess = true;
+    if (meta.alwaysFail) {
+      isSuccess = false;
+    } else if (meta.statusField && f[meta.statusField]) {
+      isSuccess = parseHex(f[meta.statusField]) === 0;
+    }
+    lines.push("Kerberos Event " + parsed.eventId + " — " + meta.name + " — " + (isSuccess ? "Success" : "Failure"));
+
+    /* Timestamp + DC */
+    var metaParts = [];
+    if (parsed.time) {
+      metaParts.push(parsed.time.replace("T", " ").replace("Z", " UTC").replace(/\.(\d{3})\d*/, ".$1"));
+    }
+    if (parsed.computer) metaParts.push(parsed.computer);
+    if (metaParts.length) lines.push(metaParts.join(" | "));
+    lines.push("");
+
+    /* Identity */
+    if (f.TargetUserName) {
+      var acct = f.TargetUserName;
+      if (f.TargetDomainName) acct += " @ " + f.TargetDomainName;
+      lines.push(pad("Account:", 18) + acct);
+    }
+    if (f.ServiceName) lines.push(pad("Service:", 18) + f.ServiceName);
+
+    /* Status */
+    if (f.Status) {
+      var code = decodeResultCode(f.Status);
+      var statusText = f.Status + " — " + code.name;
+      if (code.desc) statusText += " — " + code.desc;
+      lines.push(pad("Status:", 18) + statusText);
+    }
+    lines.push("");
+
+    /* Etype negotiation inputs */
+    var hasEtype = f.ClientAdvertizedEncryptionTypes ||
+                   f.AccountSupportedEncryptionTypes ||
+                   f.ServiceSupportedEncryptionTypes ||
+                   f.DCSupportedEncryptionTypes;
+    if (hasEtype) {
+      lines.push("--- Encryption Type Negotiation ---");
+      if (f.ClientAdvertizedEncryptionTypes) {
+        var etypes = f.ClientAdvertizedEncryptionTypes.split(/[\s,]+/).filter(function (s) { return s.length > 0; });
+        lines.push(pad("Client Offer:", 18) + etypes.join(", "));
+      }
+      if (f.AccountSupportedEncryptionTypes) {
+        lines.push(pad("Account msDS-SET:", 18) + f.AccountSupportedEncryptionTypes);
+      }
+      if (f.AccountAvailableKeys) {
+        lines.push(pad("Account Keys:", 18) + f.AccountAvailableKeys);
+      }
+      if (f.ServiceSupportedEncryptionTypes) {
+        lines.push(pad("Service msDS-SET:", 18) + f.ServiceSupportedEncryptionTypes);
+      }
+      if (f.ServiceAvailableKeys) {
+        lines.push(pad("Service Keys:", 18) + f.ServiceAvailableKeys);
+      }
+      if (f.DCSupportedEncryptionTypes) {
+        lines.push(pad("DC msDS-SET:", 18) + f.DCSupportedEncryptionTypes);
+      }
+      if (f.DCAvailableKeys) {
+        lines.push(pad("DC Keys:", 18) + f.DCAvailableKeys);
+      }
+      lines.push("");
+    }
+
+    /* KDC result etypes */
+    var hasResult = f.TicketEncryptionType || f.SessionKeyEncryptionType || f.PreAuthEncryptionType;
+    if (hasResult) {
+      lines.push("--- KDC Result ---");
+      if (f.TicketEncryptionType) {
+        var te = decodeEncryptionType(f.TicketEncryptionType);
+        lines.push(pad("Ticket Etype:", 18) + f.TicketEncryptionType + " " + te.name + " [" + te.security + "]");
+      }
+      if (f.SessionKeyEncryptionType) {
+        var se = decodeEncryptionType(f.SessionKeyEncryptionType);
+        lines.push(pad("Session Key:", 18) + f.SessionKeyEncryptionType + " " + se.name + " [" + se.security + "]");
+      }
+      if (f.PreAuthEncryptionType) {
+        var pe = decodeEncryptionType(f.PreAuthEncryptionType);
+        lines.push(pad("Pre-Auth Etype:", 18) + f.PreAuthEncryptionType + " " + pe.name + " [" + pe.security + "]");
+      }
+    }
+
+    /* Pre-auth type */
+    if (f.PreAuthType) {
+      var pa = decodePreAuthType(f.PreAuthType);
+      var paText = pa.name;
+      if (pa.desc) paText += " — " + pa.desc;
+      lines.push(pad("Pre-Auth Type:", 18) + paText);
+    }
+    if (hasResult || f.PreAuthType) lines.push("");
+
+    /* Warnings */
+    var warnings = generateWarnings(parsed);
+    if (warnings.length > 0) {
+      lines.push("--- Warnings ---");
+      warnings.forEach(function (w) { lines.push("- " + w); });
+    }
+
+    return lines.join("\n");
+  }
+
+  /** Right-pad a label to a fixed width for monospace alignment. */
+  function pad(label, width) {
+    while (label.length < width) label += " ";
+    return label;
+  }
+
   /** Render the decoded meaning for a single field into the given TD element. */
   function renderDecodedValue(td, key, val, parsed) {
     if (!val || val === "-") {
@@ -935,14 +1066,22 @@
     var ta = q("#evdec-xml");
     var errorEl = q("#evdec-error");
     var resultsEl = q("#evdec-results");
+    var actionsEl = q("#evdec-result-actions");
     if (ta) ta.value = "";
     if (errorEl) errorEl.style.display = "none";
     if (resultsEl) resultsEl.style.display = "none";
+    if (actionsEl) actionsEl.style.display = "none";
+    lastParsed = null;
     clearHash();
   }
 
   function onCopyLink(e) {
     copyText(location.href, e.currentTarget || e.target);
+  }
+
+  function onCopyDetails(e) {
+    if (!lastParsed) return;
+    copyText(buildCopyText(lastParsed), e.currentTarget || e.target);
   }
 
   function onExampleClick(e) {
@@ -980,6 +1119,7 @@
       on("#evdec-decode", "click", onDecode);
       on("#evdec-clear", "click", onClear);
       on("#evdec-copy-link", "click", onCopyLink);
+      on("#evdec-copy-details", "click", onCopyDetails);
 
       qa(".evdec-example-btn").forEach(function (btn) {
         btn.addEventListener("click", onExampleClick);

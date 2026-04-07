@@ -32,6 +32,9 @@ types, result codes, pre-authentication types, and security warnings.
 </div>
 <div id="evdec-error" class="evdec-error" style="display:none"></div>
 <div id="evdec-results" class="evdec-results" style="display:none">
+  <div id="evdec-result-actions" class="evdec-result-actions" style="display:none">
+    <button id="evdec-copy-details" class="evdec-btn evdec-btn--secondary" type="button">Copy Details</button>
+  </div>
   <div id="evdec-header" class="evdec-header"></div>
   <div id="evdec-warnings" class="evdec-warnings" style="display:none"></div>
   <div id="evdec-pipeline" class="evdec-pipeline" style="display:none"></div>
