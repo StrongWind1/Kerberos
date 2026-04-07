@@ -34,6 +34,7 @@ types, result codes, pre-authentication types, and security warnings.
 <div id="evdec-results" class="evdec-results" style="display:none">
   <div id="evdec-header" class="evdec-header"></div>
   <div id="evdec-warnings" class="evdec-warnings" style="display:none"></div>
+  <div id="evdec-pipeline" class="evdec-pipeline" style="display:none"></div>
   <div id="evdec-fields" class="evdec-fields"></div>
   <div id="evdec-ticket-options" class="evdec-ticket-options" style="display:none"></div>
 </div>

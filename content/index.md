@@ -37,7 +37,8 @@ Already familiar with Kerberos and just need to get your domain to AES? Jump str
 
     Configuring Kerberos for security: encryption type negotiation, key derivation, the `msDS-SupportedEncryptionTypes` attribute, registry and Group Policy settings, the RC4 deprecation timeline (CVE-2026-20833), and mitigations.
 
-    Start here if you need to secure an existing AD environment.
+    New to encryption types? Start with the [Quick Start Guide](security/quick-start.md).
+    For the full treatment, start here.
 
 -   **[Attacks](attacks/index.md)**
 

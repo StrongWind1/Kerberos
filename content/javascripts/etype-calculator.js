@@ -61,9 +61,9 @@
     msds: {
       id: "msds",
       label: "msDS-SupportedEncryptionTypes",
-      desc: "AD attribute on each account — controls which etypes the KDC uses for this account's service tickets.  Carries etype bits (0-5), protocol feature flags (16-19), and the future flag (31).",
+      desc: "AD attribute on each account — controls which etypes the KDC uses for this account's service tickets.  Carries etype bits (0-5) and protocol feature flags (16-19).",
       ignoredBits: [],
-      disabledBits: [],
+      disabledBits: [31],
       futureValue: 0x80000000,
       presets: [
         { label: "AES-only", value: 0x18, rec: true },

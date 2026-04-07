@@ -28,16 +28,16 @@
   /* ------------------------------------------------------------------ */
 
   var TICKET_OPTIONS = {
-    0:  { name: "Reserved", desc: "Reserved for future use." },
-    1:  { name: "Forwardable", desc: "TGT can be used to obtain forwarded TGTs with different network addresses." },
-    2:  { name: "Forwarded", desc: "TGT has been forwarded or ticket was issued from a forwarded TGT." },
-    3:  { name: "Proxiable", desc: "TGT can be used to obtain tickets with different network addresses." },
-    4:  { name: "Proxy", desc: "Network address in ticket differs from the one in the TGT used to obtain it." },
-    5:  { name: "Allow-postdate", desc: "Postdating requested (not supported by KILE)." },
-    6:  { name: "Postdated", desc: "Ticket is postdated (not supported by KILE)." },
-    7:  { name: "Invalid", desc: "Ticket is invalid and must be validated by the KDC before use." },
-    8:  { name: "Renewable", desc: "Ticket can be renewed at the KDC periodically." },
-    9:  { name: "Initial", desc: "Ticket was issued via AS exchange, not from a TGT." },
+    0: { name: "Reserved", desc: "Reserved for future use." },
+    1: { name: "Forwardable", desc: "TGT can be used to obtain forwarded TGTs with different network addresses." },
+    2: { name: "Forwarded", desc: "TGT has been forwarded or ticket was issued from a forwarded TGT." },
+    3: { name: "Proxiable", desc: "TGT can be used to obtain tickets with different network addresses." },
+    4: { name: "Proxy", desc: "Network address in ticket differs from the one in the TGT used to obtain it." },
+    5: { name: "Allow-postdate", desc: "Postdating requested (not supported by KILE)." },
+    6: { name: "Postdated", desc: "Ticket is postdated (not supported by KILE)." },
+    7: { name: "Invalid", desc: "Ticket is invalid and must be validated by the KDC before use." },
+    8: { name: "Renewable", desc: "Ticket can be renewed at the KDC periodically." },
+    9: { name: "Initial", desc: "Ticket was issued via AS exchange, not from a TGT." },
     10: { name: "Pre-authent", desc: "Client was authenticated by the KDC before ticket issuance." },
     11: { name: "Opt-hardware-auth", desc: "Hardware-assisted pre-authentication (deprecated, should not be set)." },
     12: { name: "Transited-policy-checked", desc: "Transited domain check (KILE ignores this flag)." },
@@ -55,14 +55,35 @@
   /*  Encryption types — hex code to name and security assessment       */
   /* ------------------------------------------------------------------ */
 
+  /* IANA Kerberos Encryption Type Numbers — https://www.iana.org/assignments/kerberos-parameters
+     Last updated 2024-12-06.  Windows-specific notes retained where applicable. */
   var ENCRYPTION_TYPES = {
-    0x1:          { name: "DES-CBC-CRC", security: "removed", note: "Removed in Server 2025" },
-    0x3:          { name: "DES-CBC-MD5", security: "removed", note: "Removed in Server 2025" },
-    0x11:         { name: "AES128-CTS-HMAC-SHA1-96", security: "recommended", note: "" },
-    0x12:         { name: "AES256-CTS-HMAC-SHA1-96", security: "recommended", note: "" },
-    0x17:         { name: "RC4-HMAC", security: "deprecated", note: "Deprecated \u2014 July 2026" },
-    0x18:         { name: "RC4-HMAC-EXP", security: "deprecated", note: "Export-grade, never use" },
-    0xFFFFFFFF:   { name: "(Failure)", security: "error", note: "Shown in audit failure events" }
+    0x0: { name: "reserved", security: "reserved", note: "RFC 6448" },
+    0x1: { name: "DES-CBC-CRC", security: "removed", note: "Deprecated (RFC 6649), removed in Server 2025" },
+    0x2: { name: "DES-CBC-MD4", security: "deprecated", note: "Deprecated (RFC 6649)" },
+    0x3: { name: "DES-CBC-MD5", security: "removed", note: "Deprecated (RFC 6649), removed in Server 2025" },
+    0x4: { name: "reserved", security: "reserved", note: "RFC 3961" },
+    0x5: { name: "DES3-CBC-MD5", security: "deprecated", note: "Deprecated (RFC 8429)" },
+    0x6: { name: "reserved", security: "reserved", note: "RFC 3961" },
+    0x7: { name: "DES3-CBC-SHA1", security: "deprecated", note: "Deprecated (RFC 8429)" },
+    0x9: { name: "dsaWithSHA1-CmsOID", security: "informational", note: "PKINIT CMS (RFC 4556)" },
+    0xA: { name: "md5WithRSAEncryption-CmsOID", security: "informational", note: "PKINIT CMS (RFC 4556)" },
+    0xB: { name: "sha1WithRSAEncryption-CmsOID", security: "informational", note: "PKINIT CMS (RFC 4556)" },
+    0xC: { name: "rc2CBC-EnvOID", security: "informational", note: "PKINIT CMS (RFC 4556)" },
+    0xD: { name: "rsaEncryption-EnvOID", security: "informational", note: "PKINIT CMS (RFC 4556, PKCS#1 v1.5)" },
+    0xE: { name: "rsaES-OAEP-ENV-OID", security: "informational", note: "PKINIT CMS (RFC 4556, PKCS#1 v2.0)" },
+    0xF: { name: "des-ede3-cbc-Env-OID", security: "informational", note: "PKINIT CMS (RFC 4556)" },
+    0x10: { name: "DES3-CBC-SHA1-KD", security: "deprecated", note: "Deprecated (RFC 8429)" },
+    0x11: { name: "AES128-CTS-HMAC-SHA1-96", security: "recommended", note: "RFC 3962" },
+    0x12: { name: "AES256-CTS-HMAC-SHA1-96", security: "recommended", note: "RFC 3962" },
+    0x13: { name: "AES128-CTS-HMAC-SHA256-128", security: "recommended", note: "RFC 8009" },
+    0x14: { name: "AES256-CTS-HMAC-SHA384-192", security: "recommended", note: "RFC 8009" },
+    0x17: { name: "RC4-HMAC", security: "deprecated", note: "Deprecated (RFC 8429) - Off by default July 2026" },
+    0x18: { name: "RC4-HMAC-EXP", security: "deprecated", note: "Deprecated (RFC 6649), export-grade" },
+    0x19: { name: "CAMELLIA128-CTS-CMAC", security: "informational", note: "RFC 6803" },
+    0x1A: { name: "CAMELLIA256-CTS-CMAC", security: "informational", note: "RFC 6803" },
+    0x41: { name: "subkey-keymaterial", security: "informational", note: "Opaque (PacketCable)" },
+    0xFFFFFFFF: { name: "(Failure)", security: "error", note: "Shown in audit failure events" }
   };
 
   /* ------------------------------------------------------------------ */
@@ -70,22 +91,22 @@
   /* ------------------------------------------------------------------ */
 
   var RESULT_CODES = {
-    0x0:  { name: "KDC_ERR_NONE", desc: "No error", causes: "" },
-    0x1:  { name: "KDC_ERR_NAME_EXP", desc: "Client's entry in KDC database has expired", causes: "" },
-    0x2:  { name: "KDC_ERR_SERVICE_EXP", desc: "Server's entry in KDC database has expired", causes: "" },
-    0x3:  { name: "KDC_ERR_BAD_PVNO", desc: "Requested Kerberos version number not supported", causes: "" },
-    0x4:  { name: "KDC_ERR_C_OLD_MAST_KVNO", desc: "Client's key encrypted in old master key", causes: "" },
-    0x5:  { name: "KDC_ERR_S_OLD_MAST_KVNO", desc: "Server's key encrypted in old master key", causes: "" },
-    0x6:  { name: "KDC_ERR_C_PRINCIPAL_UNKNOWN", desc: "Client not found in Kerberos database", causes: "The username doesn't exist." },
-    0x7:  { name: "KDC_ERR_S_PRINCIPAL_UNKNOWN", desc: "Server not found in Kerberos database", causes: "Server name not found in Active Directory." },
-    0x8:  { name: "KDC_ERR_PRINCIPAL_NOT_UNIQUE", desc: "Multiple principal entries in KDC database", causes: "Duplicate principal names exist. Check for duplicate SPNs." },
-    0x9:  { name: "KDC_ERR_NULL_KEY", desc: "Client or server has a null key", causes: "Reset the password on the account." },
-    0xA:  { name: "KDC_ERR_CANNOT_POSTDATE", desc: "Ticket not eligible for postdating", causes: "Client requested postdating, or time difference between client and KDC." },
-    0xB:  { name: "KDC_ERR_NEVER_VALID", desc: "Requested start time is later than end time", causes: "Time difference between KDC and client." },
-    0xC:  { name: "KDC_ERR_POLICY", desc: "KDC policy rejects request", causes: "Logon restrictions: workstation restriction, smart card requirement, or logon time restriction." },
-    0xD:  { name: "KDC_ERR_BADOPTION", desc: "KDC cannot accommodate requested option", causes: "TGT expiring, or SPN not in Allowed-to-delegate-to list." },
-    0xE:  { name: "KDC_ERR_ETYPE_NOTSUPP", desc: "KDC has no support for encryption type", causes: "Client and KDC have no common encryption type. Check msDS-SupportedEncryptionTypes and GPO settings." },
-    0xF:  { name: "KDC_ERR_SUMTYPE_NOSUPP", desc: "KDC has no support for checksum type", causes: "No key of the appropriate encryption type available." },
+    0x0: { name: "KDC_ERR_NONE", desc: "No error", causes: "" },
+    0x1: { name: "KDC_ERR_NAME_EXP", desc: "Client's entry in KDC database has expired", causes: "" },
+    0x2: { name: "KDC_ERR_SERVICE_EXP", desc: "Server's entry in KDC database has expired", causes: "" },
+    0x3: { name: "KDC_ERR_BAD_PVNO", desc: "Requested Kerberos version number not supported", causes: "" },
+    0x4: { name: "KDC_ERR_C_OLD_MAST_KVNO", desc: "Client's key encrypted in old master key", causes: "" },
+    0x5: { name: "KDC_ERR_S_OLD_MAST_KVNO", desc: "Server's key encrypted in old master key", causes: "" },
+    0x6: { name: "KDC_ERR_C_PRINCIPAL_UNKNOWN", desc: "Client not found in Kerberos database", causes: "The username doesn't exist." },
+    0x7: { name: "KDC_ERR_S_PRINCIPAL_UNKNOWN", desc: "Server not found in Kerberos database", causes: "Server name not found in Active Directory." },
+    0x8: { name: "KDC_ERR_PRINCIPAL_NOT_UNIQUE", desc: "Multiple principal entries in KDC database", causes: "Duplicate principal names exist. Check for duplicate SPNs." },
+    0x9: { name: "KDC_ERR_NULL_KEY", desc: "Client or server has a null key", causes: "Reset the password on the account." },
+    0xA: { name: "KDC_ERR_CANNOT_POSTDATE", desc: "Ticket not eligible for postdating", causes: "Client requested postdating, or time difference between client and KDC." },
+    0xB: { name: "KDC_ERR_NEVER_VALID", desc: "Requested start time is later than end time", causes: "Time difference between KDC and client." },
+    0xC: { name: "KDC_ERR_POLICY", desc: "KDC policy rejects request", causes: "Logon restrictions: workstation restriction, smart card requirement, or logon time restriction." },
+    0xD: { name: "KDC_ERR_BADOPTION", desc: "KDC cannot accommodate requested option", causes: "TGT expiring, or SPN not in Allowed-to-delegate-to list." },
+    0xE: { name: "KDC_ERR_ETYPE_NOTSUPP", desc: "KDC has no support for encryption type", causes: "Client and KDC have no common encryption type. Check msDS-SupportedEncryptionTypes and GPO settings." },
+    0xF: { name: "KDC_ERR_SUMTYPE_NOSUPP", desc: "KDC has no support for checksum type", causes: "No key of the appropriate encryption type available." },
     0x10: { name: "KDC_ERR_PADATA_TYPE_NOSUPP", desc: "KDC has no support for PADATA type", causes: "Smart card certificate not found, or wrong CA. Check domain controller certificate." },
     0x11: { name: "KDC_ERR_TRTYPE_NO_SUPP", desc: "KDC has no support for transited type", causes: "" },
     0x12: { name: "KDC_ERR_CLIENT_REVOKED", desc: "Client's credentials have been revoked", causes: "Account disabled, expired, or locked out." },
@@ -135,14 +156,14 @@
   /* ------------------------------------------------------------------ */
 
   var PREAUTH_TYPES = {
-    0:   { name: "(None)", desc: "Logon without pre-authentication", warning: true },
-    2:   { name: "PA-ENC-TIMESTAMP", desc: "Standard password authentication" },
-    11:  { name: "PA-ETYPE-INFO", desc: "KDC hints for encryption key selection" },
-    15:  { name: "PA-PK-AS-REP_OLD", desc: "Smart card logon authentication" },
-    16:  { name: "PA-PK-AS-REQ", desc: "Smart card authentication request" },
-    17:  { name: "PA-PK-AS-REP", desc: "Smart card authentication reply" },
-    19:  { name: "PA-ETYPE-INFO2", desc: "KDC hints for encryption key selection (v2)" },
-    20:  { name: "PA-SVR-REFERRAL-INFO", desc: "KDC referral ticket" },
+    0: { name: "(None)", desc: "Logon without pre-authentication", warning: true },
+    2: { name: "PA-ENC-TIMESTAMP", desc: "Standard password authentication" },
+    11: { name: "PA-ETYPE-INFO", desc: "KDC hints for encryption key selection" },
+    15: { name: "PA-PK-AS-REP_OLD", desc: "Smart card logon authentication" },
+    16: { name: "PA-PK-AS-REQ", desc: "Smart card authentication request" },
+    17: { name: "PA-PK-AS-REP", desc: "Smart card authentication reply" },
+    19: { name: "PA-ETYPE-INFO2", desc: "KDC hints for encryption key selection (v2)" },
+    20: { name: "PA-SVR-REFERRAL-INFO", desc: "KDC referral ticket" },
     138: { name: "PA-ENCRYPTED-CHALLENGE", desc: "Kerberos Armoring (FAST) \u2014 Server 2012+" }
   };
 
@@ -537,6 +558,9 @@
       warningsEl.style.display = "none";
     }
 
+    /* --- Etype negotiation pipeline (v2 events with etype fields) --- */
+    renderPipeline(parsed);
+
     /* --- Fields table --- */
     fieldsEl.innerHTML = "";
     var table = el("table", "evdec-table");
@@ -595,6 +619,130 @@
     }
 
     resultsEl.style.display = "block";
+  }
+
+  /**
+   * Render the etype negotiation pipeline for v2 events.
+   * Shows: Client Offer -> Account msDS-SET -> Service msDS-SET -> DC msDS-SET -> Result
+   * Only displayed when v2 etype fields are present in the event.
+   */
+  function renderPipeline(parsed) {
+    var pipelineEl = q("#evdec-pipeline");
+    if (!pipelineEl) return;
+    pipelineEl.innerHTML = "";
+
+    var f = parsed.fields;
+    /* Only show pipeline if we have at least the advertised etypes or SET fields */
+    var hasV2 = f.ClientAdvertizedEncryptionTypes ||
+                f.AccountSupportedEncryptionTypes ||
+                f.ServiceSupportedEncryptionTypes;
+    if (!hasV2) {
+      pipelineEl.style.display = "none";
+      return;
+    }
+
+    pipelineEl.style.display = "block";
+    pipelineEl.appendChild(el("h3", "evdec-section-title", "Encryption Type Negotiation"));
+
+    var pipe = el("div", "evdec-pipe");
+
+    /* Build pipeline stages.  Each stage: label, value, source description. */
+    var stages = [];
+
+    if (f.ClientAdvertizedEncryptionTypes) {
+      var etypes = f.ClientAdvertizedEncryptionTypes.split(/[\s,]+/).filter(function (s) { return s.length > 0; });
+      stages.push({
+        label: "Client Offer",
+        value: etypes.join(", "),
+        source: "Client machine GPO",
+        cls: "evdec-pipe-stage--input"
+      });
+    }
+
+    if (f.AccountSupportedEncryptionTypes && f.AccountSupportedEncryptionTypes !== "N/A") {
+      stages.push({
+        label: "Account msDS-SET",
+        value: f.AccountSupportedEncryptionTypes,
+        source: "AD attribute (Set-ADUser or GPO auto-update)",
+        cls: "evdec-pipe-stage--input"
+      });
+    } else if (f.AccountSupportedEncryptionTypes === "N/A") {
+      stages.push({
+        label: "Account msDS-SET",
+        value: "N/A (user account \u2014 uses DDSET fallback)",
+        source: "DefaultDomainSupportedEncTypes on DC",
+        cls: "evdec-pipe-stage--fallback"
+      });
+    }
+
+    if (f.ServiceSupportedEncryptionTypes && f.ServiceSupportedEncryptionTypes !== "N/A") {
+      stages.push({
+        label: "Service msDS-SET",
+        value: f.ServiceSupportedEncryptionTypes,
+        source: "AD attribute on SPN target account",
+        cls: "evdec-pipe-stage--input"
+      });
+    }
+
+    if (f.DCSupportedEncryptionTypes && f.DCSupportedEncryptionTypes !== "N/A") {
+      stages.push({
+        label: "DC msDS-SET",
+        value: f.DCSupportedEncryptionTypes,
+        source: "DC computer account in AD (from DC GPO)",
+        cls: "evdec-pipe-stage--input"
+      });
+    }
+
+    /* Output stages: what the KDC actually selected */
+    var outputs = [];
+    if (f.TicketEncryptionType) {
+      var te = decodeEncryptionType(f.TicketEncryptionType);
+      outputs.push({ label: "Ticket Etype", value: te.name, security: te.security });
+    }
+    if (f.SessionKeyEncryptionType) {
+      var se = decodeEncryptionType(f.SessionKeyEncryptionType);
+      outputs.push({ label: "Session Key", value: se.name, security: se.security });
+    }
+    if (f.PreAuthEncryptionType) {
+      var pe = decodeEncryptionType(f.PreAuthEncryptionType);
+      outputs.push({ label: "Pre-Auth Etype", value: pe.name, security: pe.security });
+    }
+
+    /* Render input stages */
+    stages.forEach(function (s, i) {
+      if (i > 0) {
+        pipe.appendChild(el("div", "evdec-pipe-arrow", "\u2193"));
+      }
+      var stage = el("div", "evdec-pipe-stage " + s.cls);
+      stage.appendChild(el("div", "evdec-pipe-label", s.label));
+      stage.appendChild(el("div", "evdec-pipe-value", s.value));
+      stage.appendChild(el("div", "evdec-pipe-source", s.source));
+      pipe.appendChild(stage);
+    });
+
+    /* Arrow to output */
+    if (stages.length > 0 && outputs.length > 0) {
+      var arrowBox = el("div", "evdec-pipe-arrow-result");
+      arrowBox.appendChild(el("span", null, "\u2193"));
+      arrowBox.appendChild(el("span", "evdec-pipe-arrow-label", " KDC negotiation "));
+      arrowBox.appendChild(el("span", null, "\u2193"));
+      pipe.appendChild(arrowBox);
+    }
+
+    /* Render output stages */
+    if (outputs.length > 0) {
+      var resultBox = el("div", "evdec-pipe-result");
+      outputs.forEach(function (o) {
+        var item = el("div", "evdec-pipe-result-item");
+        item.appendChild(el("span", "evdec-pipe-result-label", o.label + ": "));
+        item.appendChild(el("span", "evdec-pipe-result-value", o.value + " "));
+        item.appendChild(el("span", "evdec-badge " + etypeBadgeClass(o.security), o.security));
+        resultBox.appendChild(item);
+      });
+      pipe.appendChild(resultBox);
+    }
+
+    pipelineEl.appendChild(pipe);
   }
 
   /** Render the decoded meaning for a single field into the given TD element. */
@@ -703,7 +851,7 @@
   function clearHash() {
     try {
       history.replaceState(null, "", location.pathname);
-    } catch (_) {}
+    } catch (_) { }
   }
 
   /** Read XML from hash.  Returns the XML string, or empty string. */
@@ -713,7 +861,7 @@
       if (h.indexOf("xml=") === 0) {
         return fromBase64Url(h.substring(4));
       }
-    } catch (_) {}
+    } catch (_) { }
     return "";
   }
 

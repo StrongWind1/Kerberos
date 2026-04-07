@@ -5,10 +5,10 @@ management model, and a different remediation path.
 | Type | AD objectClass | SPNs | Password | GPO manages msDS-SET? | Default msDS-SET | Target |
 |------|---------------|------|----------|-----------------------|-----------------|--------|
 | User service account | `user` (objectCategory=person) | Manual | Human-set | No | `0` (unset) | `0x18` |
-| Computer account | `computer` | Auto at domain join | Auto-rotated 30 d | Yes | `0x1F` | `0x1F` (GPO) |
-| gMSA | `msDS-GroupManagedServiceAccount` | Explicit | Auto-rotated 240-char | No | `0x1C` | `0x18` |
-| MSA | `msDS-ManagedServiceAccount` | Explicit | Auto-rotated | No | `0x1C` or `0` | `0x18` |
-| dMSA | `msDS-DelegatedManagedServiceAccount` | Explicit | Auto-rotated (Server 2025+) | No | `0` or `0x1C` | `0x18` |
+| Computer account | `computer` | Auto at domain join | Auto-rotated | Yes | `0` | `0x18` (GPO) |
+| gMSA | `msDS-GroupManagedServiceAccount` | Explicit | Auto-rotated 240-char | No | `0` | `0x18` |
+| MSA | `msDS-ManagedServiceAccount` | Explicit | Auto-rotated | No | `0` | `0x18` |
+| dMSA | `msDS-DelegatedManagedServiceAccount` | Explicit | Auto-rotated (Server 2025+) | No | `0` | `0x18` |
 
 **Vocabulary used throughout this site:**
 

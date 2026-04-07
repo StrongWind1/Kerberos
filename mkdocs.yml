@@ -103,7 +103,9 @@ markdown_extensions:
       toc_depth: 3
 
 nav:
-  - Home: index.md
+  - Home: 
+      - index.md
+      - Quick Start Guide: security/quick-start.md
   - Protocol:
       - protocol/index.md
       - Active Directory: protocol/active-directory.md

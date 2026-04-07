@@ -7,6 +7,9 @@ your domain.
 Already familiar with Kerberos and just need to migrate?  Jump to the
 [Standardization Guide](aes-standardization.md).
 
+!!! tip "New to Kerberos encryption?"
+    Start with the [Quick Start Guide](quick-start.md) for a 5-minute overview with diagrams.
+
 ---
 
 ## Why This Matters
