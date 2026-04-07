@@ -30,17 +30,33 @@ other KDC behaviors.
 
 ## Non-Functional Registry Paths
 
-These 6 value/path combinations were tested with multiple values each and confirmed to have
-**zero effect** on KDC ticket issuance.  Setting these values is a no-op.
+Every combination of the three value names below was tested against each of the three
+registry paths on Server 2022 across 80+ tests.
+
+**Registry paths tested:**
+
+1. `HKLM\SYSTEM\CurrentControlSet\Services\KDC`
+2. `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters`
+3. `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters`
+
+**Value names tested:**
+
+- `DefaultDomainSupportedEncTypes`
+- `DefaultEncryptionType`
+- `SupportedEncryptionTypes`
+
+Of the 9 combinations (3 paths × 3 values), only 3 are functional — those are documented
+in the [table above](#functional-registry-paths).  The remaining 6 have **zero effect** on
+KDC ticket issuance:
 
 | # | Full Path | Value Name | Values Tested | Result |
 |---|-----------|-----------|---------------|--------|
-| 1 | `...\Lsa\Kerberos\Parameters` | `DefaultEncryptionType` | 4, 18, 24 | No change in ticket etype, session key, or msDSSET field |
-| 2 | `...\Services\Kdc` | `DefaultEncryptionType` | 4, 18, 24 | No change |
-| 3 | `...\Policies\...\Kerberos\Parameters` | `DefaultEncryptionType` | 4, 18, 24 | No change |
-| 4 | `...\Lsa\Kerberos\Parameters` | `DefaultDomainSupportedEncTypes` | 4, 24, 28 | No change (only works under `Services\KDC`) |
-| 5 | `...\Policies\...\Kerberos\Parameters` | `DefaultDomainSupportedEncTypes` | 4, 24, 28 | No change (only works under `Services\KDC`) |
-| 6 | `...\Services\Kdc` | `SupportedEncryptionTypes` | 4, 24, 28 | No change (only works under Pol and Lsa paths) |
+| 1 | `HKLM\...\Control\Lsa\Kerberos\Parameters` | `DefaultEncryptionType` | 4, 18, 24 | No change in ticket etype, session key, or msDSSET field |
+| 2 | `HKLM\...\Services\KDC` | `DefaultEncryptionType` | 4, 18, 24 | No change |
+| 3 | `HKLM\...\Policies\System\Kerberos\Parameters` | `DefaultEncryptionType` | 4, 18, 24 | No change |
+| 4 | `HKLM\...\Control\Lsa\Kerberos\Parameters` | `DefaultDomainSupportedEncTypes` | 4, 24, 28 | No change (only works under `Services\KDC`) |
+| 5 | `HKLM\...\Policies\System\Kerberos\Parameters` | `DefaultDomainSupportedEncTypes` | 4, 24, 28 | No change (only works under `Services\KDC`) |
+| 6 | `HKLM\...\Services\KDC` | `SupportedEncryptionTypes` | 4, 24, 28 | No change (only works under Pol and Lsa paths) |
 
 !!! tip "Common mistake: wrong path"
     `DefaultDomainSupportedEncTypes` is frequently set at the wrong registry path (Policies

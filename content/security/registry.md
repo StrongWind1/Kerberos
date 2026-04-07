@@ -303,34 +303,8 @@ Confusing them is the most common cause of "I set AES-only but services still ge
 | `SupportedEncryptionTypes` | `...\Lsa\Kerberos\Parameters` | Any machine | Manual | Same as above but lower precedence (Pol wins when both set).  Functional on Server 2022, deprecated in Server 2025. | KDC restart |
 | `DefaultDomainSupportedEncTypes` | `...\Services\KDC` | DC only | Manual / GPP | Sets the **assumed** etypes for accounts with no `msDS-SupportedEncryptionTypes`.  Not set by any GPO -- must be configured manually or via Group Policy Preferences. | Immediate |
 
-### Non-Functional Registry Paths
-
-Every combination of the three value names below was tested against each of the three
-registry paths on Server 2022 across 80+ tests.
-
-**Registry paths tested:**
-
-1. `HKLM\SYSTEM\CurrentControlSet\Services\KDC`
-2. `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters`
-3. `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters`
-
-**Value names tested:**
-
-- `DefaultDomainSupportedEncTypes`
-- `DefaultEncryptionType`
-- `SupportedEncryptionTypes`
-
-Of the 9 combinations (3 paths × 3 values), only 3 are functional — those are documented
-in the table above.  The remaining 6 have **zero effect** on KDC ticket issuance:
-
-| Value Name | Path | Status |
-|---|---|---|
-| `DefaultEncryptionType` | `...\Lsa\Kerberos\Parameters` | **No effect** |
-| `DefaultEncryptionType` | `...\Services\Kdc` | **No effect** |
-| `DefaultEncryptionType` | `...\Policies\...\Kerberos\Parameters` | **No effect** |
-| `DefaultDomainSupportedEncTypes` | `...\Lsa\Kerberos\Parameters` | **No effect** (only works under `Services\KDC`) |
-| `DefaultDomainSupportedEncTypes` | `...\Policies\...\Kerberos\Parameters` | **No effect** (only works under `Services\KDC`) |
-| `SupportedEncryptionTypes` | `...\Services\Kdc` | **No effect** (only works under Pol and Lsa paths) |
+For the full list of non-functional value/path combinations (6 of 9 tested), see
+[Registry Audit Results — Non-Functional Registry Paths](registry-audit.md#non-functional-registry-paths).
 
 !!! warning "GPO does not set `DefaultDomainSupportedEncTypes`"
     Applying the *Configure encryption types allowed for Kerberos* GPO to domain controllers
