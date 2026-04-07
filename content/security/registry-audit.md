@@ -10,6 +10,20 @@ then in combination to map the full interaction model.
 
 **Lab**: DC01 (Server 2022 Build 20348, KB5078763) | evil.corp | DFL 2016 | 80+ tests
 
+**Registry paths tested:**
+
+1. `HKLM\SYSTEM\CurrentControlSet\Services\KDC`
+2. `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters`
+3. `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters`
+
+**Value names tested:**
+
+- `DefaultDomainSupportedEncTypes`
+- `DefaultEncryptionType`
+- `SupportedEncryptionTypes`
+
+Every combination (3 paths × 3 values = 9) was tested.  Only 3 are functional.
+
 ---
 
 ## Functional Registry Paths
@@ -30,24 +44,7 @@ other KDC behaviors.
 
 ## Non-Functional Registry Paths
 
-Every combination of the three value names below was tested against each of the three
-registry paths on Server 2022 across 80+ tests.
-
-**Registry paths tested:**
-
-1. `HKLM\SYSTEM\CurrentControlSet\Services\KDC`
-2. `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters`
-3. `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters`
-
-**Value names tested:**
-
-- `DefaultDomainSupportedEncTypes`
-- `DefaultEncryptionType`
-- `SupportedEncryptionTypes`
-
-Of the 9 combinations (3 paths × 3 values), only 3 are functional — those are documented
-in the [table above](#functional-registry-paths).  The remaining 6 have **zero effect** on
-KDC ticket issuance:
+The remaining 6 of 9 combinations have **zero effect** on KDC ticket issuance:
 
 | # | Full Path | Value Name | Values Tested | Result |
 |---|-----------|-----------|---------------|--------|
