@@ -72,6 +72,50 @@ No cryptography background is needed -- encryption concepts are explained as the
 
 ---
 
+## Tools
+
+Attack pages use [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impacket](https://github.com/fortra/impacket) for examples. See the [Tools Setup](attacks/tools.md) page for installation instructions.
+
+### kerbwolf
+
+[kerbwolf](https://github.com/StrongWind1/KerbWolf) -- Kerberos roasting and TGT attack toolkit:
+
+| Tool | Purpose |
+|---|---|
+| `kw-roast` | TGS-REP roasting (Kerberoasting) |
+| `kw-asrep` | AS-REP roasting |
+| `kw-extract` | Offline hash extraction from pcap captures |
+| `kw-tgt` | TGT acquisition (pass-the-key / overpass-the-hash) |
+
+### Microsoft Kerberos-Crypto
+
+[Kerberos-Crypto](https://github.com/microsoft/Kerberos-Crypto) -- Microsoft's official PowerShell scripts for assessing RC4 usage and key readiness:
+
+| Script | Purpose |
+|---|---|
+| `Get-KerbEncryptionUsage.ps1` | Detect RC4 usage from Event IDs 4768/4769 across all KDCs |
+| `List-AccountKeys.ps1` | List Kerberos key types stored for each account |
+
+See [Detect Kerberos RC4 usage](https://learn.microsoft.com/en-us/windows-server/security/kerberos/detect-rc4) for Microsoft's official usage guidance.  These scripts are used directly in the [RC4 Deprecation](security/rc4-deprecation.md#step-2-identify-rc4-usage) pre-enforcement checklist.
+
+### PSKerb
+
+[PSKerb](https://github.com/microsoft/Kerberos-Crypto/tree/main/PSKerb) -- PowerShell module for reading and writing Kerberos client registry configuration on Windows:
+
+```powershell
+Install-Module -Name PSKerb
+```
+
+| Command | Purpose |
+|---|---|
+| `Get-KerbConfig` | Display all Kerberos client registry settings with human-readable values |
+| `Set-KerbConfig` | Set one or more Kerberos registry settings (e.g. `-SupportedEncryptionTypes AES256-SHA96`) |
+| `Clear-KerbConfig` | Remove registry overrides, reverting settings to defaults |
+
+Covers 22 settings under `HKLM\...\Policies\System\Kerberos\Parameters` including `SupportedEncryptionTypes`, `DefaultEncryptionType`, `MaxTokenSize`, and timeout/retry tuning.  See [Registry Settings](security/registry.md) for the security-relevant subset.
+
+---
+
 ## Authoritative References
 
 This guide is grounded in the official protocol specifications. Inline references like `[RFC 4120 §3.1]` or `[MS-KILE §3.3.5.7]` point to the source material throughout the site.
@@ -124,47 +168,3 @@ This guide is grounded in the official protocol specifications. Inline reference
 | [CVE-2026-20833](https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-20833) | Windows Kerberos RC4 Default Removal | Removes RC4 as the implicit default etype for accounts without explicit `msDS-SupportedEncryptionTypes` |
 | [KB5073381](https://support.microsoft.com/help/5073381) | Kerberos RC4 default removal (CVE-2026-20833) | Audit and enforcement timeline; Kdcsvc events 201--209 |
 | [CVE-2026-20849](https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-20849) | Windows Kerberos S4U PA-FOR-USER Deprecation | Replaces `PA-FOR-USER` with `PA-S4U-X509-USER` in S4U2Self requests |
-
----
-
-## Tools
-
-Attack pages use [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impacket](https://github.com/fortra/impacket) for examples. See the [Tools Setup](attacks/tools.md) page for installation instructions.
-
-### kerbwolf
-
-[kerbwolf](https://github.com/StrongWind1/KerbWolf) -- Kerberos roasting and TGT attack toolkit:
-
-| Tool | Purpose |
-|---|---|
-| `kw-roast` | TGS-REP roasting (Kerberoasting) |
-| `kw-asrep` | AS-REP roasting |
-| `kw-extract` | Offline hash extraction from pcap captures |
-| `kw-tgt` | TGT acquisition (pass-the-key / overpass-the-hash) |
-
-### Microsoft Kerberos-Crypto
-
-[Kerberos-Crypto](https://github.com/microsoft/Kerberos-Crypto) -- Microsoft's official PowerShell scripts for assessing RC4 usage and key readiness:
-
-| Script | Purpose |
-|---|---|
-| `Get-KerbEncryptionUsage.ps1` | Detect RC4 usage from Event IDs 4768/4769 across all KDCs |
-| `List-AccountKeys.ps1` | List Kerberos key types stored for each account |
-
-See [Detect Kerberos RC4 usage](https://learn.microsoft.com/en-us/windows-server/security/kerberos/detect-rc4) for Microsoft's official usage guidance.  These scripts are used directly in the [RC4 Deprecation](security/rc4-deprecation.md#step-2-identify-rc4-usage) pre-enforcement checklist.
-
-### PSKerb
-
-[PSKerb](https://github.com/microsoft/Kerberos-Crypto/tree/main/PSKerb) -- PowerShell module for reading and writing Kerberos client registry configuration on Windows:
-
-```powershell
-Install-Module -Name PSKerb
-```
-
-| Command | Purpose |
-|---|---|
-| `Get-KerbConfig` | Display all Kerberos client registry settings with human-readable values |
-| `Set-KerbConfig` | Set one or more Kerberos registry settings (e.g. `-SupportedEncryptionTypes AES256-SHA96`) |
-| `Clear-KerbConfig` | Remove registry overrides, reverting settings to defaults |
-
-Covers 22 settings under `HKLM\...\Policies\System\Kerberos\Parameters` including `SupportedEncryptionTypes`, `DefaultEncryptionType`, `MaxTokenSize`, and timeout/retry tuning.  See [Registry Settings](security/registry.md) for the security-relevant subset.
