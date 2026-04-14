@@ -1,7 +1,8 @@
-# Full Etype Matrix Lab Results
+# Full Etype Matrix Lab Results (v2)
 
-Lab date: 2026-04-14. DC: Server 2022 Build 20348 UBR 5020 (KB5078763).
-Domain: evil.corp, DFL Windows2016Domain. Tool: kw-roast with explicit `-e rc4` and `-e aes256`.
+Lab date: 2026-04-14 (v1), corrected 2026-04-14 (v2).
+DC: Server 2022 Build 20348 UBR 5020 (KB5078763). Domain: evil.corp, DFL Windows2016Domain.
+Tool: kw-roast. Hash prefix checked to determine the **actual etype returned**, not just whether a hash was obtained.
 
 ## Test accounts
 
@@ -15,168 +16,145 @@ Domain: evil.corp, DFL Windows2016Domain. Tool: kw-roast with explicit `-e rc4` 
 
 All accounts have both RC4 and AES keys in ntds.dit (passwords set post DFL 2008).
 
-## What ALLOWED and BLOCKED mean here
+## How to read the results
 
-- **ALLOWED** = kw-roast received a ticket of the requested type and extracted a hash
-- **BLOCKED** = kw-roast received no ticket (KDC denied the request or etype mismatch)
-- **ERROR(1)** = kw-roast failed before reaching the KDC (pre-auth blocked; see Pol=24 note)
+`kw-roast -e rc4` sends an RC4 etype request.  `kw-roast -e aes256` sends an AES256 request.
+The DC is not required to honour either — it picks the etype from the account's effective
+supported set and ignores the client's preference.  The hash prefix reveals what was actually
+issued:
 
-This tests whether a specific etype is *allowed or denied* by the KDC, not which etype the KDC *selects* when the client doesn't specify one. For etype selection behavior (DDSET/getST.py), see `april-2026-findings.md`.
+- `RC4` — DC returned `$krb5tgs$23$` (etype 23, RC4)
+- `AES256` — DC returned `$krb5tgs$18$` (etype 18, AES256)
+- `AES256(!≠req)` — DC returned AES256 when RC4 was requested (or vice versa)
+- `BLOCKED` — no hash returned; the DC refused to issue a ticket of any type
 
----
-
-## Matrix 1: Phase × DDSET × msDS-SET (Pol=0x7fffffff, allow-all)
-
-### Phase=absent (no key — enforcement active by default after KB5078763)
-
-| msDS-SET | DDSET=absent | DDSET=4 | DDSET=24 | DDSET=28 |
-|----------|-------------|---------|---------|---------|
-| blank | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED |
-| 0 | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED |
-| 4 | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** |
-| 24 | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED | RC4=**BLOCKED** AES=ALLOWED |
-| 28 | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED |
-
-**Finding:** DDSET has **zero effect** on allow/block under enforcement. The entire row is identical for all four DDSET values. RC4 is blocked for blank, 0, and 24. RC4 is allowed only for 4 and 28 (explicit msDS-SET includes RC4 bit).
-
-### Phase=2 (explicitly set — identical to Phase=absent)
-
-Identical to Phase=absent across all 20 combinations. Phase=2 and Phase=absent are operationally equivalent after KB5078763.
-
-### Phase=0 (full rollback)
-
-| msDS-SET | DDSET=absent | DDSET=4 | DDSET=24 | DDSET=28 |
-|----------|-------------|---------|---------|---------|
-| blank | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED |
-| 0 | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED |
-| 4 | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** |
-| 24 | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED |
-| 28 | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED | RC4=ALLOWED AES=ALLOWED |
-
-**Finding:** Phase=0 allows RC4 for **all** accounts including explicitly AES-only (msDS=24). DDSET again has no effect. The only restriction that survives Phase=0 is the AES-blocked state for msDS=4 — because those accounts are declared RC4-only, the KDC will not issue an AES ticket for them regardless of phase.
-
-!!! danger "Phase=0 wider than expected"
-    Setting `RC4DefaultDisablementPhase = 0` as an emergency rollback re-enables RC4 not
-    just for blank/0 accounts but also for accounts with `msDS-SET = 24` (explicit
-    AES-only).  This is a broader regression than most administrators expect.  Consider
-    Phase=1 (audit) instead, which has the same behavior but at least logs events.
-
-### Phase=1 (audit)
-
-Identical to Phase=0 across all 20 combinations. RC4 is allowed for all accounts (including msDS=24), DDSET has no effect. Events 201/202/206/207 are logged per request.
-
-**Finding:** Phase=1 and Phase=0 are operationally identical from a ticket-issuance perspective. The only difference is that Phase=1 logs Kdcsvc warning events.
+!!! important "The DC ignores the requested etype"
+    kw-roast only controls what etype is *requested*.  The DC picks the ticket etype from
+    the account's effective supported set and returns the **strongest available**, regardless
+    of what the client asked for.  A request for RC4 on an AES-only account returns an AES256
+    ticket.  A request for AES256 on a blank/0 account under Phase=0/1 returns an RC4 ticket.
 
 ---
 
-## Matrix 2: Pol\SupportedEncryptionTypes × DDSET × msDS-SET (Phase=absent)
+## Matrix 1: Phase × DDSET (Pol=0x7fffffff, allow-all)
 
-### Pol=0x7fffffff (allow all — baseline GPO value)
+DDSET had zero effect on outcomes across all 80 combinations — every DDSET value (absent, 4, 24, 28) produced identical results for a given Phase × msDS-SET pair.  The tables below show representative results (DDSET=absent); all other DDSET values match exactly.
 
-Identical to Phase=absent results from Matrix 1. Pol=0x7fff acts as a pass-through.
+### Phase=absent and Phase=2 — enforcement (identical results)
 
-### Pol=4 (RC4-only hard filter at KDC)
+| msDS-SET | RC4 requested → actual | AES256 requested → actual |
+|---------|----------------------|--------------------------|
+| blank | **BLOCKED** | AES256 |
+| 0 | **BLOCKED** | AES256 |
+| 4 (RC4-only) | RC4 | **BLOCKED** |
+| 24 (AES-only) | **BLOCKED** | AES256 |
+| 28 (RC4+AES) | AES256 (!≠req) | AES256 |
 
-| msDS-SET | DDSET=absent | DDSET=4 | DDSET=24 | DDSET=28 |
-|----------|-------------|---------|---------|---------|
-| blank | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** |
-| 0 | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** |
-| 4 | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** |
-| 24 | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** | RC4=**BLOCKED** AES=**BLOCKED** |
-| 28 | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** | RC4=ALLOWED AES=**BLOCKED** |
+**blank/0**: RC4 blocked entirely by enforcement.  AES256 works.
+**msDS=4**: RC4 only — no AES key or declared support.  AES blocked.
+**msDS=24**: AES-only — RC4 blocked by enforcement.
+**msDS=28**: DC picks AES256 (strongest in set) regardless of whether RC4 or AES256 was requested.
 
-**Finding:** Pol=4 blocks AES for **every** account regardless of msDS-SET or DDSET. Enforcement still blocks RC4 for blank/0/24. The result for blank/0 and 24 accounts is **both etypes blocked** — a complete service outage for those accounts. Only accounts with explicit RC4 in their msDS-SET (values 4 and 28) can communicate at all, and only via RC4.
+### Phase=0 and Phase=1 — rollback/audit (identical results)
 
-!!! danger "Pol=4 + enforcement = complete outage for unconfigured accounts"
-    This combination is catastrophic: AES is blocked by the Pol filter, RC4 is blocked by
-    enforcement.  An account with no `msDS-SupportedEncryptionTypes` can issue neither
-    ticket type.  Never set the DC Kerberos GPO to RC4-only while enforcement is active.
+| msDS-SET | RC4 requested → actual | AES256 requested → actual |
+|---------|----------------------|--------------------------|
+| blank | RC4 | RC4 (!≠req) |
+| 0 | RC4 | RC4 (!≠req) |
+| 4 (RC4-only) | RC4 | **BLOCKED** |
+| 24 (AES-only) | AES256 (!≠req) | AES256 |
+| 28 (RC4+AES) | AES256 (!≠req) | AES256 |
 
-### Pol=24 (AES-only hard filter at KDC)
+**blank/0**: Internal default reverts to 0x27 (DES + RC4 + AES-SK flag, no AES128/AES256 bits).
+DC can only issue RC4 tickets for these accounts.  Requesting AES256 still returns RC4.
+**msDS=4**: Unchanged — RC4 only, AES blocked, same as enforcement.
+**msDS=24**: Unchanged — DC still picks AES256.  Requesting RC4 returns AES256.
+**msDS=28**: Unchanged — DC still picks AES256 (strongest in set).
 
-All results are ERROR(1) — kw-roast failed to authenticate.
+---
 
-**Finding:** Pol=24 blocks RC4 at the pre-authentication (AS exchange) level. kw-roast uses password authentication, which requires RC4 pre-auth by default. When the DC refuses RC4 pre-auth, kw-roast cannot obtain a TGT and all subsequent tests fail. This confirms the previous finding that Pol\SupportedEncryptionTypes affects the AS exchange, not just TGS.
+## Matrix 2: Pol\SupportedEncryptionTypes × msDS-SET (Phase=absent)
 
-To test Pol=24 behaviour for individual SPNs, pre-authenticate separately using AES (e.g. with an existing ccache) and then use getST.py.
+DDSET again invariant — omitted from table.
+
+### Pol=4 (RC4-only hard KDC filter)
+
+| msDS-SET | RC4 req | AES256 req |
+|---------|---------|-----------|
+| blank | **BLOCKED** | **BLOCKED** |
+| 0 | **BLOCKED** | **BLOCKED** |
+| 4 | RC4 | **BLOCKED** |
+| 24 | **BLOCKED** | **BLOCKED** |
+| 28 | RC4 | **BLOCKED** |
+
+Pol=4 forces AES to BLOCKED for every account regardless of msDS-SET.  Enforcement still blocks RC4 for blank/0/24.  blank/0 and 24 accounts are fully blocked (both etypes refused) — complete outage.  Only msDS=4 and 28 can communicate, RC4 only.
 
 ### Pol=28 (RC4+AES filter)
 
-Identical to Pol=0x7fffffff. Pol=28 passes both RC4 and AES through and is indistinguishable from allow-all for this test set.
+Identical to Pol=0x7fff — no observable difference from allow-all for these test cases.
 
 ---
 
-## Key findings
+## Key findings (corrected from v1)
 
-### 1. Phase=absent == Phase=2
+### 1. The DC ignores the requested etype — it picks the strongest available
 
-After KB5078763, enforcement is active with no key present. Setting `RC4DefaultDisablementPhase=2` explicitly produces identical results in every combination tested.
+The most important finding from the v2 run.  kw-roast's `-e` flag sets what is *requested*.
+The DC returns the strongest etype the account can support from its effective set, independent
+of what was requested.  This has several consequences:
 
-### 2. DDSET has no effect on allow/block decisions
+- msDS=28 (RC4+AES) always returns AES256 regardless of phase or what was requested.
+  v1 reported this as "RC4=ALLOWED" — wrong.  The DC returned AES256 every time.
+- msDS=24 under Phase=0/1: requesting RC4 returns AES256.  v1 reported this as "RC4 allowed
+  for AES-only accounts under rollback" — wrong.  The account is still AES-only.
+- blank/0 under Phase=0/1: requesting AES256 returns RC4.  The internal default 0x27 has no
+  AES128/AES256 bits, so RC4 is the strongest etype available.
 
-`DefaultDomainSupportedEncTypes` values 4, 24, and 28 all produce identical allow/block results as the absent case across every Phase and every msDS-SET combination tested. DDSET affects which etype the KDC *selects* (etype preference ordering), but it does not override enforcement decisions. This has been confirmed across 80 combinations.
+### 2. Phase=0/1 rollback only affects blank/0 (unconfigured) accounts
 
-### 3. Phase=0 and Phase=1 are operationally identical for ticket issuance
+Contrary to v1, Phase=0/1 does **not** re-enable RC4 for explicitly configured accounts.
+The rollback changes the effective set for blank/0 accounts from 0x18 (enforcement default)
+back to 0x27 (old default, RC4-capable).  Accounts with an explicit msDS-SET behave
+identically in all phases:
 
-Both allow RC4 for every account including explicitly AES-only (msDS=24). Neither enforces any restriction based on msDS-SET or DDSET. The only account type that can't get AES under Phase=0/1 is explicit RC4-only (msDS=4), because the KDC won't issue an AES ticket for an account declared as RC4-only.
+| Account type | Phase=absent/2 | Phase=0/1 | Change on rollback? |
+|---|---|---|---|
+| blank / 0 | AES256 only | RC4 only | Yes — rolls back to old 0x27 default |
+| msDS=4 (RC4-only) | RC4 | RC4 | No |
+| msDS=24 (AES-only) | AES256 | AES256 | No |
+| msDS=28 (RC4+AES) | AES256 (strongest) | AES256 (strongest) | No |
 
-### 4. Phase=0/1 allows RC4 even for explicit msDS=24 (AES-only) accounts
+The danger of Phase=0/1 is narrower than v1 claimed: it only affects blank/0 accounts,
+and for those accounts it forces RC4 for all requests including AES256 requests.
 
-This contradicts the intuition that Phase=0 "only affects unconfigured accounts." Under Phase=0 and Phase=1, accounts with `msDS-SupportedEncryptionTypes=24` (AES-only) accept RC4 service tickets. This is a regression: pre-enforcement behavior (before January 2026) respected the AES-only declaration and blocked RC4 for msDS=24 accounts.
+### 3. Phase=absent == Phase=2
 
-### 5. Pol=4 (RC4-only filter) + enforcement = complete outage for unconfigured accounts
+Confirmed.  Operationally identical across all 80 combinations in Matrix 1.
 
-Both etypes are blocked simultaneously. This is the most dangerous misconfiguration possible during an AES migration: blank/0/24 accounts cannot authenticate at all.
+### 4. DDSET has no effect on which etype is returned
 
-### 6. Pol=24 blocks pre-authentication
+Across all Phase × msDS-SET combinations, DDSET values of absent, 4, 24, and 28 produced
+identical results.  DDSET does not influence the etype selection or the enforcement decision
+in any way detectable by explicit kw-roast etype requests.
 
-Setting `SupportedEncryptionTypes=24` at the DC Pol path blocks RC4 AS exchange. Tools that use RC4 pre-auth (including kw-roast) cannot authenticate to the domain at all. This confirms Pol\SET affects both the AS and TGS exchanges.
+### 5. msDS=28 (RC4+AES) always returns AES256
 
-### 7. The enforcing variable is msDS-SET, not DDSET
+Under every phase and every DDSET value, an account with msDS=28 returns AES256 regardless
+of whether RC4 or AES256 was requested.  The DC picks the strongest etype.  Kerberoasting
+with RC4 against an msDS=28 account does not produce an RC4 hash.
 
-Under enforcement, the only thing that determines whether RC4 is allowed is the account's `msDS-SupportedEncryptionTypes`:
-- blank or 0 → RC4 blocked
-- includes bit 0x4 (values 4, 28) → RC4 allowed
-- 24 (AES-only explicit) → RC4 blocked
+### 6. Pol=4 (RC4-only filter) + enforcement = complete outage for blank/0 and msDS=24
 
-DDSET and Phase (when 0 or 1) cannot override these outcomes.
+Both etypes blocked simultaneously: Pol=4 blocks AES, enforcement blocks RC4.  msDS=4 and
+msDS=28 accounts survive (RC4 only).
 
 ---
 
-## Corrections to previous documentation
+## Corrections to v1 matrix and site documentation
 
-### "DDSET overrides enforcement" [still wrong, now proven across 80 combinations]
-
-Every DDSET value (absent, 4, 24, 28) produces the same allow/block result under enforcement. The earlier finding and the MS KB5073381 claim that explicit DDSET bypasses enforcement are both contradicted by the full 80-combination matrix.
-
-### "Phase=0 only restores behavior for blank/0 accounts" [wrong]
-
-Phase=0 also restores RC4 for explicitly AES-only (msDS=24) accounts. The rollback is domain-wide and does not respect per-account AES declarations.
-
-### "Phase=1 (audit) is a safe rollback that doesn't change ticket issuance" [wrong]
-
-Phase=1 allows RC4 for all accounts including msDS=24, identical to Phase=0. Audit events are logged but no tickets are blocked. Using Phase=1 as a temporary measure re-enables RC4 more broadly than intended.
-
----
-
-## What the interaction matrix should look like
-
-For RC4 allow/block decisions (ignore DDSET — it has no effect on this):
-
-| Phase | msDS=blank | msDS=0 | msDS=4 | msDS=24 | msDS=28 |
-|-------|-----------|--------|--------|---------|---------|
-| absent | BLOCKED | BLOCKED | ALLOWED | BLOCKED | ALLOWED |
-| 0 | ALLOWED | ALLOWED | ALLOWED | ALLOWED | ALLOWED |
-| 1 | ALLOWED | ALLOWED | ALLOWED | ALLOWED | ALLOWED |
-| 2 | BLOCKED | BLOCKED | ALLOWED | BLOCKED | ALLOWED |
-
-For AES256 allow/block (also ignore DDSET):
-
-| Phase | msDS=blank | msDS=0 | msDS=4 | msDS=24 | msDS=28 |
-|-------|-----------|--------|--------|---------|---------|
-| absent | ALLOWED | ALLOWED | BLOCKED | ALLOWED | ALLOWED |
-| 0 | ALLOWED | ALLOWED | BLOCKED | ALLOWED | ALLOWED |
-| 1 | ALLOWED | ALLOWED | BLOCKED | ALLOWED | ALLOWED |
-| 2 | ALLOWED | ALLOWED | BLOCKED | ALLOWED | ALLOWED |
-
-AES256 allow/block is independent of Phase — it depends only on the account's msDS-SET and the Pol\SupportedEncryptionTypes filter.
+| Previous claim | Correct |
+|---|---|
+| "Phase=0/1 allows RC4 for msDS=24 (AES-only)" | False — DC returns AES256 regardless; requesting RC4 gets AES256, not RC4 |
+| "Phase=0/1 re-enables RC4 for ALL accounts" | False — only blank/0 accounts are affected; explicitly configured accounts unchanged |
+| "RC4=ALLOWED for msDS=28 under enforcement" | False — DC always returns AES256 for msDS=28; the v1 hash was AES256(!≠req), not RC4 |
+| "AES=ALLOWED/BLOCKED for Phase=0 msDS=4" | Partially correct — AES is genuinely blocked (no AES support), RC4 is returned |

@@ -128,28 +128,37 @@ On a **workstation or member server**: controls what etypes the client advertise
 
 Lab-verified results from a full 160-combination matrix test on KB5078763 (Build 20348 UBR 5020), testing all Phase × DDSET × msDS-SET combinations.
 
-### Allow/block matrix for RC4 service tickets
+### What Phase controls — the actual etype returned
 
-DDSET had zero effect on allow/block outcomes across all 80 combinations where it was varied.  The results below are invariant across DDSET values.
+DDSET had zero effect on outcomes across all 80 Phase × DDSET × msDS-SET combinations.
+The table shows what etype the DC actually issued for each account type, regardless of
+what etype kw-roast requested:
 
-| Phase | msDS=blank | msDS=0 | msDS=4 | msDS=24 | msDS=28 |
-|---|---|---|---|---|---|
-| **absent** | BLOCKED | BLOCKED | allowed | BLOCKED | allowed |
-| **0** | allowed | allowed | allowed | **allowed** | allowed |
-| **1** | allowed | allowed | allowed | **allowed** | allowed |
-| **2** | BLOCKED | BLOCKED | allowed | BLOCKED | allowed |
+| Phase | blank / 0 (unconfigured) | msDS=4 (RC4-only) | msDS=24 (AES-only) | msDS=28 (RC4+AES) |
+|---|---|---|---|---|
+| **absent / 2** | **AES256** (RC4 blocked) | RC4 (AES blocked) | **AES256** (RC4 blocked) | **AES256** (DC picks strongest) |
+| **0 / 1** | **RC4** (even when AES requested) | RC4 (AES blocked) | **AES256** (RC4 req returns AES256) | **AES256** (DC picks strongest) |
 
 Phase=absent and Phase=2 are operationally identical.  Phase=0 and Phase=1 are operationally identical.
 
-### Critical finding: Phase=0 and Phase=1 allow RC4 even for explicit AES-only accounts
+**The DC ignores the requested etype.**  kw-roast's `-e` flag controls only what is asked for.  The DC picks the strongest etype the account can support and returns that, independent of the request.  Requesting RC4 for an AES-only account returns an AES256 ticket.  Requesting AES256 for a blank/0 account under Phase=0/1 returns an RC4 ticket.
 
-Accounts with `msDS-SupportedEncryptionTypes = 24` (AES-only, explicit) receive RC4 service tickets under Phase=0 and Phase=1.  This is broader than most administrators expect from a rollback operation — it does not only affect unconfigured (blank/0) accounts.
+### Phase=0/1 only affects blank/0 (unconfigured) accounts
 
-!!! danger "Phase=0/1 rollback re-enables RC4 for ALL accounts"
-    Setting `RC4DefaultDisablementPhase = 0` or `= 1` re-enables RC4 for every account in
-    the domain, including accounts explicitly configured as AES-only.  The only exception
-    is accounts with `msDS-SET = 4` (RC4-only), which block AES regardless of phase.
-    Use this rollback only as a temporary emergency measure and document the scope.
+Phase=0/1 reverts the enforcement default for blank/0 accounts from 0x18 (AES-only) back to 0x27 (old default: DES + RC4 + AES session key flag, but no AES128/AES256 ticket etypes).  Because 0x27 contains no AES128 or AES256 bits, blank/0 accounts can only receive RC4 tickets — and the DC issues RC4 even when AES256 is explicitly requested.
+
+Accounts with an explicit `msDS-SupportedEncryptionTypes` are **not affected by Phase at all**:
+
+- **msDS=24**: DC returns AES256 in every phase.  Requesting RC4 gets AES256.
+- **msDS=28**: DC returns AES256 in every phase (strongest available).
+- **msDS=4**: RC4 in every phase.  AES blocked in every phase.
+
+!!! warning "Phase=0/1 forces blank/0 accounts to RC4 for all requests"
+    The rollback is not just "allows RC4 alongside AES."  For blank/0 accounts, it forces
+    RC4 even when AES was the requested etype.  Any service running against an unconfigured
+    account will switch from AES tickets to RC4 tickets as soon as the rollback is applied.
+    Explicitly configured accounts (any non-zero `msDS-SupportedEncryptionTypes`) are
+    unaffected.
 
 ### DDSET does not override enforcement
 
