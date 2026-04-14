@@ -32,4 +32,5 @@ Issues = "https://github.com/StrongWind1/Kerberos/issues"
 [dependency-groups]
 docs = [
     "mkdocs-material>=9.0",
+    "mkdocs-git-revision-date-localized-plugin",
 ]
