@@ -166,7 +166,7 @@ Get-WinEvent -FilterHashtable @{
   Format-Table -AutoSize
 ```
 
-See [RC4 Deprecation — Kdcsvc Event IDs](rc4-deprecation.md#kdcsvc-event-ids) for the full
+See [RC4 Deprecation — Kdcsvc Event IDs](rc4-deprecation.md#kdcsvc-event-reference) for the full
 event reference and remediation steps.
 
 ### 5. Kerberos Auditing Enabled
@@ -227,7 +227,7 @@ For the full account type taxonomy and bulk update commands, see
 
 For diagnostic techniques and error code reference, see [Troubleshooting](troubleshooting.md).
 For the full Kdcsvc 201-209 event reference, see
-[RC4 Deprecation — Kdcsvc Event IDs](rc4-deprecation.md#kdcsvc-event-ids).
+[RC4 Deprecation — Kdcsvc Event IDs](rc4-deprecation.md#kdcsvc-event-reference).
 
 ---
 

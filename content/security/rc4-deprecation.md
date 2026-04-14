@@ -182,7 +182,7 @@ Get-ADReplAccount -SamAccountName krbtgt -Server dc01.corp.local |
   Select-Object -ExpandProperty Credentials | Select-Object Etype
 ```
 
-If `krbtgt` lacks AES keys, rotate the password **twice** before proceeding.  See [Algorithms & Keys](algorithms.md#krbtgt-key-rotation).
+If `krbtgt` lacks AES keys, rotate the password **twice** before proceeding.  See [Algorithms & Keys](algorithms.md#krbtgt-special-considerations).
 
 ### All SPN-bearing user service accounts
 

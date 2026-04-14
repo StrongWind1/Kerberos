@@ -188,7 +188,7 @@ Breakdown:
 ### System Log: Kdcsvc Events (201-209)
 
 Introduced with the January 2026 update (CVE-2026-20833).  See the
-[RC4 Deprecation](rc4-deprecation.md#kdcsvc-event-ids) page for the complete reference.
+[RC4 Deprecation](rc4-deprecation.md#kdcsvc-event-reference) page for the complete reference.
 
 | Event ID | Phase | Description |
 |---|---|---|
