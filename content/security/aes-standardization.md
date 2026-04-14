@@ -1,16 +1,17 @@
 ---
 ---
 
-# Standardization Guide
+# AES Standardization Guide
 
-This is the operational playbook for moving a domain to AES Kerberos encryption.
-Every setting, every command, every verification step.
+This is the operational playbook for moving a domain to AES Kerberos encryption: every
+setting, every command, every verification step.  For technical background on how RC4 was
+selected and what each control does, see [RC4 Deprecation](rc4-deprecation.md).
 
 Two deployment paths are covered, based on whether all accounts have AES keys:
 
-1. **[Path 1: Modern AES-Only](#path-1-modern-aes-only-environment)** -- every account
+1. **[Path 1: Modern AES-Only](#path-1-modern-aes-only-environment)** — every account
    has AES keys, RC4 is fully disabled.  The target state for all domains.
-2. **[Path 2: AES Opportunistic with RC4 Fallback](#path-2-aes-opportunistic-with-rc4-fallback)** --
+2. **[Path 2: AES Opportunistic with RC4 Fallback](#path-2-aes-opportunistic-with-rc4-fallback)** —
    all manually-managed SPN-bearing accounts and computer accounts use AES, but some regular user accounts
    (no SPNs) lack AES keys and their passwords cannot be reset yet.  RC4 remains enabled
    solely for those users' pre-authentication.
@@ -31,9 +32,14 @@ auto-derived values), see the
 
 The `krbtgt` account encrypts every TGT in the domain.  If `krbtgt` lacks AES keys
 (password never rotated since DFL was raised to 2008), the KDC cannot issue AES-encrypted
-TGTs regardless of any other setting.  Rotate the `krbtgt` password **twice** -- once to
+TGTs regardless of any other setting.  Rotate the `krbtgt` password **twice** — once to
 generate AES keys, once to push the old key into the password history so both DCs in an
 RODC scenario have a clean state.
+
+**Leave `msDS-SupportedEncryptionTypes` on the `krbtgt` account at 0 (unset).**  The KDC
+reads `krbtgt`'s keys directly from `ntds.dit` and ignores its `msDS-SupportedEncryptionTypes`
+attribute.  On DFL 2008+, `krbtgt` always has AES256 keys, so TGTs are always AES256
+regardless of any registry or AD attribute setting.
 
 ### 2. Kerberos GPO (`SupportedEncryptionTypes`)
 
@@ -122,6 +128,30 @@ are affected.
 
 - `KerbTicket Encryption Type` = ticket etype (the algorithm used to encrypt the ticket's `enc-part`)
 - `Session Key Type` = session etype (the algorithm for the session key shared between client and service)
+
+---
+
+## GPO Model for AES Deployments
+
+Most domains use three GPOs to cover AES-only and mixed-etype environments:
+
+| GPO | Target OU | Etype checkboxes | Purpose |
+|---|---|---|---|
+| DC GPO | Domain Controllers OU | AES128 + AES256 (add RC4 only if needed for legacy AS exchange) | KDC hard filter; controls pre-auth |
+| AES-only machines | Workstations/Servers (modern) | AES128 + AES256 | Restricts client etype advertisement; auto-updates computer account `msDS-SET` |
+| AES+RC4 machines | Workstations/Servers (legacy) | RC4 + AES128 + AES256 | Allows RC4 for legacy devices while advertising AES preference |
+
+For any SPN-bearing account that is not a computer account — user service accounts, gMSA, MSA — set `msDS-SupportedEncryptionTypes` directly in AD.  The Kerberos GPO does not manage these account types.
+
+### How service ticket etypes are selected
+
+The service ticket encryption type is determined by the **target account**, not the client.  When a user requests a service ticket, the KDC picks the etype from the target service account's `msDS-SupportedEncryptionTypes` (or the DDSET fallback).  The client's own etype list does not drive this decision.
+
+This has two practical implications:
+
+1. **Modern clients need no RC4 configuration to receive RC4 service tickets.**  If a modern Windows 11 workstation connects to a legacy service whose account has `msDS-SET = 28` (RC4+AES), the KDC issues the strongest ticket etype the filter allows — AES256 if possible, RC4 if forced by the service account.  The modern client handles either etype without any special local configuration.
+
+2. **The DC GPO must allow RC4 if any service account uses it.**  The DC GPO acts as a hard KDC filter.  Even if a service account has `msDS-SET = 28`, the KDC will not issue RC4 tickets if the DC GPO does not include the RC4 checkbox.
 
 ---
 
@@ -1302,4 +1332,85 @@ Enforcement becomes permanent.  There is no rollback mechanism for the TGS defau
 
 For both paths in this guide, you have explicitly set `DefaultDomainSupportedEncTypes =
 0x18` (Step 5).  The enforcement phase and its removal have no effect on your
-configuration -- your explicit value was already controlling TGS behavior.
+configuration — your explicit value was already controlling TGS behavior.
+
+---
+
+## Optional: Enabling RC4 for Specific Accounts After July 2026
+
+After July 2026, the rollback mechanism is gone.  The only way to issue RC4 service tickets
+for a specific service is to explicitly configure the account and the DC GPO.  Use this
+sparingly — every account configured for RC4 is fully exposed to Kerberoasting.
+
+This requires two things:
+
+1. **The target service account** must include the RC4 bit in `msDS-SupportedEncryptionTypes`.
+2. **The DC GPO** must include RC4 in the `SupportedEncryptionTypes` filter and the KDC
+   must be restarted.
+
+If only one of these is configured, RC4 tickets cannot be issued: DDSET alone does not
+override enforcement, and a service account with `msDS-SET = 28` still needs the DC GPO to
+allow RC4.
+
+### Set the service account
+
+For user service accounts, gMSA, and MSA — set `msDS-SupportedEncryptionTypes` directly:
+
+```powershell title="Enable RC4 on a specific service account"
+Set-ADUser -Identity svc_legacy -Replace @{
+  'msDS-SupportedEncryptionTypes' = 28  # 0x1C = RC4 + AES128 + AES256
+}
+# Or for a gMSA:
+Set-ADServiceAccount -Identity svc_gmsa_legacy -Replace @{
+  'msDS-SupportedEncryptionTypes' = 28
+}
+```
+
+Value `28` (`0x1C`) is preferred over `4` — it keeps AES as the preferred etype while
+allowing RC4 as a fallback for clients that require it.  Value `4` (RC4-only) is only
+appropriate for services that cannot decrypt AES tickets at all.
+
+For computer accounts, apply a GPO that includes RC4 to the relevant OU.  The Kerberos
+GPO auto-updates the computer account's `msDS-SupportedEncryptionTypes` when `gpupdate`
+runs.
+
+### Update the DC GPO
+
+1. Edit the GPO linked to the **Domain Controllers** OU.
+2. Set **Network security: Configure encryption types allowed for Kerberos**:
+   ```
+   [ ] DES_CBC_CRC
+   [ ] DES_CBC_MD5
+   [x] RC4_HMAC_MD5      ← add this
+   [x] AES128_HMAC_SHA1
+   [x] AES256_HMAC_SHA1
+   [x] Future encryption types
+   ```
+3. Apply `gpupdate /force` on all DCs.
+4. Restart the KDC service on each DC:
+   ```powershell
+   Restart-Service kdc
+   ```
+
+The GPO filter must include RC4 before any RC4 service tickets can be issued, regardless
+of how individual accounts are configured.
+
+### What the client needs
+
+Nothing.  The KDC picks the service ticket etype from the target account's
+`msDS-SupportedEncryptionTypes`.  A modern client on Windows 10 or later will receive and
+use an RC4 service ticket without any local configuration change.
+
+### Track every exception
+
+Every account with RC4 enabled after July 2026 should be documented:
+
+| Field | Value |
+|---|---|
+| Account name | `svc_legacy` |
+| SPNs | `HTTP/legacy-app.corp.local` |
+| System | Legacy ERP application, version 4.2 |
+| Why RC4 | Vendor does not support AES (ticket filed: VENDOR-12345) |
+| Review date | 2026-10-01 |
+
+Review on schedule and remove the exception when the system is upgraded.

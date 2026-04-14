@@ -134,7 +134,7 @@ nav:
       - Hardening:
           - RC4 Deprecation: security/rc4-deprecation.md
           - Auditing Kerberos Keys: security/account-key-audit.md
-          - Standardization Guide: security/aes-standardization.md
+          - AES Standardization Guide: security/aes-standardization.md
           - Mitigations: security/mitigations.md
       - Troubleshooting: security/troubleshooting.md
   - Encryption Type Calculator: security/etype-calculator.md
