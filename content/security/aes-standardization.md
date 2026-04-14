@@ -680,7 +680,7 @@ Kerberos subsystem auto-updates its own AD computer account attribute.
     [ ] RC4_HMAC_MD5
     [x] AES128_HMAC_SHA1
     [x] AES256_HMAC_SHA1
-    [x] AES256_HMAC_SHA1_SK
+
     [x] Future encryption types
     ```
 
@@ -692,7 +692,7 @@ Kerberos subsystem auto-updates its own AD computer account attribute.
     [x] RC4_HMAC_MD5
     [x] AES128_HMAC_SHA1
     [x] AES256_HMAC_SHA1
-    [x] AES256_HMAC_SHA1_SK
+
     [x] Future encryption types
     ```
 
@@ -963,7 +963,7 @@ Before entering this path, confirm:
     [ ] RC4_HMAC_MD5
     [x] AES128_HMAC_SHA1
     [x] AES256_HMAC_SHA1
-    [x] AES256_HMAC_SHA1_SK
+
     [x] Future encryption types
     ```
 
@@ -1105,7 +1105,7 @@ with only RC4 keys log in.  If the DC GPO blocks RC4, these users get
     [x] RC4_HMAC_MD5
     [x] AES128_HMAC_SHA1
     [x] AES256_HMAC_SHA1
-    [x] AES256_HMAC_SHA1_SK
+
     [x] Future encryption types
     ```
 
@@ -1389,7 +1389,6 @@ runs.
    [x] RC4_HMAC_MD5          ← add this
    [x] AES128_HMAC_SHA1
    [x] AES256_HMAC_SHA1
-   [x] AES256_HMAC_SHA1_SK
    [x] Future encryption types
    ```
 3. Apply `gpupdate /force` on all DCs.
