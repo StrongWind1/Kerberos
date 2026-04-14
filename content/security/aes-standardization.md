@@ -1345,7 +1345,7 @@ configuration — your explicit value was already controlling TGS behavior.
 
 After July 2026, the rollback mechanism is gone.  The only way to issue RC4 service tickets
 for a specific service is to explicitly configure the account and the DC GPO.  Use this
-sparingly — every account configured for RC4 is fully exposed to Kerberoasting.
+sparingly — all SPN accounts are Kerberoastable, but RC4 makes cracking ~800x faster than AES.
 
 This requires two things:
 

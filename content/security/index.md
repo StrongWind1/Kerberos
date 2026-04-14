@@ -209,7 +209,7 @@ For the full account type taxonomy and bulk update commands, see
 
 | Setting | Where | Target | Risk if Wrong |
 |---|---|---|---|
-| `msDS-SupportedEncryptionTypes` | AD attribute on every SPN-bearing account | `0x18` (24) | RC4 tickets issued; Kerberoasting at full speed |
+| `msDS-SupportedEncryptionTypes` | AD attribute on every SPN-bearing account | `0x18` (24) | RC4 tickets issued; any SPN is Kerberoastable but RC4 cracks ~800x faster than AES |
 | `DefaultDomainSupportedEncTypes` | `HKLM\...\Services\KDC` on every DC | `0x18` (24) | Unconfigured accounts fall back to RC4 |
 | `SupportedEncryptionTypes` (GPO) | `HKLM\...\Kerberos\Parameters` on DCs | AES-only | KDC may issue RC4 tickets if allowed by this filter |
 | `RC4DefaultDisablementPhase` | `HKLM\...\Kerberos\Parameters` on DCs | `2` (enforce) | RC4 remains the implicit default for unconfigured accounts |

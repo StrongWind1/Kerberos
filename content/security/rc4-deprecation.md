@@ -12,7 +12,7 @@ This page covers the technical details of how RC4 is selected, what each control
 
 RC4 has been a known liability in Kerberos for over a decade:
 
-- **Kerberoasting**: any authenticated domain user can request a service ticket encrypted with the service account's RC4 key and crack it offline at roughly 800x the speed of AES.  See [Kerberoasting](../attacks/roasting/kerberoasting.md).
+- **Kerberoasting**: any authenticated domain user can request a service ticket for any SPN and crack it offline.  AES tickets can be cracked but require enormous compute time with a strong password.  RC4 tickets crack at roughly 800x the speed of AES — a weak password falls in hours.  See [Kerberoasting](../attacks/roasting/kerberoasting.md).
 - **Key = NTLM hash**: the RC4 Kerberos key is derived identically to the NTLM hash.  Compromising one gives the attacker both.
 - **No salt**: RC4 keys are unsalted MD4 hashes.  Rainbow tables work.  AES keys are salted with 4,096 PBKDF2 iterations per account, making precomputation infeasible.
 - **Stream cipher weaknesses**: RFC 7465 banned RC4 from TLS in 2015.  RFC 8429 deprecated it for Kerberos in 2018.
@@ -324,11 +324,12 @@ Most environments end up with three GPOs:
 
 For any SPN-bearing account that is not a computer account (user service accounts, gMSA, MSA), set `msDS-SupportedEncryptionTypes` directly in AD.  A GPO cannot manage these accounts.
 
-!!! warning "Explicit RC4 re-opens the Kerberoasting attack surface"
-    Any user service account with RC4 in its `msDS-SupportedEncryptionTypes` is fully
-    vulnerable to Kerberoasting.  Use 30+ character passwords for any account that must
-    retain RC4.  Track every exception with the account name, the system requiring RC4,
-    the vendor case or upgrade timeline, and a review date.
+!!! warning "All SPN accounts are Kerberoastable — RC4 makes cracking ~800x faster"
+    Any authenticated domain user can request a service ticket for any SPN and attempt to
+    crack it offline.  With AES, cracking a strong password requires centuries of compute.
+    With RC4, that drops to hours.  Any user service account that retains RC4 must have a
+    30+ character random password.  Track every exception with the account name, the system
+    requiring RC4, the vendor case or upgrade timeline, and a review date.
 
 ---
 

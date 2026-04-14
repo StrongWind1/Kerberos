@@ -118,7 +118,7 @@ Source: [MS-KILE] section 2.2.7 -- Supported Encryption Types Bit Flags.
 | Value (Hex) | Value (Dec) | Meaning | Recommendation |
 |---|---|---|---|
 | `0x0` | 0 | Not set — falls back to `DefaultDomainSupportedEncTypes` or enforcement default | Set explicitly; do not leave unset |
-| `0x4` | 4 | RC4 only | **Bad** — vulnerable to Kerberoasting |
+| `0x4` | 4 | RC4 only | **Bad** — Kerberoastable at ~800x the speed of AES |
 | `0x18` | 24 | AES128 + AES256 | **Recommended** — AES-only, no RC4 |
 | `0x1C` | 28 | RC4 + AES128 + AES256 | Transitional (no AES-SK); prefer `0x3C` |
 | `0x1F` | 31 | DES + RC4 + AES128 + AES256 | Legacy — includes DES |
@@ -135,7 +135,7 @@ By default, user accounts have `msDS-SupportedEncryptionTypes` **not set** (valu
 absent).  This means the KDC uses `DefaultDomainSupportedEncTypes` to decide, which
 historically included RC4.
 
-This is why **every user account with an SPN** is vulnerable to Kerberoasting out of the box.
+This is why **every user account with an SPN** is a Kerberoasting target. With RC4, tickets crack at roughly 800x the speed of AES — leaving any account with an RC4 key and a guessable password completely exposed.
 The fix is to explicitly set the attribute to `0x18` (AES only).
 
 ### Computer Accounts

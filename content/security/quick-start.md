@@ -55,10 +55,11 @@ sequenceDiagram
 ```
 
 !!! info "Why does the encryption type matter?"
-    Any authenticated domain user can request a service ticket for any SPN. An attacker grabs
-    the ticket and tries to crack it offline. With RC4, that takes hours. With AES, it takes
-    centuries. That's the whole game -- see [Kerberoasting](../attacks/roasting/kerberoasting.md)
-    for the attack details.
+    Any authenticated domain user can request a service ticket for any SPN and attempt to crack
+    it offline. This works against both RC4 and AES tickets — but the speed difference is
+    enormous. RC4 cracks at roughly **800x the speed of AES**. A weak password on an RC4
+    account falls in hours. The same password on an AES account can take centuries. See
+    [Kerberoasting](../attacks/roasting/kerberoasting.md) for the full attack details.
 
 ---
 
@@ -75,9 +76,11 @@ that's bad:
 | **Rainbow tables** | Work (no salt) | Don't work (salted per account) |
 | **Status** | Deprecated, being removed | Current standard |
 
-The bottom line: if a service account uses RC4 and an attacker grabs its ticket, they can crack
-weak passwords in minutes. With AES, even mediocre passwords hold up much longer. Full algorithm
-comparison at [Algorithms & Keys](algorithms.md).
+The bottom line: **both RC4 and AES service tickets can be Kerberoasted** — any domain user
+can request one and take it offline. The difference is time. With RC4, a weak password falls
+in minutes. With AES, even a mediocre password can hold up for years. AES doesn't close the
+attack surface, it makes exploitation orders of magnitude harder. Full algorithm comparison at
+[Algorithms & Keys](algorithms.md).
 
 ---
 
@@ -190,7 +193,7 @@ Look at `msDS-SupportedEncryptionTypes` for each account. You want `24` (AES128 
 | Value | Meaning | What happens today |
 |-------|---------|-------------------|
 | `0` or blank | Not set | Enforcement defaults it to AES-only. If the account has no AES keys, **every connection to that service fails**. |
-| `4` | RC4 only | RC4 tickets still issued (explicit config). Fully Kerberoastable. |
+| `4` | RC4 only | RC4 tickets still issued (explicit config). Kerberoastable at ~800x the speed of AES. |
 | `7` | DES + RC4 | Same as above, also includes broken DES. |
 | `24` (`0x18`) | AES128 + AES256 | Correct. No action needed. |
 | `60` (`0x3C`) | RC4 + AES + AES-SK | Transitional — RC4 still available for this account. |
@@ -345,11 +348,12 @@ Then restart the KDC on every DC.
 account — a modern Windows 11 client will receive and use an RC4 service ticket for a
 legacy service without any local configuration.
 
-!!! warning "RC4 on a service account = Kerberoastable"
-    Any user service account with RC4 in `msDS-SupportedEncryptionTypes` can have its
-    password cracked offline by any domain user. Use a 30+ character random password, treat
-    it as a temporary exception, and set a review date. See [Mitigations](mitigations.md)
-    for gMSA as the permanent fix.
+!!! warning "All SPN accounts are Kerberoastable — RC4 just makes it trivial"
+    Any domain user can request a service ticket for any SPN and attempt to crack it offline.
+    With AES, that takes centuries on current hardware. With RC4, it takes hours. An account
+    with RC4 in `msDS-SupportedEncryptionTypes` and a weak or guessable password is an open
+    door. Use a 30+ character random password (or better, migrate to gMSA), treat any RC4
+    exception as temporary, and set a review date. See [Mitigations](mitigations.md).
 
 ---
 
