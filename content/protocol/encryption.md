@@ -1,6 +1,3 @@
----
----
-
 # Encryption Types
 
 The cryptographic algorithms used to protect Kerberos messages.

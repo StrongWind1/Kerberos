@@ -1,6 +1,3 @@
----
----
-
 # AS-REP Roasting
 
 AS-REP Roasting targets Active Directory accounts that have Kerberos pre-authentication disabled. The attacker can request a TGT for these accounts without providing any credentials, and the KDC's response contains encrypted material that can be cracked offline to recover the account's password.

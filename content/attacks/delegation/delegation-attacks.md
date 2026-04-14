@@ -1,6 +1,3 @@
----
----
-
 # Delegation Attacks
 
 Abusing unconstrained, constrained, and resource-based constrained delegation.

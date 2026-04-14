@@ -1,6 +1,3 @@
----
----
-
 # Protocol Overview
 
 This page provides a bird's-eye view of how the Kerberos protocol works in Active Directory. It covers the three core exchanges, the types of cryptographic keys involved, the role of timestamps, and the infrastructure dependencies. Subsequent pages break down each exchange in detail.

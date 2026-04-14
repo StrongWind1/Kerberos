@@ -1,6 +1,3 @@
----
----
-
 # Tools Setup
 
 Installation and verification of the tools referenced throughout the Attacks section. All Python

@@ -1,6 +1,3 @@
----
----
-
 # Kerberoasting (TGS-REP Roasting)
 
 Kerberoasting is an offline password-cracking attack that targets **user service accounts** — user objects (objectCategory=person) with manually registered SPNs and human-set passwords. Any authenticated domain user can request a service ticket for any Service Principal Name (SPN), and the encrypted portion of that ticket can be cracked offline to recover the user service account's password.

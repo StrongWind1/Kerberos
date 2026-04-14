@@ -1,6 +1,3 @@
----
----
-
 # Pass-the-Ticket
 
 Stealing and reusing cached Kerberos tickets.

@@ -1,6 +1,3 @@
----
----
-
 # Pass-the-Key / Overpass-the-Hash
 
 Using stolen encryption keys to request Kerberos tickets without knowing the password.

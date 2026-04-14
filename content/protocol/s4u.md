@@ -1,6 +1,3 @@
----
----
-
 # S4U Extensions
 
 S4U2Self and S4U2Proxy: how services request tickets on behalf of users.

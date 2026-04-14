@@ -1,6 +1,3 @@
----
----
-
 # AES Standardization Guide
 
 This is the operational playbook for moving a domain to AES Kerberos encryption: every

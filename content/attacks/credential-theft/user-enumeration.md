@@ -1,6 +1,3 @@
----
----
-
 # User Enumeration via Kerberos
 
 Kerberos user enumeration exploits the different error codes the KDC returns for valid and invalid principal names. An attacker with nothing more than network access to the domain controller on port 88 can determine which usernames exist in the domain -- no credentials, no LDAP bind, no domain membership required.

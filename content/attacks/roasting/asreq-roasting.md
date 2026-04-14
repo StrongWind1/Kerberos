@@ -1,6 +1,3 @@
----
----
-
 # AS-REQ Roasting (Passive Capture)
 
 AS-REQ Roasting extracts crackable hashes from Kerberos pre-authentication traffic captured passively on the network. Unlike Kerberoasting and AS-REP Roasting, this attack does not require any interaction with the KDC -- the attacker simply observes legitimate authentication traffic.

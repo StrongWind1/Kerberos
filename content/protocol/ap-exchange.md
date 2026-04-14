@@ -1,6 +1,3 @@
----
----
-
 # AP Exchange
 
 How clients authenticate to services using service tickets.

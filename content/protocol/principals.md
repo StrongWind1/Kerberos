@@ -1,6 +1,3 @@
----
----
-
 # Principals and Realms
 
 Every participant in a Kerberos exchange -- whether a user, a computer, or a service -- needs a unique identity. Kerberos calls these identities **principals**. Principals live inside administrative boundaries called **realms**. This page explains how naming works and how Active Directory maps its own naming conventions onto the Kerberos model.

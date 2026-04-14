@@ -1,6 +1,3 @@
----
----
-
 # Troubleshooting
 
 Practical diagnostic tools, event IDs, error codes, and techniques for resolving

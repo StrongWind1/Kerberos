@@ -1,6 +1,3 @@
----
----
-
 # TGS Exchange (Ticket-Granting Service)
 
 The TGS exchange is the second step in the Kerberos authentication flow. Having already obtained a TGT through the [AS exchange](as-exchange.md), the client now uses that TGT to request a **Service Ticket** for a specific target service -- all without typing a password again. This is Single Sign-On in action.

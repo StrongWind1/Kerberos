@@ -1,6 +1,3 @@
----
----
-
 # Password Spraying via Kerberos
 
 Password spraying uses Kerberos pre-authentication as an oracle to test credentials across many accounts simultaneously. The Kerberos error codes returned by the KDC reveal not only whether the password was correct, but also account status information, and the attack can be performed without domain membership or elevated privileges -- just network access to port 88.

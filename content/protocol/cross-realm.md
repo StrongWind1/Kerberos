@@ -1,6 +1,3 @@
----
----
-
 # Cross-Realm Authentication
 
 How Kerberos works across domain and forest boundaries.

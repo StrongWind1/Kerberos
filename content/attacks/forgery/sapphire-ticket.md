@@ -1,6 +1,3 @@
----
----
-
 # Sapphire Ticket
 
 The stealthiest forged ticket: combining S4U2Self, U2U, and PAC transplant.

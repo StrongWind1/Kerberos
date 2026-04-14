@@ -1,6 +1,3 @@
----
----
-
 # Mitigations
 
 Best practices for securing Kerberos in Active Directory, organized by impact and

@@ -1,6 +1,3 @@
----
----
-
 # Delegation
 
 How services act on behalf of users to access other services.

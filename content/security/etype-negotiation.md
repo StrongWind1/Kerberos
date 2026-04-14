@@ -1,6 +1,3 @@
----
----
-
 # Encryption Type Negotiation
 
 How the KDC decides which encryption algorithm to use for every part of the

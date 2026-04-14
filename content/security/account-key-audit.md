@@ -1,6 +1,3 @@
----
----
-
 # Auditing Kerberos Keys
 
 Before migrating to AES, you need to know which accounts have AES keys and which only

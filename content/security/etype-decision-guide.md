@@ -1,6 +1,3 @@
----
----
-
 # How Encryption Types Are Chosen
 
 A single Kerberos ticket involves a dozen inputs spread across AD attributes, registry

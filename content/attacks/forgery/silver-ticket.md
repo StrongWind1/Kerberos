@@ -1,6 +1,3 @@
----
----
-
 # Silver Ticket
 
 Forging service tickets without contacting the domain controller.

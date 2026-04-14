@@ -1,6 +1,3 @@
----
----
-
 # AS Exchange (Authentication Service)
 
 The AS exchange is the first step in Kerberos authentication. It is how a client proves its identity to the KDC and obtains a **Ticket-Granting Ticket (TGT)** -- the credential that unlocks access to everything else. This exchange typically happens once per login session.

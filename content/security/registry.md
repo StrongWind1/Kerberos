@@ -1,6 +1,3 @@
----
----
-
 # Registry Settings
 
 Every registry key that affects Kerberos encryption behavior on domain controllers

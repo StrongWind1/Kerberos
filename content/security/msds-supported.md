@@ -1,6 +1,3 @@
----
----
-
 # msDS-SupportedEncryptionTypes
 
 The Active Directory attribute that drives encryption type selection for Kerberos

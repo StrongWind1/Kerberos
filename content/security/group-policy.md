@@ -1,6 +1,3 @@
----
----
-
 # Group Policy Settings
 
 Group Policy provides centralized management of Kerberos encryption types, ticket

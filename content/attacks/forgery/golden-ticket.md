@@ -1,6 +1,3 @@
----
----
-
 # Golden Ticket
 
 Forging Ticket-Granting Tickets with the KRBTGT account key.

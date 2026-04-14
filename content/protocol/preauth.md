@@ -1,6 +1,3 @@
----
----
-
 # Pre-Authentication
 
 How the KDC verifies client identity before issuing tickets.

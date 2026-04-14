@@ -1,6 +1,3 @@
----
----
-
 # Diamond Ticket
 
 Modifying legitimate tickets to bypass detection of forged tickets.

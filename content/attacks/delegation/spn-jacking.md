@@ -1,6 +1,3 @@
----
----
-
 # SPN-jacking
 
 Privilege escalation by moving Service Principal Names between accounts.

@@ -1,6 +1,3 @@
----
----
-
 # Ticket Structure
 
 What is inside a Kerberos ticket and what each field means.

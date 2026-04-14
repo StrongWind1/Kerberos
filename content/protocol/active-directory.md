@@ -1,6 +1,3 @@
----
----
-
 # Active Directory Components
 
 Before diving into the Kerberos protocol itself, you need to understand the Active Directory infrastructure it runs on. Kerberos in Windows does not exist in isolation -- it is deeply integrated into Active Directory Domain Services (AD DS). This page covers the AD building blocks that matter for Kerberos authentication.

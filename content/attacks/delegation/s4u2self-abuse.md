@@ -1,6 +1,3 @@
----
----
-
 # S4U2Self Abuse
 
 Local privilege escalation through service-for-user-to-self.
