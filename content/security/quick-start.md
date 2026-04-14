@@ -90,17 +90,17 @@ They have a strict pecking order -- the one at the top always wins.
 flowchart TD
     A["<b>1. msDS-SET</b>\nPer-account AD attribute\nWins when non-zero"]
     B["<b>2. DDSET</b>\nRegistry on each DC\nFallback when #1 is unset"]
-    C["<b>3. GPO Filter</b>\nGroup Policy on DCs\nBlocks etypes not listed"]
-    D["<b>4. RC4 Kill Switch</b>\nApril 2026 enforcement\nDefaults to AES-only"]
+    C["<b>3. RC4 Kill Switch</b>\nApril 2026 enforcement\nChanges blank/0 default to AES-only"]
+    D["<b>4. GPO Filter</b>\nGroup Policy on DCs\nHard filter — last word on what the KDC will issue"]
 
     A -->|"If unset"| B
-    B -->|"Filtered by"| C
-    C -->|"Overridden by"| D
+    B -->|"Modified by"| C
+    C -->|"Filtered by"| D
 
     style A fill:#16a34a,stroke:#15803d,color:#fff
     style B fill:#2563eb,stroke:#1d4ed8,color:#fff
-    style C fill:#d97706,stroke:#b45309,color:#fff
-    style D fill:#dc2626,stroke:#b91c1c,color:#fff
+    style C fill:#dc2626,stroke:#b91c1c,color:#fff
+    style D fill:#d97706,stroke:#b45309,color:#fff
 ```
 
 1. **msDS-SupportedEncryptionTypes** -- an AD attribute on each SPN-bearing account (service
@@ -111,14 +111,15 @@ flowchart TD
    for accounts that don't have #1 set. Takes effect immediately, no restart needed. Target: `24`.
    [Full reference](registry.md#defaultdomainsupportedenctypes)
 
-3. **SupportedEncryptionTypes (GPO)** -- a Group Policy setting applied to DCs. Acts as a hard
-   filter on top of #1 and #2. If it says "AES only," the KDC won't issue RC4 tickets even if
-   the account asks for them. Requires a KDC restart. [Full reference](group-policy.md)
-
-4. **RC4DefaultDisablementPhase** -- enforcement state since April 2026. Absent or set to 2
-   means enforcement is active. Set to 0 or 1 for temporary rollback until July 2026.
-   Removed entirely in July 2026 (permanent enforcement).
+3. **RC4DefaultDisablementPhase** -- enforcement state since April 2026. Absent or set to 2
+   means enforcement is active and changes the blank/0 fallback to AES-only. Set to 0 or 1 for
+   temporary rollback until July 2026. Removed entirely in July 2026 (permanent enforcement).
    [Full reference](rc4-deprecation.md#phase-behavior-what-the-registry-setting-actually-does)
+
+4. **SupportedEncryptionTypes (GPO)** -- a Group Policy setting applied to DCs. Acts as a hard
+   filter that is the final word on what the KDC will issue. If it says "AES only," no RC4
+   tickets are issued regardless of what msDS-SET, DDSET, or enforcement says. Requires a KDC
+   restart. [Full reference](group-policy.md)
 
 !!! warning "The GPO does NOT set DDSET"
     This trips everyone up. The Kerberos GPO and the DefaultDomainSupportedEncTypes registry key
