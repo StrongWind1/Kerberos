@@ -12,11 +12,17 @@
   <a href="https://strongwind1.github.io/Kerberos/attacks/">Attacks</a>
 </p>
 
-Comprehensive reference for Kerberos authentication in Microsoft Active Directory -- how the protocol works, how to configure it securely, and how attackers exploit it.
+Protocol internals, security configuration, and attack techniques for Kerberos in Active Directory.
+
+## Quick Start
+
+**RC4 enforcement starts April 2026.** Accounts without `msDS-SupportedEncryptionTypes` explicitly set will stop getting RC4 tickets. July 2026 makes it permanent with no rollback. The fix is two settings: `msDS-SupportedEncryptionTypes = 24` on every SPN-bearing account, and `DefaultDomainSupportedEncTypes = 24` on every DC.
+
+Not sure where your domain stands? The [Quick Start Guide](https://strongwind1.github.io/Kerberos/security/quick-start/) covers what you need to know in 5 minutes. Ready to run the migration? Go straight to the [Standardization Guide](https://strongwind1.github.io/Kerberos/security/aes-standardization/).
 
 ## Protocol
 
-The full Kerberos protocol as implemented in Active Directory, from first principles through advanced extensions.
+How Kerberos actually works in Active Directory. Wire protocol, ticket structures, key derivation, grounded in RFC 4120 and the MS-KILE spec.
 
 | Page | What it covers |
 |---|---|
@@ -28,14 +34,14 @@ The full Kerberos protocol as implemented in Active Directory, from first princi
 | [AP Exchange](https://strongwind1.github.io/Kerberos/protocol/ap-exchange/) | Authenticator construction, mutual authentication, and session key establishment |
 | [Ticket Structure](https://strongwind1.github.io/Kerberos/protocol/tickets/) | Wire format, PAC contents, PAC signatures, and the impact of KB5008380 |
 | [Pre-Authentication](https://strongwind1.github.io/Kerberos/protocol/preauth/) | PA-DATA types, FAST armoring, and what happens when pre-auth is disabled |
-| [Encryption Types](https://strongwind1.github.io/Kerberos/protocol/encryption/) | DES, RC4, AES128, AES256 -- key derivation, usage, and negotiation rules |
+| [Encryption Types](https://strongwind1.github.io/Kerberos/protocol/encryption/) | DES, RC4, AES128, AES256: key derivation, usage, and negotiation rules |
 | [S4U Extensions](https://strongwind1.github.io/Kerberos/protocol/s4u/) | S4U2Self, S4U2Proxy, FORWARDABLE flag, and RBCD vs constrained delegation |
 | [Cross-Realm Auth](https://strongwind1.github.io/Kerberos/protocol/cross-realm/) | Inter-forest referrals, trust keys, and cross-realm ticket flow |
 | [Delegation](https://strongwind1.github.io/Kerberos/protocol/delegation/) | Unconstrained, constrained, and resource-based constrained delegation |
 
 ## Security
 
-Encryption type negotiation, key derivation, registry and GPO configuration, the RC4 deprecation timeline, and the complete AES migration playbook.
+The RC4 deprecation deadline is April 2026 with permanent enforcement in July. This section covers how to audit your domain, what to configure, and how to migrate before it matters.
 
 ### Encryption
 
@@ -59,16 +65,16 @@ Encryption type negotiation, key derivation, registry and GPO configuration, the
 | Page | What it covers |
 |---|---|
 | [RC4 Deprecation](https://strongwind1.github.io/Kerberos/security/rc4-deprecation/) | CVE-2026-20833 timeline, Kdcsvc events 201-209, and pre-enforcement checklist |
-| [Auditing Kerberos Keys](https://strongwind1.github.io/Kerberos/security/account-key-audit/) | Identifying accounts with weak or missing AES keys before deprecation |
-| [Standardization Guide](https://strongwind1.github.io/Kerberos/security/aes-standardization/) | Full AES migration playbook: two paths, every command, every verification step |
-| [Mitigations](https://strongwind1.github.io/Kerberos/security/mitigations/) | Priority-ordered defenses from gMSA deployment to KRBTGT rotation |
+| [Auditing Kerberos Keys](https://strongwind1.github.io/Kerberos/security/account-key-audit/) | Finding accounts with weak or missing AES keys before enforcement hits |
+| [Standardization Guide](https://strongwind1.github.io/Kerberos/security/aes-standardization/) | AES migration playbook: two paths, every command, every verification step |
+| [Mitigations](https://strongwind1.github.io/Kerberos/security/mitigations/) | Defenses ranked by impact, from gMSA deployment to KRBTGT rotation |
 
 ### Reference
 
 | Page | What it covers |
 |---|---|
 | [Troubleshooting](https://strongwind1.github.io/Kerberos/security/troubleshooting/) | Common Kerberos errors, event IDs, and diagnostic procedures |
-| [Quick Start Guide](https://strongwind1.github.io/Kerberos/security/quick-start/) | 5-minute encryption type overview with diagrams -- start here if new to this |
+| [Quick Start Guide](https://strongwind1.github.io/Kerberos/security/quick-start/) | 5-minute encryption type overview with diagrams, for people who want the short version |
 
 ## Interactive Tools
 
@@ -79,7 +85,7 @@ Encryption type negotiation, key derivation, registry and GPO configuration, the
 
 ## Attacks
 
-Every major Kerberos attack -- mechanics, detection, exploitation, and defense.
+Every major Kerberos attack with enough detail to understand why it works, not just how to run the tool.
 
 ### Roasting (Offline Credential Cracking)
 
