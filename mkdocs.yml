@@ -68,8 +68,11 @@ plugins:
   - search
   - privacy
   - git-revision-date-localized:
-      enable_creation_date: true
       type: date
+      locale: en
+      enable_creation_date: true
+      fallback_to_build_date: false
+      strict: false
 
 markdown_extensions:
   - admonition
