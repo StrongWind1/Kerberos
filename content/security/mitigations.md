@@ -17,7 +17,9 @@ gMSA is the single most effective defense against Kerberoasting.
 - **Auto-generated 240-character passwords** that are cryptographically random.
 - **Automatic rotation** every 30 days (configurable) without any manual intervention.
 - **AES by default**: `msDS-SupportedEncryptionTypes` defaults to `0x1C` (RC4 + AES128 +
-  AES256), and the password complexity makes RC4 cracking infeasible regardless.
+  AES256).  Set it explicitly to `0x18` (AES-only) to eliminate RC4 traffic, or `0x3C`
+  (RC4 + AES + AES256-SK) if RC4 fallback is needed.  The password complexity makes RC4
+  cracking infeasible regardless, but removing RC4 eliminates the attack surface entirely.
 - **No human knows the password**: it is managed entirely by AD and retrieved only by
   authorized computer accounts.
 

@@ -68,7 +68,8 @@
       presets: [
         { label: "AES-only", value: 0x18, rec: true },
         { label: "AES + AES-SK", value: 0x38 },
-        { label: "RC4 + AES", value: 0x1C },
+        { label: "RC4 + AES + AES-SK", value: 0x3C, rec: true },
+        { label: "RC4 + AES (legacy)", value: 0x1C },
         { label: "Clear", value: 0 }
       ],
       powershell: function (v) {
@@ -101,9 +102,9 @@
       futureValue: GPO_FUTURE_VALUE,
       presets: [
         { label: "AES-only", value: 0x18, rec: true },
-        { label: "AES + Future", value: (0x18 | GPO_FUTURE_VALUE) >>> 0 },
-        { label: "RC4 + AES", value: 0x1C },
-        { label: "RC4 + AES + Future", value: (0x1C | GPO_FUTURE_VALUE) >>> 0 }
+        { label: "AES + AES-SK + Future", value: (0x38 | GPO_FUTURE_VALUE) >>> 0, rec: true },
+        { label: "RC4 + AES + AES-SK + Future", value: (0x3C | GPO_FUTURE_VALUE) >>> 0 },
+        { label: "RC4 + AES (legacy)", value: 0x1C }
       ],
       powershell: function (v) {
         return "# GPO: Network security: Configure encryption types allowed for Kerberos\n# Path: Computer Configuration > Policies > Windows Settings >\n#        Security Settings > Local Policies > Security Options\n# Set the decimal value to: " + v;

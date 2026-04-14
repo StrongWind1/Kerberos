@@ -30,6 +30,7 @@ The primary GPO for controlling Kerberos encryption types.
 | RC4_HMAC_MD5 | Enables RC4-HMAC (etype 23) |
 | AES128_HMAC_SHA1 | Enables AES128-CTS-HMAC-SHA1-96 (etype 17) |
 | AES256_HMAC_SHA1 | Enables AES256-CTS-HMAC-SHA1-96 (etype 18) |
+| AES256_HMAC_SHA1_SK | Enables AES256-CTS-HMAC-SHA1-96-SK (session key upgrade for RC4 tickets; bit 0x20) |
 | Future encryption types | Enables any future etypes added by Microsoft |
 
 ### Effect Depends on Where You Apply It
@@ -41,17 +42,29 @@ The primary GPO for controlling Kerberos encryption types.
 | **Member servers** | Controls what the **server's Kerberos client** will request, and updates the computer account's `msDS-SupportedEncryptionTypes` in AD. |
 
 !!! tip "Recommended configuration for domain controllers"
-    Enable only **AES128_HMAC_SHA1**, **AES256_HMAC_SHA1**, and **Future encryption types**.
-    This prevents the KDC from issuing any DES or RC4 tickets, regardless of account-level
-    configuration.
+
+    **AES-only DCs** (target state):
 
     ```
     Enabled:  AES128_HMAC_SHA1
               AES256_HMAC_SHA1
+              AES256_HMAC_SHA1_SK
               Future encryption types
     Disabled: DES_CBC_CRC
               DES_CBC_MD5
               RC4_HMAC_MD5
+    ```
+
+    **AES+RC4 DCs** (transitional, while legacy accounts remain):
+
+    ```
+    Enabled:  RC4_HMAC_MD5
+              AES128_HMAC_SHA1
+              AES256_HMAC_SHA1
+              AES256_HMAC_SHA1_SK
+              Future encryption types
+    Disabled: DES_CBC_CRC
+              DES_CBC_MD5
     ```
 
 !!! warning "Test before enforcing on DCs"

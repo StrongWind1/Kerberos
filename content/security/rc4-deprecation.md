@@ -53,7 +53,7 @@ The client's etype list (what it advertises in the TGS-REQ) does not control whi
 The practical implication: **you do not need to configure the source machine to allow RC4 when adding RC4 exceptions for specific legacy services**.  The only configuration needed is on the DCs (the GPO filter must allow RC4) and on the target service account (its `msDS-SupportedEncryptionTypes` must include the RC4 bit).
 
 !!! example "Mixed-etype scenario"
-    A user on a modern workstation logs in and gets an **AES256 TGT** (determined by the user account and the DC, not the target service).  When that user accesses a legacy service whose account has `msDS-SET = 28` (RC4+AES), the KDC issues an **AES256 service ticket** (strongest available etype).  If the legacy service's account has `msDS-SET = 4` (RC4 only), the KDC issues an **RC4 service ticket** — and the modern workstation accepts it without issue.
+    A user on a modern workstation logs in and gets an **AES256 TGT** (determined by the user account and the DC, not the target service).  When that user accesses a legacy service whose account has `msDS-SET = 60` (0x3C, RC4+AES+AES-SK), the KDC issues an **AES256 service ticket** (strongest available etype).  If the legacy service's account has `msDS-SET = 4` (RC4 only), the KDC issues an **RC4 service ticket** — and the modern workstation accepts it without issue.
 
 ### The AES session key flag (bit 0x20)
 
@@ -84,7 +84,8 @@ The per-account declaration of which etypes the account supports.  The KDC reads
 | blank / 0 | Not configured — KDC falls back to DDSET or enforcement default |
 | 4 (`0x04`) | RC4 only |
 | 24 (`0x18`) | AES128 + AES256 (recommended) |
-| 28 (`0x1C`) | RC4 + AES128 + AES256 |
+| 60 (`0x3C`) | RC4 + AES128 + AES256 + AES256-SK (**recommended transitional**) |
+| 28 (`0x1C`) | RC4 + AES128 + AES256 (transitional without AES-SK; prefer 0x3C) |
 | 36 (`0x24`) | RC4 + AES session key upgrade |
 
 Computer accounts: auto-updated by the Kerberos GPO when `gpupdate` runs.
@@ -271,10 +272,10 @@ Events 201/203 fire when the service account has **no** `msDS-SupportedEncryptio
 
 | Event pair | Root cause | Fix |
 |---|---|---|
-| 201/203 | Client RC4-only + service no explicit config | Enable AES on client, or set `msDS-SET = 28` on service account |
+| 201/203 | Client RC4-only + service no explicit config | Enable AES on client, or set `msDS-SET = 60` (0x3C) on service account |
 | 202/204 | Account lacks AES keys + no explicit config | Reset password (twice if pre-DFL 2008) |
 | 205 | DDSET includes RC4 | Set DDSET to `0x18` (AES-only) if safe; otherwise document the exception |
-| 206/208 | Service is AES-only + client RC4-only | Upgrade client, or temporarily set `msDS-SET = 28` on service |
+| 206/208 | Service is AES-only + client RC4-only | Upgrade client, or temporarily set `msDS-SET = 60` (0x3C) on service |
 | 207/209 | Service AES-only + account lacks AES keys | Reset password (twice if pre-DFL 2008) |
 
 ---
@@ -285,7 +286,7 @@ After July 2026, the `RC4DefaultDisablementPhase` registry key no longer exists.
 
 Both conditions must be met:
 
-1. **The target service account must declare RC4** in `msDS-SupportedEncryptionTypes` (bit 0x4).  The recommended value is `28` (0x1C = RC4 + AES128 + AES256) — this allows RC4 as a fallback while AES remains the preferred etype.
+1. **The target service account must declare RC4** in `msDS-SupportedEncryptionTypes` (bit 0x4).  The recommended value is `60` (0x3C = RC4 + AES128 + AES256 + AES256-SK) — this allows RC4 as a fallback while AES remains the preferred etype and enables the AES256 session key upgrade for any RC4 tickets issued.
 2. **The DC GPO must permit RC4** (`SupportedEncryptionTypes` must include the RC4 checkbox).  The GPO is the hard KDC filter.  If RC4 is not in the filter, the KDC will not issue RC4 tickets regardless of the account's `msDS-SET`.  A KDC restart is required after changing the GPO.
 
 ### Scenario A: Legacy service as the target
@@ -295,7 +296,7 @@ A legacy application running under a service account that cannot be upgraded to 
 | Component | Action |
 |---|---|
 | DC GPO | Include RC4 (RC4_HMAC_MD5 checkbox on) — restart KDC |
-| Service account | `msDS-SET = 28` (RC4+AES) for user/gMSA/MSA; GPO for computer accounts |
+| Service account | `msDS-SET = 60` (0x3C, RC4+AES+AES-SK) for user/gMSA/MSA; GPO for computer accounts |
 | Client machines | No change needed — the KDC selects the ticket etype from the target account, not from the client |
 
 The client gets an AES TGT (determined by the user and DC) and an RC4 service ticket (determined by the target service account).  The modern client handles RC4 service tickets without any special configuration.
@@ -308,8 +309,8 @@ A legacy device connects to services AND other machines connect to it.
 |---|---|
 | DC GPO | Include RC4 — restart KDC |
 | Legacy device (computer account) | GPO must include RC4 for the device to authenticate with RC4 pre-auth |
-| Legacy device's own service accounts | `msDS-SET = 28` for user accounts hosting SPNs; GPO for the computer account SPN |
-| Target services the legacy device connects to | `msDS-SET = 28` if those services also need RC4 |
+| Legacy device's own service accounts | `msDS-SET = 60` (0x3C) for user accounts hosting SPNs; GPO for the computer account SPN |
+| Target services the legacy device connects to | `msDS-SET = 60` (0x3C) if those services also need RC4 |
 
 ### GPO model for mixed environments
 
@@ -341,7 +342,7 @@ No.  DES was removed in Server 2025, but RC4 remains available and can be enable
 
 Yes, if you have SPN-bearing accounts with `msDS-SupportedEncryptionTypes` blank or 0 that depend on RC4.  The enforcement is active as soon as the updated KDC starts.  Run the audit steps in the [AES Standardization Guide](aes-standardization.md) before deploying the April 2026 update, or roll back to Phase=1 (audit) immediately after install if failures occur.
 
-**I set `DefaultDomainSupportedEncTypes = 28` on my DCs.  Does that protect me?**
+**I set `DefaultDomainSupportedEncTypes = 60` (0x3C) on my DCs.  Does that protect me?**
 
 Per Microsoft's documented intent (KB5073381), an explicit DDSET should not be overridden by enforcement.  In practice, lab testing of KB5078763 showed DDSET with RC4 is still overridden.  Do not rely on DDSET as a substitute for setting `msDS-SupportedEncryptionTypes` on individual accounts.
 
@@ -351,4 +352,4 @@ No.  The `RC4DefaultDisablementPhase` registry key is removed by the July 2026 u
 
 **Does `DefaultDomainSupportedEncTypes` need to include RC4 for legacy services?**
 
-No.  DDSET is a KDC fallback for accounts with `msDS-SET = 0`.  If you are using per-account `msDS-SET = 28` for legacy services, DDSET is irrelevant for those accounts.  DDSET would only matter for accounts that you deliberately leave unconfigured (blank/0) and want to treat as RC4-capable — which is not recommended.
+No.  DDSET is a KDC fallback for accounts with `msDS-SET = 0`.  If you are using per-account `msDS-SET = 60` (0x3C) for legacy services, DDSET is irrelevant for those accounts.  DDSET would only matter for accounts that you deliberately leave unconfigured (blank/0) and want to treat as RC4-capable — which is not recommended.

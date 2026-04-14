@@ -117,13 +117,13 @@ Source: [MS-KILE] section 2.2.7 -- Supported Encryption Types Bit Flags.
 
 | Value (Hex) | Value (Dec) | Meaning | Recommendation |
 |---|---|---|---|
-| `0x0` | 0 | Not set -- falls back to `DefaultDomainSupportedEncTypes` | Risky: RC4 is used by default |
-| `0x4` | 4 | RC4 only | **Bad** -- vulnerable to Kerberoasting |
-| `0x18` | 24 | AES128 + AES256 | **Recommended** for all SPN-bearing accounts |
-| `0x1C` | 28 | RC4 + AES128 + AES256 | Transitional -- still permits RC4 tickets |
-| `0x1F` | 31 | DES + RC4 + AES128 + AES256 | Legacy -- includes DES |
-| `0x38` | 56 | AES128 + AES256 + AES-SK | Recommended for `DefaultDomainSupportedEncTypes` |
-| `0x3C` | 60 | RC4 + AES128 + AES256 + AES-SK | Transitional with AES session keys |
+| `0x0` | 0 | Not set — falls back to `DefaultDomainSupportedEncTypes` or enforcement default | Set explicitly; do not leave unset |
+| `0x4` | 4 | RC4 only | **Bad** — vulnerable to Kerberoasting |
+| `0x18` | 24 | AES128 + AES256 | **Recommended** — AES-only, no RC4 |
+| `0x1C` | 28 | RC4 + AES128 + AES256 | Transitional (no AES-SK); prefer `0x3C` |
+| `0x1F` | 31 | DES + RC4 + AES128 + AES256 | Legacy — includes DES |
+| `0x38` | 56 | AES128 + AES256 + AES256-SK | AES-only with session key upgrade |
+| `0x3C` | 60 | RC4 + AES128 + AES256 + AES256-SK | **Recommended transitional** — RC4 fallback with AES session key upgrade |
 
 ---
 

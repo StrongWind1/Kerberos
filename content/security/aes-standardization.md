@@ -503,11 +503,12 @@ no DC restart, no GPO refresh, no delay.
 
 | Value | Hex | Meaning | When to use |
 |---|---|---|---|
-| 24 | `0x18` | AES128 + AES256 | **Recommended** -- AES-only, no RC4 fallback |
-| 28 | `0x1C` | RC4 + AES128 + AES256 | Transitional -- keeps RC4 as fallback for legacy clients |
+| 24 | `0x18` | AES128 + AES256 | **Recommended** — AES-only, no RC4 fallback |
+| 60 | `0x3C` | RC4 + AES128 + AES256 + AES256-SK | **Recommended transitional** — keeps RC4 as fallback while enabling AES session key upgrade |
+| 28 | `0x1C` | RC4 + AES128 + AES256 | Transitional without AES-SK; prefer `0x3C` |
 
 Do **not** use `0x10` (AES256 only) unless you are certain no client needs AES128.
-Do **not** use `0x04` (RC4 only) -- this blocks AES entirely.
+Do **not** use `0x04` (RC4 only) — this blocks AES entirely.
 
 ### Single account
 
@@ -679,6 +680,7 @@ Kerberos subsystem auto-updates its own AD computer account attribute.
     [ ] RC4_HMAC_MD5
     [x] AES128_HMAC_SHA1
     [x] AES256_HMAC_SHA1
+    [x] AES256_HMAC_SHA1_SK
     [x] Future encryption types
     ```
 
@@ -690,6 +692,7 @@ Kerberos subsystem auto-updates its own AD computer account attribute.
     [x] RC4_HMAC_MD5
     [x] AES128_HMAC_SHA1
     [x] AES256_HMAC_SHA1
+    [x] AES256_HMAC_SHA1_SK
     [x] Future encryption types
     ```
 
@@ -960,6 +963,7 @@ Before entering this path, confirm:
     [ ] RC4_HMAC_MD5
     [x] AES128_HMAC_SHA1
     [x] AES256_HMAC_SHA1
+    [x] AES256_HMAC_SHA1_SK
     [x] Future encryption types
     ```
 
@@ -1101,6 +1105,7 @@ with only RC4 keys log in.  If the DC GPO blocks RC4, these users get
     [x] RC4_HMAC_MD5
     [x] AES128_HMAC_SHA1
     [x] AES256_HMAC_SHA1
+    [x] AES256_HMAC_SHA1_SK
     [x] Future encryption types
     ```
 
@@ -1315,15 +1320,15 @@ during TGS processing:
 | `RC4DefaultDisablementPhase` | `DefaultDomainSupportedEncTypes` | Effective default for msDS-SET=0 accounts | Notes |
 |---|---|---|---|
 | absent (post KB5078763) | not set | `0x18` (AES-only) | April 2026 default — enforcement is on with no configuration |
-| absent (post KB5078763) | `0x1C` (includes RC4) | `0x18` (AES-only) | **Enforcement overrides DDSET.** RC4 blocked. Event 205 at KDC start. Lab-verified 2026-04-14. |
+| absent (post KB5078763) | `0x3C` (includes RC4) | `0x18` (AES-only) | **Enforcement overrides DDSET.** RC4 blocked. Event 205 at KDC start. Lab-verified 2026-04-14. |
 | 0 (rollback) | not set | `0x27` (RC4 + AES-SK) | Pre-2026 behavior restored; valid until July 2026 |
 | 0 (rollback) | `0x18` (explicit) | `0x18` (AES-only) | Explicit value used |
 | 1 (audit) | not set | `0x27` (RC4 + AES-SK) | RC4 allowed; events 201/202 logged. Valid until July 2026. |
 | 1 (audit) | `0x18` (explicit) | `0x18` (AES-only) | Events not triggered -- already AES |
 | 2 (enforce) | not set | `0x18` (AES-only) | Same as absent; redundant after April 2026 patch |
-| 2 (enforce) | `0x1C` (includes RC4) | `0x18` (AES-only) | **Enforcement overrides DDSET.** RC4 blocked. Lab-verified 2026-04-14. |
+| 2 (enforce) | `0x3C` (includes RC4) | `0x18` (AES-only) | **Enforcement overrides DDSET.** RC4 blocked. Lab-verified 2026-04-14. |
 | Removed (July 2026) | not set | `0x18` (AES-only) | Permanent enforcement, no rollback |
-| Removed (July 2026) | `0x1C` (includes RC4) | `0x18` (AES-only) | **Enforcement still overrides DDSET.** RC4 blocked for unconfigured accounts. |
+| Removed (July 2026) | `0x3C` (includes RC4) | `0x18` (AES-only) | **Enforcement still overrides DDSET.** RC4 blocked for unconfigured accounts. |
 
 ### July 2026 timeline
 
@@ -1358,17 +1363,17 @@ For user service accounts, gMSA, and MSA — set `msDS-SupportedEncryptionTypes`
 
 ```powershell title="Enable RC4 on a specific service account"
 Set-ADUser -Identity svc_legacy -Replace @{
-  'msDS-SupportedEncryptionTypes' = 28  # 0x1C = RC4 + AES128 + AES256
+  'msDS-SupportedEncryptionTypes' = 60  # 0x3C = RC4 + AES128 + AES256 + AES256-SK
 }
 # Or for a gMSA:
 Set-ADServiceAccount -Identity svc_gmsa_legacy -Replace @{
-  'msDS-SupportedEncryptionTypes' = 28
+  'msDS-SupportedEncryptionTypes' = 60
 }
 ```
 
-Value `28` (`0x1C`) is preferred over `4` — it keeps AES as the preferred etype while
-allowing RC4 as a fallback for clients that require it.  Value `4` (RC4-only) is only
-appropriate for services that cannot decrypt AES tickets at all.
+Value `60` (`0x3C`) is preferred — it keeps AES as the preferred etype, allows RC4 as a
+fallback, and enables the AES256 session key upgrade for any RC4 tickets issued.
+Value `4` (RC4-only) is only appropriate for services that cannot decrypt AES tickets at all.
 
 For computer accounts, apply a GPO that includes RC4 to the relevant OU.  The Kerberos
 GPO auto-updates the computer account's `msDS-SupportedEncryptionTypes` when `gpupdate`
@@ -1381,9 +1386,10 @@ runs.
    ```
    [ ] DES_CBC_CRC
    [ ] DES_CBC_MD5
-   [x] RC4_HMAC_MD5      ← add this
+   [x] RC4_HMAC_MD5          ← add this
    [x] AES128_HMAC_SHA1
    [x] AES256_HMAC_SHA1
+   [x] AES256_HMAC_SHA1_SK
    [x] Future encryption types
    ```
 3. Apply `gpupdate /force` on all DCs.

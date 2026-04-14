@@ -47,11 +47,12 @@ if the account had this value in its AD attribute.
 
 | Value | Hex | Meaning |
 |---|---|---|
-| 24 | `0x18` | AES128 + AES256 (**recommended** -- blocks RC4 for unconfigured accounts) |
-| 28 | `0x1C` | RC4 + AES128 + AES256 (transitional) |
-| 36 | `0x24` | RC4 + AES-SK (Server 2025 default -- RC4 ticket, AES session key) |
-| 39 | `0x27` | DES + RC4 + AES-SK (pre-2025 default) |
-| 56 | `0x38` | AES128 + AES256 + AES-SK (AES-only with session key flag) |
+| 24 | `0x18` | AES128 + AES256 (**recommended AES-only** — blocks RC4 for unconfigured accounts) |
+| 56 | `0x38` | AES128 + AES256 + AES256-SK (AES-only with session key upgrade) |
+| 60 | `0x3C` | RC4 + AES128 + AES256 + AES256-SK (**recommended transitional** — RC4 fallback with AES session key upgrade) |
+| 28 | `0x1C` | RC4 + AES128 + AES256 (transitional without AES-SK; prefer 0x3C) |
+| 36 | `0x24` | RC4 + AES256-SK (Server 2025 default — RC4 ticket, AES session key) |
+| 39 | `0x27` | DES + RC4 + AES256-SK (pre-April 2026 internal default) |
 
 ### Setting It
 

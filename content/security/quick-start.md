@@ -207,7 +207,8 @@ values you'll see:
 | `4` | RC4 only | **Yes** -- set to 24 |
 | `7` | DES + RC4 | **Yes** -- set to 24 |
 | `24` (`0x18`) | AES128 + AES256 | No -- you're good |
-| `28` (`0x1C`) | RC4 + AES128 + AES256 | OK for now, but consider dropping RC4 |
+| `60` (`0x3C`) | RC4 + AES128 + AES256 + AES256-SK | Recommended transitional value |
+| `28` (`0x1C`) | RC4 + AES128 + AES256 | Transitional without AES-SK; prefer `0x3C` |
 
 Use the [Encryption Type Calculator](etype-calculator.md) to decode any value you find.
 
