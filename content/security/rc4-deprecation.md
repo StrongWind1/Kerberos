@@ -56,13 +56,13 @@ for a service ticket based on the implicit default.
 
 ### April 2026 -- Enforcement with Rollback
 
-!!! info "Lab note: auto-enablement not yet verified"
-    The enforcement mechanism works when manually configured: setting
-    `RC4DefaultDisablementPhase = 2` and restarting the KDC successfully switches the
-    default to AES-only for msDS-SET=0 accounts.  However, the specific CU that
-    auto-enables enforcement (sets the value to 2 by default) has not been verified in
-    lab testing as of April 2026.  The timeline below reflects Microsoft's published
-    schedule.
+!!! success "Lab verified (2026-04-14): enforcement is on by default"
+    KB5078763 enables enforcement without any manual configuration.  After installing the
+    April 2026 update, `RC4DefaultDisablementPhase` is **absent** from the registry — and
+    absent means enforcement.  RC4 is blocked for accounts with no
+    `msDS-SupportedEncryptionTypes` set immediately after install and KDC restart.
+    Setting `RC4DefaultDisablementPhase = 2` explicitly is redundant; the key is only
+    useful to **roll back** to audit (`= 1`) or pre-enforcement (`= 0`) mode.
 
 **What happens**: the KDC changes its default behavior for accounts without
 `msDS-SupportedEncryptionTypes`.  Instead of assuming RC4 is acceptable, it assumes
@@ -93,9 +93,11 @@ Restart-Service kdc
 
 **What happens**: the `RC4DefaultDisablementPhase` registry key is removed.  Enforcement is
 permanent.  RC4 will only be used if an account **explicitly** includes bit `0x4` in its
-`msDS-SupportedEncryptionTypes`, or if `DefaultDomainSupportedEncTypes` is explicitly set
-to include RC4 on the DC (which overrides the internal default -- see the
-[interaction matrix](aes-standardization.md#interaction-matrix)).
+`msDS-SupportedEncryptionTypes` (e.g. `msDS-SET = 4` or `28`).  Setting
+`DefaultDomainSupportedEncTypes` to a value that includes RC4 does **not** re-enable RC4
+for accounts with no `msDS-SupportedEncryptionTypes` — the enforcement override ignores
+DDSET for unconfigured accounts.  See the
+[interaction matrix](aes-standardization.md#interaction-matrix).
 
 **What breaks**: everything that broke in April 2026 if you did not remediate.
 
@@ -259,24 +261,47 @@ klist -ke service.keytab
 
 ### Step 7: Test in a Pilot Group
 
-Before enforcing AES domain-wide:
+After installing the April 2026 update, enforcement is already active on all DCs that have
+received the patch.  To test the impact before it hits your full population:
 
-1. Set `RC4DefaultDisablementPhase = 2` on a **single** DC.
+1. Install the April 2026 update on a **single** DC.
 2. Direct a subset of clients to that DC (via DNS or site assignment).
-3. Monitor for failures (events 203, 204, 208, 209).
-4. Resolve any issues.
-5. Expand enforcement to all DCs.
+3. Monitor for failures (events 203, 204, 208, 209) — these mean RC4 is being blocked.
+4. Resolve any accounts that generate failures.
+5. Roll out the update to remaining DCs once the pilot is clean.
 
-### Step 8: Enable Enforcement
+If a failure is urgent, roll back enforcement on that DC to audit mode:
 
-Once all Kdcsvc audit events (201, 202, 206, 207) have been resolved:
-
-```powershell title="Enable RC4 enforcement on all domain controllers"
-# On all domain controllers
+```powershell title="Roll back a single DC to audit mode (RC4 allowed, events logged)"
 Set-ItemProperty `
   -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters" `
-  -Name "RC4DefaultDisablementPhase" -Value 2
+  -Name "RC4DefaultDisablementPhase" -Value 1
+Restart-Service kdc
 ```
+
+### Step 8: Verify Enforcement is Active
+
+Once all Kdcsvc audit events (201, 202, 206, 207) have been resolved and the April 2026
+update is installed on all DCs, verify that enforcement is running everywhere.  The key
+should be **absent** (enforcement) or explicitly set to `2`:
+
+```powershell title="Check RC4DefaultDisablementPhase on every DC"
+(Get-ADDomainController -Filter *).HostName | ForEach-Object {
+    $dc = $_
+    $phase = Invoke-Command -ComputerName $dc -ScriptBlock {
+        (Get-ItemProperty `
+          'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters' `
+          -EA 0).RC4DefaultDisablementPhase
+    }
+    [PSCustomObject]@{
+        DC    = $dc
+        Phase = if ($null -eq $phase) { '(absent = enforcement active)' } else { $phase }
+    }
+} | Format-Table -AutoSize
+```
+
+A value of `(absent)` or `2` means enforcement is on.  A value of `0` or `1` means a DC
+was rolled back and still allows RC4.
 
 ### Step 9: Managing RC4 Exceptions
 

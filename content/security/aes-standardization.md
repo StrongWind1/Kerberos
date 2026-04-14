@@ -61,8 +61,16 @@ instead.  It is **not** replicated -- you must set it on every DC individually, 
 every DC has the same value.
 
 If neither `msDS-SupportedEncryptionTypes` nor `DefaultDomainSupportedEncTypes` is set,
-the KDC falls back to an internal default of `0x27` (DES + RC4 + AES-SK) -- which
-includes RC4.
+the KDC internal default depends on the patch level:
+
+- **Before April 2026 (KB5078763)**: `0x27` (DES + RC4 + AES-SK), which includes RC4.
+- **After April 2026 (KB5078763)**: `0x18` (AES-only).  The enforcement phase is active
+  by default with no key present; RC4 is blocked for unconfigured accounts.
+
+In either case, setting an explicit `DefaultDomainSupportedEncTypes` on the DC controls
+the fallback for accounts with `msDS-SET = 0` — *except* that under the April 2026
+enforcement, DDSET values that include RC4 do not re-enable RC4 for unconfigured accounts.
+The enforcement override takes precedence over DDSET.
 
 ### 4. `msDS-SupportedEncryptionTypes` on manually-managed SPN-bearing accounts
 
@@ -144,7 +152,7 @@ needs investigation.  Common values and what they mean:
 
 | Value | Hex | Meaning |
 |---|---|---|
-| `0` | `0x0` | Not set -- falls back to `DefaultDomainSupportedEncTypes` or the KDC internal default (`0x27`, includes RC4) |
+| `0` | `0x0` | Not set — after April 2026 (KB5078763), RC4 is **blocked** by default.  Before that patch, fell back to DDSET or internal default `0x27`. |
 | `4` | `0x4` | RC4-only (explicit) |
 | `7` | `0x7` | DES + RC4 |
 | `24` | `0x18` | AES128 + AES256 (target) |
@@ -1235,9 +1243,10 @@ is set.  This section is a shared reference for both paths.
 
 | Value | Phase | Behavior |
 |---|---|---|
-| **0** (or not set) | Pre-2026 | RC4 is the implicit default.  The KDC internally assumes `0x27` for unconfigured accounts during TGS processing. |
-| **1** | Audit | Same as 0, but the KDC logs Kdcsvc events 201-209 whenever it would use RC4 from the implicit default. |
-| **2** | Enforcement | The KDC internally assumes `0x18` (AES-only) for unconfigured accounts during TGS processing.  RC4 is no longer implicit. |
+| **absent** (no key, post KB5078763) | Enforcement | RC4 blocked for unconfigured accounts.  KDC internally assumes `0x18`.  This is the default after the April 2026 update — no configuration required. |
+| **0** | Pre-2026 rollback | RC4 is the implicit default.  The KDC internally assumes `0x27` for unconfigured accounts.  Valid until July 2026. |
+| **1** | Audit | Same as 0, but the KDC logs Kdcsvc events 201/202 whenever it would use RC4 from the implicit default.  Valid until July 2026. |
+| **2** | Enforcement | Same as absent.  Explicitly sets what the April 2026 patch makes the default. |
 
 ### It does NOT modify DefaultDomainSupportedEncTypes
 
@@ -1245,8 +1254,13 @@ This is the critical distinction.  `RC4DefaultDisablementPhase` overrides the KD
 **internal** default -- the value the KDC uses when both `msDS-SupportedEncryptionTypes`
 and `DefaultDomainSupportedEncTypes` are absent.
 
-If you have **explicitly set** `DefaultDomainSupportedEncTypes` (Step 5), the
-enforcement phase does **not** override your explicit value.  Your explicit value wins.
+If you have **explicitly set** `DefaultDomainSupportedEncTypes = 0x18` (AES-only, Step 5),
+the enforcement phase and your explicit value agree — AES is the result either way.
+
+If `DefaultDomainSupportedEncTypes` is set to a value that includes RC4 (e.g. `0x1C`),
+the enforcement phase **overrides** it for accounts with `msDS-SET = 0`.  RC4 is still
+blocked for those accounts; the explicit DDSET only applies to accounts that have an
+explicit `msDS-SupportedEncryptionTypes` value.  Lab-verified on KB5078763 (2026-04-14).
 
 ### Scope: TGS processing only
 
@@ -1260,16 +1274,18 @@ RC4.
 What the KDC uses as the effective etype list for accounts with `msDS-SupportedEncryptionTypes = 0`
 during TGS processing:
 
-| `RC4DefaultDisablementPhase` | `DefaultDomainSupportedEncTypes` | Effective default | Notes |
+| `RC4DefaultDisablementPhase` | `DefaultDomainSupportedEncTypes` | Effective default for msDS-SET=0 accounts | Notes |
 |---|---|---|---|
-| 0 or not set | not set | `0x27` (RC4 + AES-SK) | Pre-2026 behavior |
-| 0 or not set | `0x18` (explicit) | `0x18` (AES-only) | Your explicit value is used |
-| 1 (audit) | not set | `0x27` (RC4 + AES-SK) | Same as pre-2026, but events 201-209 logged |
+| absent (post KB5078763) | not set | `0x18` (AES-only) | April 2026 default — enforcement is on with no configuration |
+| absent (post KB5078763) | `0x1C` (includes RC4) | `0x18` (AES-only) | **Enforcement overrides DDSET.** RC4 blocked. Event 205 at KDC start. Lab-verified 2026-04-14. |
+| 0 (rollback) | not set | `0x27` (RC4 + AES-SK) | Pre-2026 behavior restored; valid until July 2026 |
+| 0 (rollback) | `0x18` (explicit) | `0x18` (AES-only) | Explicit value used |
+| 1 (audit) | not set | `0x27` (RC4 + AES-SK) | RC4 allowed; events 201/202 logged. Valid until July 2026. |
 | 1 (audit) | `0x18` (explicit) | `0x18` (AES-only) | Events not triggered -- already AES |
-| 2 (enforce) | not set | `0x18` (AES-only) | Enforcement overrides internal default |
-| 2 (enforce) | `0x1C` (explicit, includes RC4) | `0x1C` (RC4 + AES) | Explicit value wins; Event 205 logged on KDC start |
+| 2 (enforce) | not set | `0x18` (AES-only) | Same as absent; redundant after April 2026 patch |
+| 2 (enforce) | `0x1C` (includes RC4) | `0x18` (AES-only) | **Enforcement overrides DDSET.** RC4 blocked. Lab-verified 2026-04-14. |
 | Removed (July 2026) | not set | `0x18` (AES-only) | Permanent enforcement, no rollback |
-| Removed (July 2026) | `0x1C` (explicit, includes RC4) | `0x1C` (RC4 + AES) | Explicit value **still** wins; Event 205 logged |
+| Removed (July 2026) | `0x1C` (includes RC4) | `0x18` (AES-only) | **Enforcement still overrides DDSET.** RC4 blocked for unconfigured accounts. |
 
 ### July 2026 timeline
 
