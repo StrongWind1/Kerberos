@@ -245,8 +245,22 @@ process Group Policy (NAS, printers, Linux hosts) — set those manually.
 ### Step 4: Make sure accounts have AES keys
 
 An account only gets AES keys when its password is set (or reset) at domain functional level 2008
-or higher. If the account password hasn't been changed since before that, it only has RC4 keys.
-Setting `msDS-SET = 24` on an account without AES keys = authentication failure.
+or higher. If the password hasn't changed since before that, the account only has RC4 keys.
+The impact of missing AES keys depends on what the account is:
+
+**SPN-bearing service accounts** — if `msDS-SET = 24` (AES-only) is set but the account has
+no AES key, the KDC cannot encrypt service tickets for that SPN. Every client that tries to
+connect to that service gets `KDC_ERR_ETYPE_NOSUPP` and the connection fails. The service
+account's password must be reset before setting `msDS-SET = 24`.
+
+**Regular users and computer accounts without AES keys** — the impact is broader. When a user
+or machine logs in, the KDC encrypts the AS-REP (TGT delivery) with that account's key. If
+the account has no AES key and the DC GPO blocks RC4, the logon itself fails — the user
+cannot authenticate at all. More critically, even if the logon succeeds via RC4, that user or
+machine cannot obtain service tickets for any service that requires AES. Any access to a
+file share, SQL server, or other Kerberos-protected resource configured for AES-only will
+fail with `KDC_ERR_ETYPE_NOSUPP`. One account without AES keys can block an entire user from
+the network.
 
 ```powershell
 # Find accounts with passwords older than AES key availability
