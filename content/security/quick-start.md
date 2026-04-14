@@ -215,14 +215,32 @@ Use the [Encryption Type Calculator](etype-calculator.md) to decode any value yo
 
 ### Step 3: Set msDS-SET = 24 on all SPN-bearing accounts
 
+**User service accounts, gMSA, MSA** — set manually via PowerShell:
+
 ```powershell
 # User service accounts
 Get-ADUser -Filter 'servicePrincipalName -like "*"' |
   Set-ADUser -Replace @{'msDS-SupportedEncryptionTypes' = 24}
 ```
 
-For gMSA, MSA, and dMSA bulk scripts, see the [Standardization Guide](aes-standardization.md).
-Computer accounts are handled automatically by GPO -- don't set them manually.
+For gMSA, MSA, and dMSA bulk scripts, see the [Standardization Guide](aes-standardization.md#step-3-set-msds-supportedencryptiontypes-on-manually-managed-spn-bearing-accounts).
+
+**Computer accounts** — handled automatically by the Kerberos GPO. When the *Network
+security: Configure encryption types allowed for Kerberos* policy is applied, each
+machine updates its own `msDS-SupportedEncryptionTypes` in AD after the next
+`gpupdate`. You do not need to set these manually, but you can verify:
+
+```powershell
+# Check computer accounts still at 0 (GPO hasn't applied yet)
+Get-ADComputer -Filter * -Properties 'msDS-SupportedEncryptionTypes' |
+  Where-Object { $_.'msDS-SupportedEncryptionTypes' -eq 0 } |
+  Select-Object Name, LastLogonDate |
+  Sort-Object LastLogonDate
+```
+
+Accounts still at 0 after the GPO has had time to propagate are typically offline
+machines, devices in an OU not covered by the GPO, or non-Windows devices that cannot
+process Group Policy (NAS, printers, Linux hosts) — set those manually.
 
 ### Step 4: Make sure accounts have AES keys
 
