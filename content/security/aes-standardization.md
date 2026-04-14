@@ -1248,19 +1248,27 @@ is set.  This section is a shared reference for both paths.
 | **1** | Audit | Same as 0, but the KDC logs Kdcsvc events 201/202 whenever it would use RC4 from the implicit default.  Valid until July 2026. |
 | **2** | Enforcement | Same as absent.  Explicitly sets what the April 2026 patch makes the default. |
 
-### It does NOT modify DefaultDomainSupportedEncTypes
+### Documented behavior vs. observed behavior (KB5078763 discrepancy)
 
-This is the critical distinction.  `RC4DefaultDisablementPhase` overrides the KDC's
-**internal** default -- the value the KDC uses when both `msDS-SupportedEncryptionTypes`
-and `DefaultDomainSupportedEncTypes` are absent.
+According to Microsoft's KB5073381, `RC4DefaultDisablementPhase` only overrides the KDC's
+**internal** default — the value the KDC uses when **both** `msDS-SupportedEncryptionTypes`
+**and** `DefaultDomainSupportedEncTypes` are absent.  KB5073381 states explicitly that DCs
+with an explicitly defined `DefaultDomainSupportedEncTypes` are **not** functionally
+impacted, and that Event 205 is a permanent warning for insecure DDSET configurations that
+"will not be changing."  Under this model, DDSET with RC4 should continue to work.
 
-If you have **explicitly set** `DefaultDomainSupportedEncTypes = 0x18` (AES-only, Step 5),
-the enforcement phase and your explicit value agree — AES is the result either way.
+**Lab results on KB5078763 (2026-04-14, Build 20348 UBR 5020) contradict this.**  Setting
+`DefaultDomainSupportedEncTypes` to any value that includes RC4 (4, 28, 39) does not
+re-enable RC4 for accounts with no `msDS-SupportedEncryptionTypes`.  Event 203 fires and
+reports `DefaultDomainSupportedEncTypes: 0x18` in its output regardless of the registry
+value, indicating the KDC is substituting the enforcement default internally.
 
-If `DefaultDomainSupportedEncTypes` is set to a value that includes RC4 (e.g. `0x1C`),
-the enforcement phase **overrides** it for accounts with `msDS-SET = 0`.  RC4 is still
-blocked for those accounts; the explicit DDSET only applies to accounts that have an
-explicit `msDS-SupportedEncryptionTypes` value.  Lab-verified on KB5078763 (2026-04-14).
+The cause is unclear — it may be a behavioral change introduced in KB5078763 that KB5073381
+does not reflect, or a defect.  Until Microsoft clarifies:
+
+- Do not rely on explicit DDSET with RC4 to exempt accounts from enforcement.
+- Use explicit `msDS-SupportedEncryptionTypes` on individual accounts instead.
+- If you need to verify behavior in your environment, test with the actual patch level.
 
 ### Scope: TGS processing only
 

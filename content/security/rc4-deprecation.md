@@ -93,11 +93,14 @@ Restart-Service kdc
 
 **What happens**: the `RC4DefaultDisablementPhase` registry key is removed.  Enforcement is
 permanent.  RC4 will only be used if an account **explicitly** includes bit `0x4` in its
-`msDS-SupportedEncryptionTypes` (e.g. `msDS-SET = 4` or `28`).  Setting
-`DefaultDomainSupportedEncTypes` to a value that includes RC4 does **not** re-enable RC4
-for accounts with no `msDS-SupportedEncryptionTypes` — the enforcement override ignores
-DDSET for unconfigured accounts.  See the
-[interaction matrix](aes-standardization.md#interaction-matrix).
+`msDS-SupportedEncryptionTypes` (e.g. `msDS-SET = 4` or `28`).
+
+Microsoft's KB5073381 states that `DefaultDomainSupportedEncTypes` explicitly set to
+include RC4 will continue to work (Event 205 fires as a warning but behavior is
+unchanged).  However, lab testing of KB5078763 shows enforcement overrides DDSET
+regardless of its value.  See the
+[interaction matrix](aes-standardization.md#interaction-matrix) for the full picture and
+the documented discrepancy.
 
 **What breaks**: everything that broke in April 2026 if you did not remediate.
 
