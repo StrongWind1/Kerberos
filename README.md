@@ -1,6 +1,4 @@
-<p align="center">
-  <strong>Kerberos in Active Directory</strong>
-</p>
+# [Kerberos in Active Directory](https://strongwind1.github.io/Kerberos/)
 
 <p align="center">
   <a href="https://github.com/StrongWind1/Kerberos/actions/workflows/ci.yml"><img src="https://github.com/StrongWind1/Kerberos/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
