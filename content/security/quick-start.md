@@ -169,25 +169,11 @@ timeline
 
 ## What You Need to Do
 
-```mermaid
-flowchart TD
-    START["SPN-bearing account"] --> Q1{"msDS-SET\n= 24?"}
-    Q1 -->|Yes| Q2{"Has AES keys?"}
-    Q1 -->|No| FIX1["Set msDS-SET = 24"]
-    Q2 -->|Yes| SAFE["Ready — enforcement\nwill not break this"]
-    Q2 -->|Unsure| FIX2["Reset password\nto generate AES keys"]
-    FIX1 --> Q2
-    FIX2 --> SAFE
-
-    style SAFE fill:#16a34a,stroke:#15803d,color:#fff
-    style FIX1 fill:#d97706,stroke:#b45309,color:#fff
-    style FIX2 fill:#dc2626,stroke:#b91c1c,color:#fff
-```
-
 ### Step 1: Find all SPN-bearing accounts
 
-These are the accounts that service tickets get encrypted with. Five types exist: user service
-accounts, computer accounts, gMSA, MSA, and dMSA.
+Service tickets are encrypted with the **target account's** key, so the accounts that hold
+SPNs are the ones that matter. Five types can have SPNs: user service accounts, computer
+accounts, gMSA, MSA, and dMSA.
 
 ```powershell
 Get-ADObject -LDAPFilter '(servicePrincipalName=*)' `
@@ -199,74 +185,40 @@ For a grouped summary by account type, see the [full SPN overview query](msds-su
 
 ### Step 2: Check their encryption type settings
 
-Look at the `msDS-SupportedEncryptionTypes` value. You want `24` (AES128 + AES256). Common
-values you'll see:
+Look at `msDS-SupportedEncryptionTypes` for each account. You want `24` (AES128 + AES256).
 
-| Value | Meaning | Action needed? |
-|-------|---------|----------------|
-| `0` or blank | Not set — RC4 **blocked** since April 2026. AES tickets only (if AES keys exist). | **Yes** — set to 24 |
-| `4` | RC4 only | **Yes** -- set to 24 |
-| `7` | DES + RC4 | **Yes** -- set to 24 |
-| `24` (`0x18`) | AES128 + AES256 | No -- you're good |
-| `60` (`0x3C`) | RC4 + AES128 + AES256 + AES256-SK | Recommended transitional value |
-| `28` (`0x1C`) | RC4 + AES128 + AES256 | Transitional without AES-SK; prefer `0x3C` |
+| Value | Meaning | What happens today |
+|-------|---------|-------------------|
+| `0` or blank | Not set | Enforcement defaults it to AES-only. If the account has no AES keys, **every connection to that service fails**. |
+| `4` | RC4 only | RC4 tickets still issued (explicit config). Fully Kerberoastable. |
+| `7` | DES + RC4 | Same as above, also includes broken DES. |
+| `24` (`0x18`) | AES128 + AES256 | Correct. No action needed. |
+| `60` (`0x3C`) | RC4 + AES + AES-SK | Transitional — RC4 still available for this account. |
 
 Use the [Encryption Type Calculator](etype-calculator.md) to decode any value you find.
 
-### Step 3: Set msDS-SET = 24 on all SPN-bearing accounts
+### Step 3: Verify and reset AES keys
 
-**User service accounts, gMSA, MSA** — set manually via PowerShell:
+`msDS-SupportedEncryptionTypes` only declares what the account supports — the keys must
+actually exist in the database. AES keys are generated when a password is set while the
+domain is at functional level 2008 or higher. Old passwords mean RC4-only keys.
 
-```powershell
-# User service accounts
-Get-ADUser -Filter 'servicePrincipalName -like "*"' |
-  Set-ADUser -Replace @{'msDS-SupportedEncryptionTypes' = 24}
-```
+**Why this matters:**
 
-For gMSA, MSA, and dMSA bulk scripts, see the [Standardization Guide](aes-standardization.md#step-3-set-msds-supportedencryptiontypes-on-manually-managed-spn-bearing-accounts).
+- **SPN-bearing account with no AES keys + msDS-SET = 24**: the service is broken. The KDC
+  tries to issue an AES ticket, finds no AES key, and returns `KDC_ERR_ETYPE_NOSUPP`.
+  Every client connecting to that service gets an error until the password is reset.
 
-**Computer accounts** — handled automatically by the Kerberos GPO. When the *Network
-security: Configure encryption types allowed for Kerberos* policy is applied, each
-machine updates its own `msDS-SupportedEncryptionTypes` in AD after the next
-`gpupdate`. You do not need to set these manually, but you can verify:
+- **Regular user or computer account with no AES keys**: what breaks depends on the DC GPO:
+    - **DC GPO blocks RC4**: the user cannot log in at all. The KDC cannot issue a TGT
+      because it has no key to encrypt the AS-REP. No logon, no access to anything.
+    - **DC GPO allows RC4**: the user logs in with an RC4-encrypted TGT. They can still
+      reach AES-only services — service ticket encryption is determined by the target
+      account's `msDS-SET`, not the user's own keys.
 
-```powershell
-# Check computer accounts still at 0 (GPO hasn't applied yet)
-Get-ADComputer -Filter * -Properties 'msDS-SupportedEncryptionTypes' |
-  Where-Object { $_.'msDS-SupportedEncryptionTypes' -eq 0 } |
-  Select-Object Name, LastLogonDate |
-  Sort-Object LastLogonDate
-```
-
-Accounts still at 0 after the GPO has had time to propagate are typically offline
-machines, devices in an OU not covered by the GPO, or non-Windows devices that cannot
-process Group Policy (NAS, printers, Linux hosts) — set those manually.
-
-### Step 4: Make sure accounts have AES keys
-
-An account only gets AES keys when its password is set (or reset) at domain functional level 2008
-or higher. If the password hasn't changed since before that, the account only has RC4 keys.
-The impact of missing AES keys depends on what the account is:
-
-**SPN-bearing service accounts** — if `msDS-SET = 24` (AES-only) is set but the account has
-no AES key, the KDC cannot encrypt service tickets for that SPN. Every client that tries to
-connect to that service gets `KDC_ERR_ETYPE_NOSUPP` and the connection fails. The service
-account's password must be reset before setting `msDS-SET = 24`.
-
-**Regular users and computer accounts without AES keys** — the impact depends on what RC4
-is allowed to do at the DC:
-
-- **If the DC GPO blocks RC4 entirely**: the logon itself fails. The KDC encrypts the
-  AS-REP with the user's key, and if that key is RC4-only and RC4 is blocked, the user
-  cannot authenticate at all — no TGT, no access to anything.
-- **If RC4 is allowed for pre-auth** (DC GPO includes RC4, or you are on Path 2): the user
-  logs in with an RC4 TGT. They can then request service tickets for any service — the
-  *service ticket* etype is determined by the target account's `msDS-SET`, not the user's
-  keys. So they can reach AES-only services just fine. The missing AES key only affects
-  their own AS exchange, not access to specific services.
+Find accounts with passwords that predate AES key generation:
 
 ```powershell
-# Find accounts with passwords older than AES key availability
 $AESdate = (Get-ADGroup -Filter * -Properties SID, WhenCreated |
   Where-Object { $_.SID -like '*-521' }).WhenCreated
 
@@ -274,15 +226,39 @@ Get-ADUser -Filter 'Enabled -eq $true' -Properties passwordLastSet |
   Where-Object { $_.passwordLastSet -lt $AESdate }
 ```
 
-For definitive key auditing (not just date-based), see
-[Auditing Kerberos Keys](account-key-audit.md).
+Reset the password on any account that shows up here before setting `msDS-SET = 24` on it.
+For definitive key auditing, see [Auditing Kerberos Keys](account-key-audit.md).
+
+### Step 4: Set msDS-SET = 24 on all SPN-bearing accounts
+
+**User service accounts, gMSA, MSA** — must be set manually:
+
+```powershell
+Get-ADUser -Filter 'servicePrincipalName -like "*"' |
+  Set-ADUser -Replace @{'msDS-SupportedEncryptionTypes' = 24}
+```
+
+For gMSA, MSA, and dMSA bulk scripts, see the [Standardization Guide](aes-standardization.md#step-3-set-msds-supportedencryptiontypes-on-manually-managed-spn-bearing-accounts).
+
+**Computer accounts** — the Kerberos GPO handles these automatically. When the GPO
+(*Network security: Configure encryption types allowed for Kerberos*) is applied to a
+machine, the machine writes its own `msDS-SupportedEncryptionTypes` in AD at the next
+`gpupdate`. Check for machines that haven't picked it up yet:
+
+```powershell
+Get-ADComputer -Filter * -Properties 'msDS-SupportedEncryptionTypes' |
+  Where-Object { $_.'msDS-SupportedEncryptionTypes' -eq 0 } |
+  Select-Object Name, LastLogonDate | Sort-Object LastLogonDate
+```
+
+Accounts still at 0 are typically offline machines, devices outside the GPO scope, or
+non-Windows devices (NAS, printers, Linux hosts) — set those manually.
 
 ### Step 5: Set DDSET = 24 on every DC
 
-A safety net for any SPN-bearing account you missed or that gets created with `msDS-SET = 0`.
-Since April 2026, enforcement already defaults unconfigured accounts to AES-only behavior,
-but setting DDSET explicitly ensures consistent behavior across patch levels and makes
-auditing easier.
+`DefaultDomainSupportedEncTypes` is the fallback for any account whose `msDS-SET` is 0 or
+blank. Set it to 24 on every DC so that accounts you missed, or new accounts created without
+an explicit value, default to AES rather than whatever the internal default is.
 
 ```powershell
 # Run on every DC, or push via GPO preferences
@@ -292,14 +268,88 @@ Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\KDC' `
 
 Takes effect immediately. No restart needed.
 
-### Step 6 (optional): Go further
+### Step 6: Apply an AES-only GPO to the Domain Controllers OU
 
-- **Apply an AES-only GPO** to your DC OU to hard-filter RC4 at the KDC level.
-  See [Group Policy](group-policy.md). Requires a KDC restart.
-- **Migrate to gMSA** wherever possible. 240-character auto-rotating passwords, impossible to
-  crack. See [Mitigations](mitigations.md).
-- **Monitor Kdcsvc events 201-209** in the System event log on DCs — these identify accounts
-  that are generating RC4 requests and would benefit from remediation.
+This is the hard enforcement step, and it is not optional for a secure AES-only environment.
+
+The DC Kerberos GPO acts as a **hard filter at the KDC** — it is the final word on what
+ticket types the KDC will issue, overriding msDS-SET, DDSET, and enforcement defaults. An
+account configured for RC4 can still receive AES tickets if the DC GPO only allows AES.
+Without this GPO, RC4 is still technically possible even if every account is set to 24.
+
+In Group Policy Management, create or edit a GPO linked to the **Domain Controllers** OU:
+
+**Computer Configuration → Policies → Windows Settings → Security Settings → Local
+Policies → Security Options → Network security: Configure encryption types allowed for
+Kerberos**
+
+```
+[ ] DES_CBC_CRC
+[ ] DES_CBC_MD5
+[ ] RC4_HMAC_MD5
+[x] AES128_HMAC_SHA1
+[x] AES256_HMAC_SHA1
+[x] Future encryption types
+```
+
+Then restart the KDC service on every DC — the GPO filter is only read at service start:
+
+```powershell
+Restart-Service kdc
+```
+
+!!! warning "Do this last, and verify Steps 1-5 first"
+    Applying an AES-only filter to DCs with accounts that still lack AES keys or still
+    have `msDS-SET = 4` will break those services. Complete Steps 1-5 and confirm no
+    Kdcsvc Event 203/208 errors before enabling this GPO.
+
+See [Group Policy](group-policy.md) for the full reference including the RC4+AES variant
+needed if any legacy accounts still require RC4.
+
+---
+
+## Enabling RC4 for Specific Accounts
+
+After completing the steps above — or after July 2026 when rollback is gone — you may have
+a legacy service that cannot be upgraded to AES yet. You can keep RC4 for individual
+accounts without rolling back the whole domain.
+
+**Both of these must be true for RC4 to work on a specific account:**
+
+1. The target service account must include RC4 in its `msDS-SupportedEncryptionTypes`
+2. The DC GPO must allow RC4 — if it's AES-only, no RC4 tickets are issued regardless of the account setting
+
+**Set the account** (use 60/0x3C to keep AES as the preferred etype with RC4 as fallback):
+
+```powershell
+# User service account
+Set-ADUser -Identity svc_legacy -Replace @{ 'msDS-SupportedEncryptionTypes' = 60 }
+
+# Computer account — apply an RC4+AES GPO to the machine's OU instead of setting manually
+```
+
+**Update the DC GPO** to allow RC4 alongside AES:
+
+```
+[ ] DES_CBC_CRC
+[ ] DES_CBC_MD5
+[x] RC4_HMAC_MD5
+[x] AES128_HMAC_SHA1
+[x] AES256_HMAC_SHA1
+[x] Future encryption types
+```
+
+Then restart the KDC on every DC.
+
+**The client needs no changes.** The KDC picks the service ticket etype from the target
+account — a modern Windows 11 client will receive and use an RC4 service ticket for a
+legacy service without any local configuration.
+
+!!! warning "RC4 on a service account = Kerberoastable"
+    Any user service account with RC4 in `msDS-SupportedEncryptionTypes` can have its
+    password cracked offline by any domain user. Use a 30+ character random password, treat
+    it as a temporary exception, and set a review date. See [Mitigations](mitigations.md)
+    for gMSA as the permanent fix.
 
 ---
 
