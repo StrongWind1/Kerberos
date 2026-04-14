@@ -357,6 +357,52 @@ legacy service without any local configuration.
 
 ---
 
+## Are You Ready for an AES-Only DC GPO?
+
+The DC GPO is the hard filter — once it's set to AES-only, any account or device that
+cannot do AES is locked out. Work through every check before flipping it.
+
+```mermaid
+flowchart TD
+    A{"All computer accounts\nmsDS-SET = 24?"}
+    B{"All computer accounts\nhave AES keys?"}
+    C{"All SPN-bearing accounts\n(user/gMSA/MSA/dMSA)\nmsDS-SET = 24?"}
+    D{"All SPN-bearing accounts\nhave AES keys?"}
+    E{"All regular user accounts\nhave AES keys?"}
+    READY["✓ DC GPO: AES-only\nAES128 + AES256 + Future"]
+    NOTREADY["DC GPO: RC4 + AES + Future\nuntil all checks pass"]
+
+    FIX_A["Apply Kerberos GPO to\nall machine OUs\nSet manually for non-Windows devices"]
+    FIX_B["Wait for machine password\nauto-rotation (≤30 days)\nor force gpupdate"]
+    FIX_C["Set msDS-SET = 24 via\nPowerShell for each type"]
+    FIX_D["Reset account passwords\n(twice if pre-DFL 2008)"]
+    FIX_E["Reset user passwords\n(twice if pre-DFL 2008)"]
+
+    A -->|No| FIX_A --> NOTREADY
+    A -->|Yes| B
+    B -->|No| FIX_B --> NOTREADY
+    B -->|Yes| C
+    C -->|No| FIX_C --> NOTREADY
+    C -->|Yes| D
+    D -->|No| FIX_D --> NOTREADY
+    D -->|Yes| E
+    E -->|No| FIX_E --> NOTREADY
+    E -->|Yes| READY
+
+    style READY fill:#16a34a,stroke:#15803d,color:#fff
+    style NOTREADY fill:#d97706,stroke:#b45309,color:#fff
+    style FIX_A fill:#374151,stroke:#1f2937,color:#fff
+    style FIX_B fill:#374151,stroke:#1f2937,color:#fff
+    style FIX_C fill:#374151,stroke:#1f2937,color:#fff
+    style FIX_D fill:#374151,stroke:#1f2937,color:#fff
+    style FIX_E fill:#374151,stroke:#1f2937,color:#fff
+```
+
+Until every check passes, the DC GPO must include RC4 alongside AES so accounts
+and devices that aren't ready yet can still authenticate.
+
+---
+
 ## Common Gotchas
 
 - **Three registry paths, only two work.** There are multiple places in the registry where
