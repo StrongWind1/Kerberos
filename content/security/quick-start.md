@@ -253,14 +253,17 @@ no AES key, the KDC cannot encrypt service tickets for that SPN. Every client th
 connect to that service gets `KDC_ERR_ETYPE_NOSUPP` and the connection fails. The service
 account's password must be reset before setting `msDS-SET = 24`.
 
-**Regular users and computer accounts without AES keys** — the impact is broader. When a user
-or machine logs in, the KDC encrypts the AS-REP (TGT delivery) with that account's key. If
-the account has no AES key and the DC GPO blocks RC4, the logon itself fails — the user
-cannot authenticate at all. More critically, even if the logon succeeds via RC4, that user or
-machine cannot obtain service tickets for any service that requires AES. Any access to a
-file share, SQL server, or other Kerberos-protected resource configured for AES-only will
-fail with `KDC_ERR_ETYPE_NOSUPP`. One account without AES keys can block an entire user from
-the network.
+**Regular users and computer accounts without AES keys** — the impact depends on what RC4
+is allowed to do at the DC:
+
+- **If the DC GPO blocks RC4 entirely**: the logon itself fails. The KDC encrypts the
+  AS-REP with the user's key, and if that key is RC4-only and RC4 is blocked, the user
+  cannot authenticate at all — no TGT, no access to anything.
+- **If RC4 is allowed for pre-auth** (DC GPO includes RC4, or you are on Path 2): the user
+  logs in with an RC4 TGT. They can then request service tickets for any service — the
+  *service ticket* etype is determined by the target account's `msDS-SET`, not the user's
+  keys. So they can reach AES-only services just fine. The missing AES key only affects
+  their own AS exchange, not access to specific services.
 
 ```powershell
 # Find accounts with passwords older than AES key availability
