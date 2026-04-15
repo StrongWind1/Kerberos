@@ -280,6 +280,14 @@
       throw "Input does not appear to be XML. In Event Viewer, right-click an event and choose Copy > Copy details as XML.";
     }
 
+    /* Defensive validation for untrusted input before XML parsing. */
+    if (/<\!DOCTYPE/i.test(xml) || /<\!ENTITY/i.test(xml)) {
+      throw "Invalid XML: DOCTYPE/ENTITY declarations are not allowed.";
+    }
+    if (!/^\s*(<\?xml[\s\S]*?\?>\s*)?<Event(\s|>)/i.test(xml)) {
+      throw "Invalid XML: expected a Windows Event XML document with <Event> as the root element.";
+    }
+
     var parser = new DOMParser();
     var doc = parser.parseFromString(xml, "text/xml");
     var err = doc.querySelector("parsererror");
