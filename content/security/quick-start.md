@@ -131,10 +131,11 @@ flowchart TD
 
 !!! info "The source client does not control the service ticket etype"
     The KDC picks the service ticket encryption type from the **target account's** msDS-SET,
-    not from what the client requested. A modern Windows 11 workstation connecting to a legacy
-    service with `msDS-SET = 28` (RC4+AES) will receive an RC4 service ticket and handle it
-    without any special configuration on the client side. You only need to configure the DC GPO
-    and the target service account.
+    not from what the client requested. When the target has `msDS-SET = 4` (RC4-only), the
+    DC issues an RC4 service ticket — the modern Windows 11 workstation receiving it needs no
+    special configuration. When the target has `msDS-SET = 28` (RC4 + AES), the DC issues
+    AES256 (it always picks the strongest available). You only need to configure the DC GPO
+    and the target service account — never the source client.
 
 ---
 
