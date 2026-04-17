@@ -67,6 +67,7 @@ theme:
 plugins:
   - search
   - privacy
+  - offline
   - git-revision-date-localized:
       type: date
       locale: en
