@@ -6,6 +6,7 @@
 git clone https://github.com/StrongWind1/Kerberos.git
 cd Kerberos
 uv sync --group docs
+pre-commit install
 ```
 
 ## Workflow

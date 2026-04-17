@@ -7,4 +7,4 @@ serve:
 	uv run --group docs mkdocs serve
 
 clean:
-	rm -rf site/
+	rm -rf site/ .cache

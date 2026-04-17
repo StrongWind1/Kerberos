@@ -1,0 +1,18 @@
+* text=auto eol=lf
+*.py        text eol=lf diff=python
+*.toml      text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.json      text eol=lf
+*.sh        text eol=lf
+*.fish      text eol=lf
+Makefile    text eol=lf
+*.md        text eol=lf
+*.html      text eol=lf
+*.css       text eol=lf
+*.js        text eol=lf
+*.png       binary
+*.jpg       binary
+*.gif       binary
+*.ico       binary
+*.svg       text eol=lf
