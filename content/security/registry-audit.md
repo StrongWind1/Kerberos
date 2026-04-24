@@ -8,7 +8,7 @@ Lab-validated registry reference for Kerberos etype behavior on Windows Server 2
 Every path and value combination was tested in isolation with KDC restarts between tests,
 then in combination to map the full interaction model.
 
-**Lab**: DC01 (Server 2022 Build 20348, KB5078763) | evil.corp | DFL 2016 | 80+ tests
+**Lab**: DC01 (Server 2022 Build 20348, KB5078763) | DFL 2016 | 80+ tests
 
 **Registry paths tested:**
 
