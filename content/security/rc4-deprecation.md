@@ -98,7 +98,7 @@ Path: `HKLM\SYSTEM\CurrentControlSet\Services\Kdc\Parameters`, value name `Defau
 
 The KDC-side fallback etype set.  Used when a target account's `msDS-SupportedEncryptionTypes` is blank or zero.  Takes effect immediately — no KDC restart.  Not replicated; must be set on every DC individually.
 
-Lab testing (KB5078763, 2026-04-14) confirmed that under enforcement (Phase=absent or Phase=2), DDSET values that include RC4 do not re-enable RC4 for unconfigured accounts.  DDSET affects etype *selection* when multiple etypes are available, but the enforcement decision to block RC4 takes precedence over DDSET.
+Per Microsoft's KB5073381, DCs with an explicitly defined `DefaultDomainSupportedEncTypes` are not functionally impacted by the April 2026 enforcement.  The enforcement only changes the internal default for DCs where the key is absent.  If you set DDSET to a value that includes RC4, the KDC uses that value as the fallback for accounts with `msDS-SupportedEncryptionTypes = 0`, and RC4 tickets can be issued for those accounts.  Lab testing on the current CU build (KB5082137+, 2026-04-25) confirmed this behavior.
 
 ### `RC4DefaultDisablementPhase` (registry, per DC)
 
@@ -127,13 +127,11 @@ On a **workstation or member server**: controls what etypes the client advertise
 
 ## Phase Behavior: What the Registry Setting Actually Does
 
-Lab-verified results from a full 160-combination matrix test on KB5078763 (Build 20348 UBR 5020), testing all Phase × DDSET × msDS-SET combinations.
+Lab-verified results from matrix testing on KB5078763 + subsequent CUs (Build 20348 UBR 5020), testing Phase × DDSET × msDS-SET combinations.
 
-### What Phase controls — the actual etype returned
+### What Phase controls — the actual etype returned (DDSET absent)
 
-DDSET had zero effect on outcomes across all 80 Phase × DDSET × msDS-SET combinations.
-The table shows what etype the DC actually issued for each account type, regardless of
-what etype kw-roast requested:
+The table below shows what the DC issues when `DefaultDomainSupportedEncTypes` is **not set** — the KDC falls back to its internal default, which the enforcement phase controls.  When DDSET is explicitly set, it overrides the internal default (see [DDSET overrides the enforcement default](#ddset-overrides-the-enforcement-default) below).
 
 | Phase | blank / 0 (unconfigured) | msDS=4 (RC4-only) | msDS=24 (AES-only) | msDS=28 (RC4+AES) |
 |---|---|---|---|---|
@@ -161,17 +159,23 @@ Accounts with an explicit `msDS-SupportedEncryptionTypes` are **not affected by 
     Explicitly configured accounts (any non-zero `msDS-SupportedEncryptionTypes`) are
     unaffected.
 
-### DDSET does not override enforcement
+### DDSET overrides the enforcement default
 
-Lab testing across DDSET values 4, 24, and 28 all produce identical allow/block results as DDSET=absent under enforcement.  Event 203 still fires and reports `DefaultDomainSupportedEncTypes: 0x18` regardless of the registry value.  The enforcement mechanism substitutes its own effective DDSET internally.
+An explicit `DefaultDomainSupportedEncTypes` value takes precedence over the enforcement default.  The April 2026 enforcement only changes the *internal* default from `0x27` (RC4-capable) to `0x18` (AES-only) when the DDSET registry key is absent.  If DDSET is explicitly set, the KDC uses the explicit value as the fallback for accounts with `msDS-SupportedEncryptionTypes = 0`.
 
-!!! note "Discrepancy with KB5073381"
-    Microsoft's KB5073381 states that domains with an explicitly defined
-    `DefaultDomainSupportedEncTypes` are "not functionally impacted" by enforcement, and
-    that Event 205 (not an error) would be the only consequence.  Lab testing of KB5078763
-    contradicts this — DDSET with RC4 is overridden by enforcement.  The discrepancy may
-    reflect a behavioral difference between the intended design (documented in KB5073381)
-    and the April 2026 implementation (KB5078763).
+Lab testing (KB5082137+, 2026-04-25) confirmed:
+
+| `DefaultDomainSupportedEncTypes` | Result for blank/0 accounts | Event 4769 `ServiceSupportedEncryptionTypes` |
+|---|---|---|
+| not set | RC4 **blocked** — KDC uses internal `0x18` | `-` (no value) |
+| 4 (RC4 only) | RC4 **allowed** — ticket `0x17` (RC4) | `0x4 (RC4)` |
+| 24 (AES only) | RC4 blocked — ticket AES256 | `-` |
+| 28 (RC4+AES) | RC4 available — ticket `0x12` (AES256, strongest), session `0x17` (RC4) | `0x1C (RC4, AES128-SHA96, AES256-SHA96)` |
+
+Event 205 fires at KDC start if DDSET includes insecure ciphers — this is a permanent warning, not an error.
+
+!!! warning "DDSET re-enables RC4 for all unconfigured accounts"
+    Setting DDSET to a value that includes RC4 (e.g., `0x3C` or `0x4`) re-enables RC4 for **every** account with `msDS-SupportedEncryptionTypes = 0`.  This is a domain-wide change.  Prefer setting `msDS-SupportedEncryptionTypes` on individual accounts to limit the blast radius.
 
 ---
 
@@ -262,11 +266,8 @@ Logged in the **System** event log on domain controllers, source **Kdcsvc**.  Ev
 
 Events 201/203 fire when the service account has **no** `msDS-SupportedEncryptionTypes` defined AND the DC has no DDSET defined.  Event 205 fires when the DC **does** have DDSET defined and that value includes RC4.  These are mutually exclusive conditions for a given request.
 
-!!! warning "Lab discrepancy with Events 201/203 conditions"
-    KB5073381 states that Events 201/203 require "DC does NOT have DDSET defined."  In lab
-    testing (KB5078763), these events fired even when DDSET was explicitly set to 4 or 28.
-    Event 203 reported `DefaultDomainSupportedEncTypes: 0x18` regardless of the registry
-    value.  Treat the documented conditions as the intent; actual behavior may differ.
+!!! note "Events 201/203 vs 205"
+    Events 201/203 fire when the DC has no DDSET defined and the service account has no `msDS-SupportedEncryptionTypes`.  When DDSET is explicitly set, Event 205 fires at KDC start instead (if DDSET includes insecure ciphers), and the KDC uses the explicit DDSET value for etype selection.
 
 ### Remediation reference
 
@@ -345,7 +346,7 @@ Yes, if you have SPN-bearing accounts with `msDS-SupportedEncryptionTypes` blank
 
 **I set `DefaultDomainSupportedEncTypes = 60` (0x3C) on my DCs.  Does that protect me?**
 
-Per Microsoft's documented intent (KB5073381), an explicit DDSET should not be overridden by enforcement.  In practice, lab testing of KB5078763 showed DDSET with RC4 is still overridden.  Do not rely on DDSET as a substitute for setting `msDS-SupportedEncryptionTypes` on individual accounts.
+Per KB5073381, an explicit DDSET is not overridden by enforcement — the enforcement only changes the internal default when DDSET is absent.  Setting `DefaultDomainSupportedEncTypes` to a value that includes RC4 (e.g., `0x3C`) does re-enable RC4 for accounts with blank/0 `msDS-SupportedEncryptionTypes`.  However, DDSET is a domain-wide blunt instrument — it affects every unconfigured account.  Prefer setting `msDS-SupportedEncryptionTypes` on individual accounts for targeted RC4 exceptions.
 
 **Can I roll back after July 2026?**
 
@@ -353,4 +354,4 @@ No.  The `RC4DefaultDisablementPhase` registry key is removed by the July 2026 u
 
 **Does `DefaultDomainSupportedEncTypes` need to include RC4 for legacy services?**
 
-No.  DDSET is a KDC fallback for accounts with `msDS-SET = 0`.  If you are using per-account `msDS-SET = 60` (0x3C) for legacy services, DDSET is irrelevant for those accounts.  DDSET would only matter for accounts that you deliberately leave unconfigured (blank/0) and want to treat as RC4-capable — which is not recommended.
+No.  DDSET is a KDC fallback for accounts with `msDS-SET = 0`.  If you are using per-account `msDS-SET = 60` (0x3C) for legacy services, DDSET is irrelevant for those accounts.  DDSET with RC4 would re-enable RC4 for *all* unconfigured accounts, which is a broader change than necessary.  Prefer per-account `msDS-SupportedEncryptionTypes` for targeted exceptions.

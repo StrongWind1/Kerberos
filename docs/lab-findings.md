@@ -227,9 +227,7 @@ Corrected behavior:
 Setting Phase=2 does not enable enforcement — it's already on. Phase=0 is the
 rollback (allowed until July 2026). Phase=1 is audit-only (RC4 allowed, events logged).
 
-DDSET cannot re-enable RC4 for blank/0 accounts regardless of its value. The
-enforcement overrides DDSET entirely for unconfigured accounts. Phase=2 + DDSET=4
-still blocks RC4 for blank/0 accounts.
+**Correction (2026-04-25):** retesting on KB5082137+ confirmed that an explicit DDSET overrides the enforcement default.  Setting DDSET=4 re-enables RC4 for blank/0 accounts, matching KB5073381's documented behavior.  The earlier finding that enforcement overrides DDSET was incorrect.
 
 Explicit `msDS-SupportedEncryptionTypes=4` (RC4-only) still works after the patch.
 The enforcement only applies to accounts with no configuration (blank or 0).

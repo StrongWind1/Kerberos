@@ -38,7 +38,7 @@ issued:
 
 ## Matrix 1: Phase × DDSET (Pol=0x7fffffff, allow-all)
 
-DDSET had zero effect on outcomes across all 80 combinations — every DDSET value (absent, 4, 24, 28) produced identical results for a given Phase × msDS-SET pair.  The tables below show representative results (DDSET=absent); all other DDSET values match exactly.
+**Correction (2026-04-25):** retesting on KB5082137+ confirmed that an explicit DDSET **does** override the enforcement default — setting DDSET to a value that includes RC4 re-enables RC4 for blank/0 accounts.  The original results below were obtained on KB5078763 alone and are superseded.  The tables below show results with DDSET=absent (the enforcement-default case); when DDSET is explicitly set to include RC4, blank/0 accounts receive RC4 tickets under all phases.
 
 ### Phase=absent and Phase=2 — enforcement (identical results)
 
@@ -75,7 +75,7 @@ DC can only issue RC4 tickets for these accounts.  Requesting AES256 still retur
 
 ## Matrix 2: Pol\SupportedEncryptionTypes × msDS-SET (Phase=absent)
 
-DDSET again invariant — omitted from table.
+DDSET effect on blank/0 accounts is superseded by the 2026-04-25 retesting — see correction above.  The Pol\SET × msDS-SET interactions below remain valid.
 
 ### Pol=4 (RC4-only hard KDC filter)
 
@@ -131,11 +131,9 @@ and for those accounts it forces RC4 for all requests including AES256 requests.
 
 Confirmed.  Operationally identical across all 80 combinations in Matrix 1.
 
-### 4. DDSET has no effect on which etype is returned
+### 4. ~~DDSET has no effect on which etype is returned~~ **SUPERSEDED**
 
-Across all Phase × msDS-SET combinations, DDSET values of absent, 4, 24, and 28 produced
-identical results.  DDSET does not influence the etype selection or the enforcement decision
-in any way detectable by explicit kw-roast etype requests.
+**Correction (2026-04-25):** retesting on KB5082137+ confirmed that an explicit DDSET overrides the enforcement default.  Setting DDSET to a value that includes RC4 re-enables RC4 for blank/0 accounts.  The original finding was based on KB5078763 alone and appears to have been incorrect — either due to a testing error or a behavioral change in subsequent CUs.  KB5073381's documented behavior (explicit DDSET takes precedence) is correct.
 
 ### 5. msDS=28 (RC4+AES) always returns AES256
 
@@ -158,3 +156,4 @@ msDS=28 accounts survive (RC4 only).
 | "Phase=0/1 re-enables RC4 for ALL accounts" | False — only blank/0 accounts are affected; explicitly configured accounts unchanged |
 | "RC4=ALLOWED for msDS=28 under enforcement" | False — DC always returns AES256 for msDS=28; the v1 hash was AES256(!≠req), not RC4 |
 | "AES=ALLOWED/BLOCKED for Phase=0 msDS=4" | Partially correct — AES is genuinely blocked (no AES support), RC4 is returned |
+| "DDSET has no effect on which etype is returned" | **False (corrected 2026-04-25)** — retesting on KB5082137+ confirmed explicit DDSET overrides enforcement default; DDSET with RC4 re-enables RC4 for blank/0 accounts |

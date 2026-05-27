@@ -14,9 +14,7 @@ Already familiar with Kerberos and just need to migrate?  Jump to the
 
 ## Why This Matters
 
-- **RC4 is the default.**  A fresh Active Directory domain -- even Server 2022 or Server 2025 --
-  permits RC4-HMAC encryption for any account that does not have an explicit
-  `msDS-SupportedEncryptionTypes` value.
+- **RC4 was the default for 20+ years.**  Until April 2026, every AD account without an explicit `msDS-SupportedEncryptionTypes` value received RC4 service tickets.  Enforcement is now active, but most environments still have accounts that were configured (or left unconfigured) during the RC4 era.
 - **RC4 is fast to crack.**  The RC4 key is the NTLM hash (`MD4(UTF-16LE(password))`, no salt).
   It cracks at roughly **800 times the speed** of AES.
   See [Algorithms & Keys](algorithms.md#cracking-speed-comparison) for benchmarks.
@@ -43,17 +41,85 @@ service tickets.  This table tracks the full rollout:
 | **April 2026** | **Enforcement** | KDC defaults to AES-only (`0x18`) for accounts without explicit `msDS-SupportedEncryptionTypes`.  Accounts relying on implicit RC4 **will fail**. | `RC4DefaultDisablementPhase = 1` |
 | **July 2026** | **Permanent** | `RC4DefaultDisablementPhase` registry key removed.  No rollback available.  RC4 only works if explicitly enabled per-account or per-DC. | None |
 
+### What this change is actually doing
+
+Most accounts in AD have `msDS-SupportedEncryptionTypes` set to **0 (blank)** — they don't declare which encryption types they support.  When the KDC issues a ticket for one of these accounts, it has to pick a default.  **The entire 2026 change is about what that default is.**
+
+| Period | Implicit default for blank accounts | In practice |
+|---|---|---|
+| **Before April 2026** | `0x27` — RC4 ticket, AES session key | Every blank account gets RC4 service tickets.  AES keys may exist but are never used for ticket encryption because the default doesn't include the AES bits. |
+| **April → July 2026** | `0x18` — AES-only | Blank accounts get AES tickets.  RC4 is blocked.  You can roll back to the old default via `RC4DefaultDisablementPhase = 1`. |
+| **After July 2026** | `0x18` — AES-only | Same as above, but the rollback key is removed.  **Permanent.** |
+
+Accounts with an explicit `msDS-SupportedEncryptionTypes` (any non-zero value) are **not affected** by any of this — the KDC uses their declared value, not the default.
+
+### What actually happens to each account type
+
+The KDC always picks the **strongest** etype from the account's declared set that the account has a key for.  AES256 beats RC4.  The only time RC4 appears is when AES is not possible.
+
+**Service tickets** (the part enforcement controls):
+
+| Keys in AD | msDS-SET | Before enforcement | After enforcement (no DDSET) | After enforcement (DDSET = 0x3C) |
+|---|---|---|---|---|
+| AES + RC4 | 0 (blank) | RC4 ticket | AES256 ticket | AES256 ticket |
+| RC4 only | 0 (blank) | RC4 ticket | **FAILS** — KDC tries AES, no key exists | RC4 ticket (fallback) |
+| AES + RC4 | 24 (AES) | AES256 ticket | AES256 ticket | AES256 ticket |
+| AES + RC4 | 28 (RC4+AES) | AES256 ticket | AES256 ticket | AES256 ticket |
+| AES + RC4 | 4 (RC4 only) | RC4 ticket | RC4 ticket | RC4 ticket |
+| RC4 only | 24 (AES) | **FAILS** — misconfig | **FAILS** — misconfig | **FAILS** — misconfig |
+
+Row 1 is the happy path — most modern accounts.  AES keys exist, the KDC picks AES256 regardless of the default.  The enforcement change is invisible to these accounts.
+
+Row 2 is the dangerous case — old accounts with passwords that predate AES key generation (DFL 2008).  Before enforcement, they got RC4 tickets.  After enforcement with no DDSET, they **break**.  Setting DDSET = `0x3C` keeps them alive until you can reset their passwords to generate AES keys.
+
+Rows 3-5 have explicit `msDS-SET` values — the enforcement default is irrelevant.  The KDC uses the declared value.
+
+Row 6 is a misconfiguration — someone set AES-only on an account that has no AES keys.  This fails regardless of enforcement or DDSET.  Fix: reset the account password to generate AES keys.
+
+**TGTs / login** (not affected by enforcement — controlled by DC GPO and user's stored keys):
+
+| User's keys in AD | DC GPO includes RC4? | Pre-auth | TGT ticket |
+|---|---|---|---|
+| AES + RC4 | Yes or No | AES256 (strongest key) | AES256 (always) |
+| RC4 only | Yes | RC4 (only available key) | AES256 (always) |
+| RC4 only | No (AES-only GPO) | **FAILS** — no AES key for AS-REP | — |
+| RC4 only | No GPO set | RC4 (no filter blocking it) | AES256 (always) |
+
+The TGT ticket itself is always AES256 (encrypted with krbtgt's key).  The enforcement phase has no effect on login.  The risk for users with only RC4 keys is the DC GPO — if you set an AES-only GPO on domain controllers, those users cannot log in.
+
+### Override the implicit default with an explicit one
+
+You do not have to accept Microsoft's implicit default.  The `DefaultDomainSupportedEncTypes` (DDSET) registry key on each DC **overrides** it.  An explicit DDSET takes precedence over the enforcement default — before and after July.
+
+```powershell title="Set on EVERY DC — not replicated, must be set individually"
+# Value 60 (0x3C) = RC4 + AES128 + AES256 + AES session keys
+# The KDC picks the strongest etype (AES256) but RC4 stays available as a fallback
+Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\KDC' `
+  -Name 'DefaultDomainSupportedEncTypes' -Value 60 -Type DWord
+```
+
+Takes effect immediately — no KDC restart needed.  With DDSET = `0x3C` on every DC:
+
+- The KDC picks **AES256** for every blank account that has AES keys (strongest always wins)
+- RC4 remains available as a fallback for accounts that can only do RC4 (no AES keys, legacy keytabs)
+- The July 2026 enforcement is irrelevant to you — your explicit DDSET takes precedence over the internal default
+- Monitor Event 4769 for `Ticket Encryption Type = 0x17` (RC4) to find the accounts still using RC4 — those are the ones that need AES keys or explicit configuration
+
+!!! warning "DDSET is a domain-wide blunt instrument"
+    Setting DDSET to include RC4 re-enables RC4 for **every** account with blank `msDS-SupportedEncryptionTypes`.  This is the right transitional step, but the goal is to set explicit `msDS-SupportedEncryptionTypes` on each account and eventually remove RC4 from DDSET.  See the [Standardization Guide](aes-standardization.md) for the full migration path.
+
 !!! warning "April 2026 can break authentication"
     Any SPN-bearing account that has no `msDS-SupportedEncryptionTypes` set **and** either
     lacks AES keys or has clients that only support RC4 will fail to authenticate after the
-    April 2026 update.
+    April 2026 update — unless DDSET is set to include RC4 on the DC handling the request.
 
-**If you need to roll back during an outage**, set this on every DC:
+**If you need an immediate rollback during an outage** (before July 2026 only):
 
-```powershell title="Roll back RC4 enforcement to audit mode (before July 2026 only)"
+```powershell title="Roll back RC4 enforcement to audit mode"
 Set-ItemProperty `
   -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters" `
   -Name "RC4DefaultDisablementPhase" -Value 1
+Restart-Service kdc
 ```
 
 For the full event ID reference and pre-enforcement checklist, see
@@ -98,8 +164,7 @@ gMSA, MSA, dMSA):
 
 --8<-- "includes/spn-overview-query.md"
 
-Accounts showing `msDS-SET = 0` are using the domain default (which includes RC4).
-Accounts showing `msDS-SET = 4` are explicitly RC4-only.  Both need remediation.
+Accounts showing `msDS-SET = 0` are using the domain default — which is AES-only (`0x18`) under enforcement, or whatever your explicit DDSET is set to.  Accounts showing `msDS-SET = 4` are explicitly RC4-only.  Both need explicit `msDS-SupportedEncryptionTypes` values set.
 
 For user service accounts specifically -- the primary Kerberoasting target -- find those
 with no config or RC4 enabled:
