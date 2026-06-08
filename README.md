@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/StrongWind1/Kerberos/actions/workflows/ci.yml"><img src="https://github.com/StrongWind1/Kerberos/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://www.apache.org/licenses/LICENSE-2.0"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License: Apache 2.0"></a>
   <a href="https://strongwind1.github.io/Kerberos/"><img src="https://img.shields.io/badge/docs-mkdocs-blue.svg" alt="Docs"></a>
 </p>
 
@@ -16,7 +16,7 @@
 
 Protocol internals, security configuration, and attack techniques for Kerberos in Active Directory.
 
-## Quick Start
+## Quick start
 
 **RC4 enforcement starts April 2026.** Accounts without `msDS-SupportedEncryptionTypes` explicitly set will stop getting RC4 tickets. July 2026 makes it permanent with no rollback. The fix is two settings: `msDS-SupportedEncryptionTypes = 24` on every SPN-bearing account, and `DefaultDomainSupportedEncTypes = 24` on every DC.
 
@@ -78,7 +78,7 @@ The RC4 deprecation deadline is April 2026 with permanent enforcement in July. T
 | [Troubleshooting](https://strongwind1.github.io/Kerberos/security/troubleshooting/) | Common Kerberos errors, event IDs, and diagnostic procedures |
 | [Quick Start Guide](https://strongwind1.github.io/Kerberos/security/quick-start/) | 5-minute encryption type overview with diagrams, for people who want the short version |
 
-## Interactive Tools
+## Interactive tools
 
 | Tool | What it does |
 |---|---|
@@ -89,7 +89,7 @@ The RC4 deprecation deadline is April 2026 with permanent enforcement in July. T
 
 Every major Kerberos attack with enough detail to understand why it works, not just how to run the tool.
 
-### Roasting (Offline Credential Cracking)
+### Roasting (offline credential cracking)
 
 | Attack | Target | Hashcat mode |
 |---|---|---|
@@ -97,7 +97,7 @@ Every major Kerberos attack with enough detail to understand why it works, not j
 | [AS-REP Roasting](https://strongwind1.github.io/Kerberos/attacks/roasting/asrep-roasting/) | AS-REP enc-part (no pre-auth accounts) | 18200 (RC4), 32200 (AES256) |
 | [AS-REQ Roasting](https://strongwind1.github.io/Kerberos/attacks/roasting/asreq-roasting/) | PA-ENC-TIMESTAMP (passive capture) | 7500 (RC4), 19900 (AES256) |
 
-### Credential Theft
+### Credential theft
 
 | Attack | What it abuses |
 |---|---|
@@ -106,7 +106,7 @@ Every major Kerberos attack with enough detail to understand why it works, not j
 | [Password Spraying](https://strongwind1.github.io/Kerberos/attacks/credential-theft/password-spraying/) | AS-REQ pre-auth failures as a low-noise enumeration oracle |
 | [User Enumeration](https://strongwind1.github.io/Kerberos/attacks/credential-theft/user-enumeration/) | KDC error codes that distinguish valid from invalid usernames |
 
-### Ticket Forgery
+### Ticket forgery
 
 | Attack | What it forges |
 |---|---|
@@ -115,7 +115,7 @@ Every major Kerberos attack with enough detail to understand why it works, not j
 | [Diamond Ticket](https://strongwind1.github.io/Kerberos/attacks/forgery/diamond-ticket/) | Modified legitimate TGT with a forged PAC |
 | [Sapphire Ticket](https://strongwind1.github.io/Kerberos/attacks/forgery/sapphire-ticket/) | Forged TGT carrying a legitimate PAC via S4U2Self |
 
-### Delegation Abuse
+### Delegation abuse
 
 | Attack | What it abuses |
 |---|---|
@@ -132,6 +132,19 @@ uv sync --group docs                              # install dependencies
 uv run --group docs mkdocs serve                  # live preview at http://127.0.0.1:8000
 uv run --group docs mkdocs build --strict         # full build with link checking
 ```
+
+## Related tools
+
+Other projects in this collection:
+
+- [AD-SecretGen](https://github.com/StrongWind1/AD-SecretGen) - derive AD password hashes and Kerberos keys from a password
+- [NTDSWolf](https://github.com/StrongWind1/NTDSWolf) - offline NTDS.dit parser and credential extractor
+- [CredWolf](https://github.com/StrongWind1/CredWolf) - Active Directory credential validation
+- [KerbWolf](https://github.com/StrongWind1/KerbWolf) - Kerberos roasting and hash extraction toolkit
+
+## Disclaimer
+
+This material documents Kerberos attack techniques for authorized security testing, research, and education only. You must have explicit written permission before testing any technique against systems you do not own. Unauthorized access to computer systems is illegal.
 
 ## License
 
