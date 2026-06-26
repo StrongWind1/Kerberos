@@ -145,11 +145,15 @@ Key fields to examine:
 
 #### New Fields (January 2025+)
 
+These appear as **distinct per-principal fields**, not one combined value.  Captured live on Build 20348.5020:
+
 | Field | What It Shows |
 |---|---|
-| `msDS-SupportedEncryptionTypes` | Etype config for both client and target accounts |
-| `Available Keys` | Which key types the account actually has (e.g., `AES-SHA1, RC4`) |
-| `Advertized Etypes` | What the client advertised it supports in the request |
+| `AccountSupportedEncryptionTypes` / `AccountAvailableKeys` | The requesting account's etype config and stored key types (often `N/A` on a TGS-REQ) |
+| `ServiceSupportedEncryptionTypes` / `ServiceAvailableKeys` | The target service account's etypes and keys.  Reflects the **effective** value after DDSET / enforcement substitution -- a `msDS-SET = 0` account shows `0x18` here on an enforced DC, not `0` |
+| `DCSupportedEncryptionTypes` / `DCAvailableKeys` | What the DC/KDC itself supports and has keys for |
+| `ClientAdvertizedEncryptionTypes` | The etypes the client advertised in the request (listed one per line) |
+| `SessionKeyEncryptionType` | The session key etype, which may differ from the ticket etype |
 
 ### System Log: KDC Errors (14, 16, 26, 27)
 

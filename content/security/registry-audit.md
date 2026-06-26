@@ -36,9 +36,9 @@ other KDC behaviors.
 |---|-----------|-----------|--------|-----------|
 | 1 | `HKLM\SYSTEM\CurrentControlSet\Services\KDC` | `DefaultDomainSupportedEncTypes` | **Immediate** | Sets the fallback etype set for accounts with `msDS-SupportedEncryptionTypes = 0`.  The KDC reads this on every TGS-REQ. |
 | 2 | `HKLM\SOFTWARE\...\Policies\System\Kerberos\Parameters` | `SupportedEncryptionTypes` | **KDC restart** | Hard filter: the KDC will not issue tickets with etypes absent from this value.  Also controls client etype advertisement and triggers computer account msDS-SET auto-update.  Written by the "Configure encryption types allowed for Kerberos" GPO. |
-| 3 | `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters` | `SupportedEncryptionTypes` | **KDC restart** | Same filter as #2 but lower precedence.  When both exist, the Policies path (#2) wins and this path is ignored.  Functional on Server 2022; deprecated starting with Server 2025. |
-| 4 | `HKLM\SYSTEM\CurrentControlSet\Services\Kdc` | `KdcUseRequestedEtypesForTickets` | Immediate | When set to `1`, KDC honors client etype preference for ticket encryption, ignoring the target's `msDS-SupportedEncryptionTypes`.  **Security risk** -- never set to `1`. |
-| 5 | `HKLM\SOFTWARE\...\Policies\System\Kerberos\Parameters` | `RC4DefaultDisablementPhase` | **KDC restart** | Controls RC4 deprecation phase (0=off, 1=audit, 2=enforce). |
+| 3 | `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters` | `SupportedEncryptionTypes` | **KDC restart** | Same filter as #2.  Honored on Server 2022; on Server 2025 the KDC reads **this** path and ignores #2 (lab-tested 26100.32522 — the reverse of the older, unsourced "Lsa deprecated in 2025" claim). |
+| 4 | `HKLM\SYSTEM\CurrentControlSet\Services\Kdc` | `KdcUseRequestedEtypesForTickets` | Immediate | When set to `1`, KDC honors client etype preference for ticket encryption, overriding the target's `msDS-SupportedEncryptionTypes` (reach is build-dependent: on enforced builds it only downgrades accounts that still list RC4).  **Security risk** -- never set to `1`. |
+| 5 | `HKLM\SOFTWARE\...\Policies\System\Kerberos\Parameters` | `RC4DefaultDisablementPhase` | **KDC restart** | Controls RC4 deprecation phase (0=off, 1=audit, 2=enforce).  Usually unset; on KB5078763+ an absent value behaves as enforce, so the registry alone cannot confirm enforcement -- check the build. |
 
 ---
 
@@ -74,7 +74,7 @@ Determines what etypes the KDC **considers** for the account:
 
 1. If the target account has `msDS-SupportedEncryptionTypes != 0`, use that value.
 2. Otherwise, if `DefaultDomainSupportedEncTypes` is set, use that value.
-3. Otherwise, use the built-in default `0x27` (DES + RC4 + AES-SK).
+3. Otherwise, use the built-in default `0x27` (DES + RC4 + AES-SK) -- or `0x18` (AES-only) on enforced KB5078763+ builds, where an absent `DefaultDomainSupportedEncTypes` resolves to AES-only for unconfigured accounts.
 
 This computed etype set appears in the Event 4769 `msDSSET` field.
 

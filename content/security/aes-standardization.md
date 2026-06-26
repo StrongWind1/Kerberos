@@ -1339,7 +1339,7 @@ This requires two things:
 2. **The DC GPO** must include RC4 in the `SupportedEncryptionTypes` filter and the KDC
    must be restarted.
 
-If only one of these is configured, RC4 tickets cannot be issued: a service account with `msDS-SET = 28` still needs the DC GPO to allow RC4, and the GPO alone does not set `msDS-SupportedEncryptionTypes` on user accounts.  (DDSET can also re-enable RC4 for unconfigured accounts, but it is a domain-wide blunt instrument — see [DDSET behavior](#documented-behavior-vs-observed-behavior-kb5078763-discrepancy).)
+If only one of these is configured, RC4 tickets cannot be issued: a service account with `msDS-SET = 28` still needs the DC GPO to allow RC4, and the GPO alone does not set `msDS-SupportedEncryptionTypes` on user accounts.  (DDSET can also re-enable RC4 for unconfigured accounts, but it is a domain-wide blunt instrument — see [How DDSET interacts with enforcement](#how-ddset-interacts-with-enforcement).)
 
 ### Set the service account
 

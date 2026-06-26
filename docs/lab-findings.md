@@ -91,14 +91,11 @@ strictly bound the session key. An AES-only account (msDS-SET=24) can have
 an RC4 session key if the client requests RC4. The session key comes from
 the client/KDC intersection, independent of the target's declaration.
 
-### 5. Lsa\SupportedEncryptionTypes is deprecated / non-functional
+### 5. Lsa\SupportedEncryptionTypes: honored on 2022 and 2025; Policies dropped on 2025
 
-**Claimed:** Starting with Server 2025, Kerberos no longer honors this path.
-(Implied: it doesn't work.)
+**Claimed (unsourced):** Starting with Server 2025, Kerberos no longer honors the Lsa path.
 
-**Actual:** On Server 2022, the Lsa path IS functional. It acts as a KDC
-etype filter with lower precedence than the Pol path. Requires KDC restart.
-Deprecated starting with Server 2025 (untested, lab is 2022).
+**Actual (2x2 lab test 2026-06-26):** Server 2022 (20348.5020) honors **both** the Policies and Lsa paths as KDC etype filters -- an RC4-only value at either path forced an AES-only account to `KDC_ERR_ETYPE_NOSUPP`. Server 2025 (26100.32522) honors the **Lsa** path and **ignores** the Policies path -- the reverse of the claim. The "2025 drops Lsa" assertion had no KB/spec source and is refuted. (KDC restart required either way.)
 
 ### 6. SupportedEncryptionTypes filter requires KDC restart
 

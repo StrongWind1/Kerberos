@@ -299,6 +299,9 @@ Lab DC state:
 - `DC01$` `msDS-SupportedEncryptionTypes` = 31 (`0x1F`)
 - `krbtgt` `msDS-SupportedEncryptionTypes` = 0
 
+!!! warning "These examples predate RC4 enforcement"
+    Build 20348.3207 (January 2025) is **pre-enforcement**.  An account with `msDS-SupportedEncryptionTypes = 0` falls back to the internal `0x27` default and gets an **RC4 ticket with an AES256 session key** — the AES-SK split shown in Example 1.  On an enforced build (KB5078763+ / April 2026, re-tested live on Build 20348.5020) the internal default for unconfigured accounts becomes `0x18`, so the same account gets a plain **AES256 ticket and no split**.  The `msDS-SET = 0` cases (Examples 1 and 10) flip to AES256 once the enforcing cumulative update is installed; the explicit-`msDS-SET` examples are unchanged.  Enforcement is gated on the installed CU, not the calendar date — see [RC4 Deprecation — Phase Behavior](rc4-deprecation.md#phase-behavior-what-the-registry-setting-actually-does).
+
 ---
 
 ### Example 1: User account, default etype (no `msDS-SET`)

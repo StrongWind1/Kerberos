@@ -31,6 +31,9 @@ Despite all this, RC4 remained the implicit default for any SPN-bearing account 
 | **April 2026** | Enforcement active by default.  KDC defaults to AES-only (`0x18`) for accounts without explicit `msDS-SupportedEncryptionTypes`. | KB5078763 |
 | **July 2026** | `RC4DefaultDisablementPhase` key removed.  Rollback no longer possible. | July 2026 CU |
 
+!!! warning "Enforcement is gated on the installed CU, not the calendar date"
+    "Active by default in April 2026" means *once the April 2026 cumulative update (KB5078763) or later is installed*.  A DC still on an earlier CU does **not** enforce even with the date past April 2026 — its internal default for unconfigured accounts stays `0x27` (RC4).  Cross-checked live: a DC on Build 20348.4893 still issued RC4 for an `msDS-SET = 0` account, while a DC on Build 20348.5020 issued AES256, with an identically empty Kerberos registry on both.  A domain whose DCs sit at different patch levels can therefore have **mixed enforcement**.  Confirm each DC from its build number or a live `msDS-SET = 0` ticket request — not from the date, and not from the (usually absent) `RC4DefaultDisablementPhase` value.
+
 ---
 
 ## How the KDC Selects a Service Ticket Encryption Type

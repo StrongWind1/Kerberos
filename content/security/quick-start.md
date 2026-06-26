@@ -114,9 +114,11 @@ flowchart TD
    for accounts that don't have #1 set. Takes effect immediately, no restart needed. Target: `24`.
    [Full reference](registry.md#defaultdomainsupportedenctypes)
 
-3. **RC4DefaultDisablementPhase** -- enforcement state since April 2026. Absent or set to 2
-   means enforcement is active and changes the blank/0 fallback to AES-only. Set to 0 or 1 for
-   temporary rollback until July 2026. Removed entirely in July 2026 (permanent enforcement).
+3. **RC4DefaultDisablementPhase** -- enforcement state, gated on the installed cumulative
+   update (KB5078763+), not the calendar date alone. On a patched DC, absent or set to 2 means
+   enforcement is active and the blank/0 fallback becomes AES-only; a DC still on an earlier CU
+   keeps issuing RC4 for blank/0 accounts even past April 2026. Set to 0 or 1 for temporary
+   rollback until July 2026, when the key is removed (permanent enforcement).
    [Full reference](rc4-deprecation.md#phase-behavior-what-the-registry-setting-actually-does)
 
 4. **SupportedEncryptionTypes (GPO)** -- a Group Policy setting applied to DCs. Acts as a hard
