@@ -256,5 +256,6 @@ __marimo__/
 
 # --------------- Custom ------------------
 specs/
-scripts/
+scripts/*
+!scripts/Get-KdcKerberosRegistryAudit.ps1
 docs/
