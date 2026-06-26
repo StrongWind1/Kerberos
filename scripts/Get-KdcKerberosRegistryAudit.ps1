@@ -106,15 +106,25 @@ $SecurityPolicy = [PSCustomObject]@{
     # Etype bits treated as insecure (weak crypto). A functional etype value carrying any
     # of these bits is classified Insecure; an AES-only value is Secure.
     # 0x1 = DES-CBC-CRC, 0x2 = DES-CBC-MD5, 0x4 = RC4-HMAC.
-    WeakEtypeBits     = (0x1 -bor 0x2 -bor 0x4)
+    WeakEtypeBits        = (0x1 -bor 0x2 -bor 0x4)
 
     # Etype bits treated as strong (any AES). A value carrying one of these and no weak bit
     # is Secure. 0x08/0x10 = AES128/256 (SHA1); 0x40/0x80 = AES128/256 (SHA2, Server 2025).
-    StrongEtypeBits   = (0x08 -bor 0x10 -bor 0x40 -bor 0x80)
+    StrongEtypeBits      = (0x08 -bor 0x10 -bor 0x40 -bor 0x80)
 
     # RC4DefaultDisablementPhase at or above this value is Secure (RC4 enforced off); below
     # it the KDC still allows RC4 by default, so it is classified Insecure. 2 = enforce.
-    MinSecureRc4Phase = 2
+    MinSecureRc4Phase    = 2
+
+    # RC4 implicit enforcement (CVE-2026-20833) ships in a cumulative update, so whether an
+    # absent RC4DefaultDisablementPhase behaves as Phase 2 (enforce) depends on the DC's build
+    # revision (UBR), NOT any registry value. For each major OS build, give the highest revision
+    # confirmed NOT enforcing and the lowest confirmed enforcing; a revision in between reports
+    # INDETERMINATE. Seeded from lab observation -- extend as you confirm more builds.
+    Rc4EnforcementBuilds = @{
+        # Server 2022 (20348): .4893 issued RC4 for msDS-SET=0; .5020 issued AES256.
+        20348 = @{ NotEnforcing = 4893; Enforcing = 5020 }
+    }
 }
 # ===========================================================================
 
@@ -218,58 +228,76 @@ function ConvertTo-KerberosEtypeName {
     [CmdletBinding()]
     [OutputType([string])]
     param(
-        # The DWORD bitmask read from the registry (for example 0x18 for AES128 + AES256).
+        # The bitmask as an unsigned 32-bit value (pass a [long] so bit 31 stays positive).
         [Parameter(Mandatory)]
-        [int]$Mask,
+        [long]$Mask,
 
-        # SupportedEncryptionTypes (the GPO filter) decodes high bits as "Future"; DDSET and
-        # the rest treat undefined high bits as unknown. Off by default (DDSET style).
-        [Parameter()]
-        [switch]$SupportsFuture
+        # Which setting is being decoded. The three honor different bits: DDSET only the etype
+        # bits; SupportedEncryptionTypes (GPO) adds the feature flags and the 0x7FFFFFE0 "Future"
+        # range; msDS-SupportedEncryptionTypes adds the feature flags and the bit-31 "Future".
+        [Parameter(Mandatory)]
+        [ValidateSet('DDSET', 'GPO', 'msDS')]
+        [string]$Variant
     )
 
-    # Map each defined bit to its name. A plain hashtable indexes by key; an [ordered]
-    # dictionary would treat the integer bit as a positional index and decode wrongly.
-    $flags = @{
-        0x01 = 'DES-CBC-CRC'   # [MS-KILE] bit 0: legacy DES, broken.
-        0x02 = 'DES-CBC-MD5'   # [MS-KILE] bit 1: legacy DES, broken.
-        0x04 = 'RC4-HMAC'      # [MS-KILE] bit 2: RC4, deprecated by CVE-2026-20833.
-        0x08 = 'AES128'        # [MS-KILE] bit 3: AES128-CTS-HMAC-SHA1-96.
-        0x10 = 'AES256'        # [MS-KILE] bit 4: AES256-CTS-HMAC-SHA1-96.
-        0x20 = 'AES256-SK'     # [KB5021131] bit 5: AES256 session key only.
-        0x40 = 'AES128-SHA256' # [RFC 8009] bit 6: AES128-CTS-HMAC-SHA256-128 (etype 19); defined, not yet active.
-        0x80 = 'AES256-SHA384' # [RFC 8009] bit 7: AES256-CTS-HMAC-SHA384-192 (etype 20); defined, not yet active.
+    # Etype bits 0-7. Names match the site etype-calculator BITS table verbatim
+    # ([MS-KILE] 2.2.7; RFC 3962/8009; KB5021131 for the AES session-key bit).
+    $etype = @{
+        0x01 = 'DES-CBC-CRC'
+        0x02 = 'DES-CBC-MD5'
+        0x04 = 'RC4-HMAC'
+        0x08 = 'AES128-CTS-HMAC-SHA1-96'
+        0x10 = 'AES256-CTS-HMAC-SHA1-96'
+        0x20 = 'AES256-CTS-HMAC-SHA1-96-SK'
+        0x40 = 'AES128-CTS-HMAC-SHA256-128'
+        0x80 = 'AES256-CTS-HMAC-SHA384-192'
+    }
+    # Protocol feature flags, bits 16-19. Honored on msDS-SET and the GPO value; DDSET strips them.
+    $feature = @{
+        0x10000 = 'FAST-supported'
+        0x20000 = 'Compound-identity-supported'
+        0x40000 = 'Claims-supported'
+        0x80000 = 'Resource-SID-compression-disabled'
     }
 
-    # Collect the names of every set bit, walking keys low-to-high for stable ordering.
-    $names = foreach ($bit in ($flags.Keys | Sort-Object)) {
-        # Bitwise-AND isolates one flag; a non-zero result means that etype is present.
-        if (($Mask -band $bit) -ne 0) {
-            # Emit the friendly name for this set bit into the $names collection.
-            $flags[$bit]
+    # Collect names low-bit first. A plain hashtable indexes by key (an [ordered] one would
+    # treat the integer key as a positional index and decode wrongly).
+    $names = [System.Collections.Generic.List[string]]::new()
+    foreach ($bit in ($etype.Keys | Sort-Object)) {
+        if (($Mask -band $bit) -ne 0) { $names.Add($etype[$bit]) }
+    }
+
+    # Feature flags are surfaced for everything except DDSET (which the KDC ignores them for).
+    if ($Variant -ne 'DDSET') {
+        foreach ($bit in ($feature.Keys | Sort-Object)) {
+            if (($Mask -band $bit) -ne 0) { $names.Add($feature[$bit]) }
         }
     }
 
-    # Decode the bits above the eight defined etype bits differently per value type:
-    # SupportedEncryptionTypes carries the GPO "Future encryption types" range (bits 5-30) as
-    # one checkbox, so show "Future"; DDSET has no such range, so undefined high bits are shown
-    # as a raw hex token (and Resolve-SecurityStatus flags a DDSET value with them as Invalid).
-    $high = $Mask -band (-bnot 0xFF)
-    if ($high -ne 0) {
-        if ($SupportsFuture) {
-            $names = @($names) + 'Future'
-        } else {
-            $names = @($names) + ('0x{0:X}?' -f $high)
-        }
+    # "Future encryption types" applies only to SupportedEncryptionTypes (the GPO 0x7FFFFFE0
+    # checkbox range). DDSET and msDS-SET have no future flag -- msDS-SET cannot carry bit 31.
+    if ($Variant -eq 'GPO' -and ($Mask -band 0x7FFFFFE0L) -eq 0x7FFFFFE0L) {
+        $names.Add('Future encryption types')
     }
 
-    # A mask of zero means "no etypes"; otherwise join the names with a plus sign.
-    if (@($names).Count -eq 0) {
-        # Zero mask is meaningful for msDS-SET (means "use the DC default"), so label it.
+    # Bits outside what each setting can legitimately carry are invalid: DDSET only the etype
+    # bits (<= 0x80), msDS-SET the etype bits plus feature flags 16-19, the GPO value bits 0-30.
+    $valid = switch ($Variant) {
+        'DDSET' { 0xFFL }
+        'msDS' { 0xF00FFL }
+        default { 0x7FFFFFFFL }
+    }
+    $invalid = $Mask -band (-bnot $valid)
+    if ($invalid -ne 0) {
+        $names.Add('0x{0:X}? (invalid)' -f $invalid)
+    }
+
+    # A mask of zero means "no etypes" (for msDS-SET that means "fall back to the DC default").
+    if ($names.Count -eq 0) {
         return 'None (0)'
     }
 
-    # Join the individual flag names into one compact, readable string.
+    # Join the flag names into one readable string.
     return ($names -join '+')
 }
 
@@ -294,10 +322,10 @@ function Resolve-SettingMeaning {
         [Parameter(Mandatory)]
         [bool]$Found,
 
-        # Passed to the etype decoder so SupportedEncryptionTypes and DDSET high bits decode
-        # separately (Future vs. unknown).
+        # Which etype-setting variant to decode as (DDSET, GPO, or msDS); only used for EtypeMask.
         [Parameter()]
-        [switch]$SupportsFuture
+        [ValidateSet('DDSET', 'GPO', 'msDS')]
+        [string]$Variant = 'DDSET'
     )
 
     # A value that is absent has no meaning to decode, so report it as not set.
@@ -308,9 +336,9 @@ function Resolve-SettingMeaning {
     # Branch on the decode strategy declared for this particular registry value.
     switch ($Kind) {
         'EtypeMask' {
-            # Bitmask values (DDSET, SupportedEncryptionTypes) decode to etype flag names;
-            # the SupportsFuture flag keeps their high-bit handling separate.
-            return (ConvertTo-KerberosEtypeName -Mask ([int]$Value) -SupportsFuture:$SupportsFuture)
+            # Decode the unsigned 32-bit mask using the variant for this value type, so DDSET,
+            # the GPO SupportedEncryptionTypes filter, and msDS-SET each decode their own way.
+            return (ConvertTo-KerberosEtypeName -Mask ([long]$Value -band 0xFFFFFFFFL) -Variant $Variant)
         }
         'Phase' {
             # RC4DefaultDisablementPhase is an enum controlling the RC4 deprecation rollout.
@@ -382,21 +410,25 @@ function Resolve-SecurityStatus {
         return 'Invalid'
     }
 
-    # Keys that never affect KDC security (legacy/unused, diagnostic) stay neutral.
-    if ($Meta.Functional -ne 'Yes') {
+    # Keys that never affect KDC security (legacy/unused, diagnostic) stay neutral; the etype
+    # settings (functional registry values and the msDS-SET AD attribute) are classified.
+    if ($Meta.Functional -ne 'Yes' -and $Meta.Functional -ne 'AD attribute') {
         return ''
     }
 
     # Classify the value of a functional key by its kind.
     switch ($Meta.Kind) {
         'EtypeMask' {
-            # Work on the integer mask for the bit tests below.
-            $mask = [int]$Value
-            # SupportedEncryptionTypes (the GPO filter) may legitimately carry the "Future
-            # encryption types" range (bits 5-30); only DDSET is restricted to the defined
-            # etype bits, so undefined high bits make a DDSET value Invalid, not a filter value.
-            $isFilter = $Meta.Name -eq 'SupportedEncryptionTypes'
-            if (-not $isFilter -and ($mask -band (-bnot 0xFF)) -ne 0) {
+            # Unsigned 32-bit mask. Bits outside what this setting can carry make it Invalid:
+            # DDSET only the etype bits (<= 0x80), msDS-SET etype + feature bits (no bit 31), the
+            # GPO SupportedEncryptionTypes value bits 0-30.
+            $mask = [long]$Value -band 0xFFFFFFFFL
+            $valid = switch ($Meta.Name) {
+                'DefaultDomainSupportedEncTypes' { 0xFFL }
+                'msDS-SupportedEncryptionTypes' { 0xF00FFL }
+                default { 0x7FFFFFFFL }
+            }
+            if (($mask -band (-bnot $valid)) -ne 0) {
                 return 'Invalid'
             }
             # DES or RC4 present -> insecure.
@@ -431,6 +463,53 @@ function Resolve-SecurityStatus {
     }
 }
 
+function Resolve-Rc4Enforcement {
+    <#
+    .SYNOPSIS
+        Infer, from a DC's OS build revision, whether RC4 implicit enforcement is active.
+    .DESCRIPTION
+        The CVE-2026-20833 enforcement (an absent RC4DefaultDisablementPhase behaving as Phase 2)
+        ships in a cumulative update, so it cannot be read from the registry -- only inferred from
+        the build revision against the SECURITY POLICY build map. Returns a short verdict string.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        # OS major build, e.g. '20348'.
+        [Parameter()]
+        [string]$Build,
+
+        # OS update revision (UBR), e.g. 5020. Left loose because the registry returns it raw.
+        [Parameter()]
+        $Ubr,
+
+        # The per-major-build revision map from the SECURITY POLICY block.
+        [Parameter(Mandatory)]
+        $BuildMap
+    )
+
+    # Coerce both to integers; an unparseable build cannot be mapped.
+    $major = 0
+    $revision = 0
+    [void][int]::TryParse([string]$Build, [ref]$major)
+    [void][int]::TryParse([string]$Ubr, [ref]$revision)
+
+    # A build with no entry in the map has not been characterized: say so rather than guess.
+    if (-not $BuildMap.ContainsKey($major)) {
+        return 'UNKNOWN for this build -- verify with a live msDS-SET=0 ticket'
+    }
+
+    # Compare this revision against the confirmed not-enforcing / enforcing boundaries.
+    $known = $BuildMap[$major]
+    if ($revision -ge $known.Enforcing) {
+        return 'ACTIVE -- an unset RC4DefaultDisablementPhase behaves as enforce'
+    }
+    if ($revision -le $known.NotEnforcing) {
+        return 'NOT active -- msDS-SET=0 accounts still get RC4 by default'
+    }
+    return 'INDETERMINATE -- revision between confirmed builds; verify with a live msDS-SET=0 ticket'
+}
+
 # --- Registry matrix ---
 
 # Every documented path/value combination, with the verdict on whether the KDC honors it,
@@ -438,15 +517,15 @@ function Resolve-SecurityStatus {
 # Order controls report sorting: functional keys first, ignored/wrong-path keys last.
 $registryMatrix = @(
     # 1. The single most important KDC key: fallback etypes for accounts with msDS-SET = 0.
-    [PSCustomObject]@{ Setting = 'DefaultDomainSupportedEncTypes (Services\KDC)'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\KDC'; Name = 'DefaultDomainSupportedEncTypes'; Kind = 'EtypeMask'; Functional = 'Yes'; Timing = 'Immediate'; Default = '0x27 (2025: 0x24)'; AutoSet = 'Manual'; Order = 1; Note = 'Fallback etype set for accounts with msDS-SupportedEncryptionTypes = 0.' }
+    [PSCustomObject]@{ Setting = 'DefaultDomainSupportedEncTypes (Services\KDC)'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\KDC'; Name = 'DefaultDomainSupportedEncTypes'; Kind = 'EtypeMask'; Functional = 'Yes'; Timing = 'Immediate'; Default = '0x27 (2025: 0x24)'; AutoSet = 'Manual'; Order = 1; Note = 'Fallback etype for accounts with msDS-SupportedEncryptionTypes = 0. When unset the KDC uses its internal default: 0x27 (2025: 0x24), or 0x18 (AES-only) on enforced KB5078763+ builds.' }
     # 2. The hard KDC filter written by Group Policy; highest-precedence issuance control.
-    [PSCustomObject]@{ Setting = 'SupportedEncryptionTypes (Policies)'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters'; Name = 'SupportedEncryptionTypes'; Kind = 'EtypeMask'; Functional = 'Yes'; Timing = 'KDC restart'; Default = 'Not set'; AutoSet = 'GPO'; Order = 2; Note = 'Hard KDC etype filter (GPO path). Overrides DDSET for issuance.' }
-    # 3. The same filter at the legacy Lsa path; works on 2022, removed in 2025.
-    [PSCustomObject]@{ Setting = 'SupportedEncryptionTypes (Lsa)'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters'; Name = 'SupportedEncryptionTypes'; Kind = 'EtypeMask'; Functional = 'Yes'; Timing = 'KDC restart'; Default = 'Not set'; AutoSet = 'Manual'; Order = 3; Note = 'Same filter as Policies, lower precedence. Deprecated on Server 2025.' }
+    [PSCustomObject]@{ Setting = 'SupportedEncryptionTypes (Policies)'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters'; Name = 'SupportedEncryptionTypes'; Kind = 'EtypeMask'; Functional = 'Yes'; Timing = 'KDC restart'; Default = 'Not set'; AutoSet = 'GPO'; Order = 2; Note = 'Hard KDC etype filter (GPO/Policies path). Honored on Server 2022; ignored on Server 2025, where the KDC reads the Lsa path instead (lab-tested 26100.32522).' }
+    # 3. The same filter at the Lsa path; honored on 2022 and (lab-tested) on Server 2025, where it is the path the KDC actually reads.
+    [PSCustomObject]@{ Setting = 'SupportedEncryptionTypes (Lsa)'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters'; Name = 'SupportedEncryptionTypes'; Kind = 'EtypeMask'; Functional = 'Yes'; Timing = 'KDC restart'; Default = 'Not set'; AutoSet = 'Manual'; Order = 3; Note = 'Same KDC etype filter as the Policies path. Honored on Server 2022; on Server 2025 the KDC reads this path and ignores Policies (lab-tested 26100.32522; reverse of the old deprecation claim).' }
     # 4. The dangerous compatibility knob that lets clients force RC4; must stay 0.
-    [PSCustomObject]@{ Setting = 'KdcUseRequestedEtypesForTickets (Services\Kdc)'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\Kdc'; Name = 'KdcUseRequestedEtypesForTickets'; Kind = 'Bool'; Functional = 'Yes'; Timing = 'Immediate'; Default = 'Not set (0)'; AutoSet = 'Manual'; Order = 4; Note = 'When 1, clients can force RC4 and bypass per-account hardening. Never set to 1.' }
+    [PSCustomObject]@{ Setting = 'KdcUseRequestedEtypesForTickets (Services\Kdc)'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Services\Kdc'; Name = 'KdcUseRequestedEtypesForTickets'; Kind = 'Bool'; Functional = 'Yes'; Timing = 'Immediate'; Default = 'Not set (0)'; AutoSet = 'Manual'; Order = 4; Note = 'When 1, a client can force RC4 for any account whose msDS-SET still lists RC4 (AES-only accounts stay AES on enforced builds). Bypasses per-account hardening; never set to 1.' }
     # 5. The CVE-2026-20833 RC4 deprecation phase switch (correct Policies path).
-    [PSCustomObject]@{ Setting = 'RC4DefaultDisablementPhase (Policies)'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters'; Name = 'RC4DefaultDisablementPhase'; Kind = 'Phase'; Functional = 'Yes'; Timing = 'KDC restart'; Default = '1 (audit); 2 Apr 2026'; AutoSet = 'Update'; Order = 5; Note = 'RC4 deprecation phase: 0 off, 1 audit, 2 enforce. Set by the CVE rollout.' }
+    [PSCustomObject]@{ Setting = 'RC4DefaultDisablementPhase (Policies)'; Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters'; Name = 'RC4DefaultDisablementPhase'; Kind = 'Phase'; Functional = 'Yes'; Timing = 'KDC restart'; Default = 'Not set (CU-gated)'; AutoSet = 'Manual'; Order = 5; Note = 'RC4 phase: 0 off, 1 audit, 2 enforce. Usually unset; on KB5078763+ an absent value behaves as 2 (enforce), on older CUs as 0. The registry alone cannot confirm enforcement - check the build or a live msDS-SET=0 ticket.' }
     # 6. Verbose Kerberos logging toggle; diagnostic only.
     [PSCustomObject]@{ Setting = 'LogLevel (Lsa)'; Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters'; Name = 'LogLevel'; Kind = 'Log'; Functional = 'Diagnostic'; Timing = 'n/a'; Default = '0 (off)'; AutoSet = 'Manual'; Order = 6; Note = 'Verbose Kerberos logging when 1. No effect on etype selection.' }
     # 7. DDSET at the Lsa path: a common mistake; the KDC never reads it here.
@@ -563,6 +642,52 @@ $remoteReader = {
             Value = $value
         }
     }
+
+    # Also read this machine's own msDS-SupportedEncryptionTypes from AD: the DC computer
+    # account attribute that drives the etypes the KDC uses for its own service tickets. ADSI
+    # needs no RSAT module and queries the current domain.
+    $msFound = $false
+    $msValue = $null
+    try {
+        $sam = '{0}$' -f $env:COMPUTERNAME
+        $searcher = [adsisearcher]("(&(objectClass=computer)(sAMAccountName=$sam))")
+        [void]$searcher.PropertiesToLoad.Add('msDS-SupportedEncryptionTypes')
+        $hit = $searcher.FindOne()
+        if ($hit -and $hit.Properties['msds-supportedencryptiontypes'].Count -gt 0) {
+            $msValue = [int64]$hit.Properties['msds-supportedencryptiontypes'][0]
+            $msFound = $true
+        }
+    } catch {
+        $msFound = $false
+    }
+    [PSCustomObject]@{
+        Path  = 'AD'
+        Name  = 'msDS-SupportedEncryptionTypes'
+        Found = $msFound
+        Value = $msValue
+    }
+
+    # Read this DC's OS build so the report can state whether its cumulative-update level puts it
+    # at or past the RC4 implicit-enforcement CU -- something no registry value can reveal.
+    $osCaption = ''
+    $osBuild = ''
+    $osUbr = ''
+    # SilentlyContinue + a null guard keeps the OS fields blank if the version key is unreadable.
+    $cv = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue
+    if ($cv) {
+        $osCaption = [string]$cv.ProductName
+        $osBuild = [string]$cv.CurrentBuildNumber
+        $osUbr = [string]$cv.UBR
+    }
+    [PSCustomObject]@{
+        Path    = 'OS'
+        Name    = 'OSInfo'
+        Found   = $true
+        Value   = $null
+        Caption = $osCaption
+        Build   = $osBuild
+        Ubr     = $osUbr
+    }
 }
 
 # Build the Invoke-Command arguments so the optional credential can be added conditionally.
@@ -586,6 +711,18 @@ foreach ($remoteError in $remoteErrors) {
     Write-Warning ("Could not query {0}: {1}" -f $remoteError.TargetObject, $remoteError.Exception.Message)
 }
 
+# Pull each DC's OS/build record (emitted by the remote reader) out of the readings, and resolve
+# the RC4 implicit-enforcement verdict its build revision implies. Keyed by the FQDN that
+# Invoke-Command stamps on each result.
+$osByDc = @{}
+$enfByDc = @{}
+foreach ($result in $rawResults) {
+    if ($result.Name -eq 'OSInfo') {
+        $osByDc[$result.PSComputerName] = $result
+        $enfByDc[$result.PSComputerName] = Resolve-Rc4Enforcement -Build $result.Build -Ubr $result.Ubr -BuildMap $SecurityPolicy.Rc4EnforcementBuilds
+    }
+}
+
 # --- Merge, decode, and classify ---
 
 # Index the static matrix by "path|value" for an O(1) join against the remote results.
@@ -595,52 +732,67 @@ foreach ($entry in $registryMatrix) {
     $lookup[("{0}|{1}" -f $entry.Path, $entry.Name)] = $entry
 }
 
+# Synthetic metadata for the msDS-SupportedEncryptionTypes AD attribute (read per DC, not a
+# registry value). Order 0 sorts it first in each DC's table; the GPO is what populates it.
+$msdsMeta = [PSCustomObject]@{ Setting = 'msDS-SupportedEncryptionTypes (AD)'; Path = 'Active Directory (DC computer account)'; Name = 'msDS-SupportedEncryptionTypes'; Kind = 'EtypeMask'; Functional = 'AD attribute'; Timing = 'n/a'; Default = '0 (falls back to DDSET)'; AutoSet = 'GPO -> SupportedEncryptionTypes'; Order = 0; Note = 'DC computer account etypes; the LSA writes this from the SupportedEncryptionTypes GPO.' }
+
 # Combine each remote reading with its metadata, decode it, and classify its security.
 $report = foreach ($result in $rawResults) {
-    # Look up the metadata for this reading; skip anything we did not ask for.
+    # Look up the metadata for this reading. The msDS-SET reading is an AD attribute, not a
+    # registry path, so it uses its own synthetic metadata; anything else unmatched is skipped.
     $meta = $lookup[("{0}|{1}" -f $result.Path, $result.Name)]
     if ($null -eq $meta) {
-        # Defensive: a result with no matching metadata is not part of the audit.
-        continue
+        if ($result.Name -eq 'msDS-SupportedEncryptionTypes') {
+            $meta = $msdsMeta
+        } else {
+            # Defensive: a result with no matching metadata is not part of the audit.
+            continue
+        }
     }
 
-    # Safely coerce the raw value to a 32-bit integer. A value stored at the wrong REG type
+    # Safely coerce the raw value to a 32-bit integer. A value stored at the wrong type
     # (REG_BINARY, REG_MULTI_SZ, a non-numeric REG_SZ, or an out-of-range REG_QWORD) cannot be
     # a real etype/phase/bool, so surface it as Invalid rather than let a cast misclassify it.
     $parsed = 0
     $decodable = (-not $result.Found) -or [int]::TryParse([string]$result.Value, [ref]$parsed)
-    # SupportedEncryptionTypes (the GPO filter) and DDSET decode their high bits differently
-    # (Future vs. unknown), so flag which value type this is for the decoder.
-    $supportsFuture = $meta.Name -eq 'SupportedEncryptionTypes'
+    # The three etype settings decode their high bits differently, so pick the variant by name.
+    $variant = switch ($meta.Name) {
+        'SupportedEncryptionTypes' { 'GPO' }
+        'msDS-SupportedEncryptionTypes' { 'msDS' }
+        default { 'DDSET' }
+    }
     if ($result.Found -and -not $decodable) {
         $status = 'Invalid'
-        $meaning = '(unreadable: wrong registry type)'
+        $meaning = '(unreadable: wrong type)'
     } else {
         # Classify the reading ('' neutral / Secure / Insecure / Invalid) and decode its meaning.
         $status = Resolve-SecurityStatus -Meta $meta -Value $result.Value -Found $result.Found -Policy $SecurityPolicy
-        $meaning = Resolve-SettingMeaning -Kind $meta.Kind -Value $result.Value -Found $result.Found -SupportsFuture:$supportsFuture
+        $meaning = Resolve-SettingMeaning -Kind $meta.Kind -Value $result.Value -Found $result.Found -Variant $variant
     }
 
     # Build the operator-facing record. ComputerName comes from PSComputerName (the FQDN that
     # Invoke-Command stamps on each result); Path and Name carry the full key path and value name.
     [PSCustomObject]@{
-        ComputerName = $result.PSComputerName
-        Path         = $meta.Path
-        Name         = $meta.Name
-        Setting      = $meta.Setting
-        State        = if ($result.Found) { 'Set' } else { 'Not set' }
-        Value        = if ($result.Found) { $result.Value } else { $null }
+        ComputerName   = $result.PSComputerName
+        Path           = $meta.Path
+        Name           = $meta.Name
+        Setting        = $meta.Setting
+        State          = if ($result.Found) { 'Set' } else { 'Not set' }
+        Value          = if ($result.Found) { $result.Value } else { $null }
         # Mask to 32 bits before formatting so a high-bit DWORD (e.g. 0xFFFFFFFF "all etypes on")
         # is not sign-extended to 16 hex digits by the negative Int32 that Get-ItemProperty returns.
-        Hex          = if ($result.Found -and ($result.Value -is [int] -or $result.Value -is [long])) { '0x{0:X}' -f ([uint32]($result.Value -band 0xFFFFFFFFL)) } else { '' }
-        Meaning      = $meaning
-        Default      = $meta.Default
-        AutoSet      = $meta.AutoSet
-        Functional   = $meta.Functional
-        Timing       = $meta.Timing
-        Status       = $status
-        Note         = $meta.Note
-        Order        = $meta.Order
+        Hex            = if ($result.Found -and ($result.Value -is [int] -or $result.Value -is [long])) { '0x{0:X}' -f ([uint32]($result.Value -band 0xFFFFFFFFL)) } else { '' }
+        Meaning        = $meaning
+        Default        = $meta.Default
+        AutoSet        = $meta.AutoSet
+        Functional     = $meta.Functional
+        Timing         = $meta.Timing
+        Status         = $status
+        Note           = $meta.Note
+        # Per-DC OS context so an exported row carries the build and the enforcement it implies.
+        OSBuild        = if ($osByDc.ContainsKey($result.PSComputerName)) { '{0}.{1}' -f $osByDc[$result.PSComputerName].Build, $osByDc[$result.PSComputerName].Ubr } else { '' }
+        Rc4Enforcement = if ($enfByDc.ContainsKey($result.PSComputerName)) { $enfByDc[$result.PSComputerName] } else { '' }
+        Order          = $meta.Order
     }
 }
 
@@ -652,7 +804,7 @@ $sorted = $report | Sort-Object -Property ComputerName, Order, Setting
 # Under -PassThru, hand back structured objects (with the Status field) for export/processing.
 if ($PassThru) {
     # Drop the internal Order helper column from the pipeline output to keep it clean.
-    $sorted | Select-Object -Property ComputerName, Path, Name, Setting, State, Value, Hex, Meaning, Default, AutoSet, Functional, Timing, Status, Note
+    $sorted | Select-Object -Property ComputerName, OSBuild, Rc4Enforcement, Path, Name, Setting, State, Value, Hex, Meaning, Default, AutoSet, Functional, Timing, Status, Note
     return
 }
 
@@ -697,8 +849,45 @@ $valueColumn = @{
 foreach ($dc in $auditedDcs) {
     Write-Output ''
     Write-Output (ConvertTo-ColorText -Text ('================ {0} ================' -f $dc) -Code '1;36')
+    # State this DC's OS build and the RC4 implicit enforcement it implies -- the registry cannot
+    # show this, since the enforcement ships in a cumulative update, not a registry value.
+    $os = $osByDc[$dc]
+    if ($os) {
+        $enf = $enfByDc[$dc]
+        # Green when enforcement is active, yellow when it is not, cyan when it cannot be told.
+        $enfCode = switch -Wildcard ($enf) { 'ACTIVE*' { '1;32' } 'NOT active*' { '1;33' } default { '1;36' } }
+        $osLabel = if ($os.Caption) { '{0}, build {1}.{2}' -f $os.Caption, $os.Build, $os.Ubr } else { 'build {0}.{1}' -f $os.Build, $os.Ubr }
+        Write-Output (ConvertTo-ColorText -Text ('OS: {0} | RC4 implicit enforcement: {1}' -f $osLabel, $enf) -Code $enfCode)
+    }
     $dcRows = $sorted | Where-Object { $_.ComputerName -eq $dc }
     Write-StatusColoredTable -Rows $dcRows -Property 'Path', 'Name', $valueColumn, 'Hex', 'Meaning'
+}
+
+# msDS-SET vs SET consistency: the SupportedEncryptionTypes GPO writes the registry value, and
+# the LSA copies it into the DC computer account's msDS-SupportedEncryptionTypes. They should
+# agree on the etype bits; a mismatch means the AD attribute is stale or was set independently.
+Write-Output ''
+Write-Output (ConvertTo-ColorText -Text '================ msDS-SET vs SET CONSISTENCY ================' -Code '1;36')
+foreach ($dc in $auditedDcs) {
+    # This DC's msDS-SET reading and its functional SupportedEncryptionTypes (Policies) row.
+    $msRow = $sorted | Where-Object { $_.ComputerName -eq $dc -and $_.Name -eq 'msDS-SupportedEncryptionTypes' } | Select-Object -First 1
+    $setRow = $sorted | Where-Object { $_.ComputerName -eq $dc -and $_.Name -eq 'SupportedEncryptionTypes' -and $_.Path -like '*Policies*' } | Select-Object -First 1
+    # Resolve each to an unsigned 32-bit value, or $null when the value is absent.
+    $msVal = if ($msRow -and $msRow.State -eq 'Set') { [long]$msRow.Value -band 0xFFFFFFFFL } else { $null }
+    $setVal = if ($setRow -and $setRow.State -eq 'Set') { [long]$setRow.Value -band 0xFFFFFFFFL } else { $null }
+
+    if ($null -eq $setVal) {
+        # No GPO is configuring SupportedEncryptionTypes, so nothing drives msDS-SET here.
+        $msShown = if ($null -ne $msVal) { '0x{0:X} ({1})' -f $msVal, $msRow.Meaning } else { 'not set' }
+        Write-Output ('{0,-26} SET not configured (no GPO); msDS-SET = {1}' -f $dc, $msShown)
+    } elseif ($null -ne $msVal -and ($msVal -band 0xFF) -eq ($setVal -band 0xFF)) {
+        # The etype bits agree (msDS-SET may legitimately drop the GPO high bits).
+        Write-Output (ConvertTo-ColorText -Text ('{0,-26} consistent: msDS-SET 0x{1:X} and SET 0x{2:X} agree on etype bits' -f $dc, $msVal, $setVal) -Code '1;32')
+    } else {
+        # Etype bits disagree: the AD attribute is out of sync with the configured GPO value.
+        $msShown = if ($null -ne $msVal) { '0x{0:X}' -f $msVal } else { 'not set' }
+        Write-Output (ConvertTo-ColorText -Text ('{0,-26} DIFFER: msDS-SET = {1}, SET = 0x{2:X} -- msDS-SET out of sync with the GPO' -f $dc, $msShown, $setVal) -Code '1;33')
+    }
 }
 
 # Summary section: totals (with coverage), then every insecure or invalid finding.
