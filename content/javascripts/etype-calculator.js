@@ -36,6 +36,8 @@
     { bit: 3, hex: "0x8", dec: 8, name: "AES128-CTS-HMAC-SHA1-96", etype: 17, status: "recommended", note: "" },
     { bit: 4, hex: "0x10", dec: 16, name: "AES256-CTS-HMAC-SHA1-96", etype: 18, status: "recommended", note: "" },
     { bit: 5, hex: "0x20", dec: 32, name: "AES256-CTS-HMAC-SHA1-96-SK", etype: null, status: "special", note: "Session key variant (Nov 2022+)" },
+    { bit: 6, hex: "0x40", dec: 64, name: "AES128-CTS-HMAC-SHA256-128", etype: 19, status: "future", note: "RFC 8009 AES-SHA2; defined, not yet active in negotiation (April 2026)" },
+    { bit: 7, hex: "0x80", dec: 128, name: "AES256-CTS-HMAC-SHA384-192", etype: 20, status: "future", note: "RFC 8009 AES-SHA2; defined, not yet active in negotiation (April 2026)" },
     { bit: 16, hex: "0x10000", dec: 65536, name: "FAST-supported", etype: null, status: "feature", note: "Kerberos armoring (Server 2012+)" },
     { bit: 17, hex: "0x20000", dec: 131072, name: "Compound-identity-supported", etype: null, status: "feature", note: "Server 2012+" },
     { bit: 18, hex: "0x40000", dec: 262144, name: "Claims-supported", etype: null, status: "feature", note: "Server 2012+" },
