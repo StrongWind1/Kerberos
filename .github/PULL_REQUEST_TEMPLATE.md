@@ -1,20 +1,19 @@
 ## Summary
 
-<!-- What changed and why? -->
+<!-- What does this PR do? Why is it needed? -->
 
 ## Changes
 
-<!-- Which pages or sections were added, updated, or removed? -->
+<!-- Bullet list of key changes -->
 
--
+## Testing
 
-## Checklist
+<!-- How did you verify the changes? -->
 
-- [ ] `uv run --group docs mkdocs build --strict` passes locally
-- [ ] Spec references (`[RFC 4120 §X.Y]`, `[MS-KILE §X.Y]`) are accurate
-- [ ] Cross-links between pages work
-- [ ] PowerShell was tested against a real DC (if adding new commands)
+- [ ] `make check` passes (lint + typecheck + tests)
+- [ ] New/changed behavior is covered by tests
+- [ ] Documentation updated (if applicable)
 
 ## Notes
 
-<!-- Anything reviewers should know: trade-offs, open questions, related issues. -->
+<!-- Anything reviewers should know? Breaking changes, migration steps, etc. -->
