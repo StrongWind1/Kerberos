@@ -349,7 +349,7 @@ Each page builds on concepts from the previous one.
 | Page | What You Will Learn |
 |---|---|
 | [RC4 Deprecation (CVE-2026-20833)](rc4-deprecation.md) | Timeline, event IDs, and a step-by-step migration plan. |
-| [Auditing Kerberos Keys](account-key-audit.md) | Four methods to find accounts missing AES keys: PowerShell date comparison, DSInternals, impacket secretsdump, and ntdsutil + ntdissector. |
+| [Auditing Kerberos Keys](account-key-audit.md) | Four methods to find accounts missing AES keys: PowerShell date comparison, DSInternals, impacket secretsdump, and ntdsutil + ntdswolf. |
 | [Standardization Guide](aes-standardization.md) | Step-by-step playbook for moving your domain to AES-only, with every registry key, AD attribute, and PowerShell command. |
 
 ### Operations

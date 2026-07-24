@@ -10,7 +10,7 @@ covers four methods to surface that information, each with different trade-offs.
 | [PowerShell date comparison](#method-1-powershell-date-comparison-approximate) | Approximate | AD read access | No |
 | [DSInternals](#method-2-dsinternals-definitive-online) | Definitive | Domain admin / DCSync rights | **Yes** (DCSync) |
 | [Impacket secretsdump](#method-3-impacket-secretsdump-definitive-online) | Definitive | Domain admin / DCSync rights | **Yes** (DCSync) |
-| [ntdsutil + ntdissector](#method-4-ntdsutil-ntdissector-definitive-offline) | Definitive | Local admin on DC | Minimal (backup event only) |
+| [ntdsutil + ntdswolf](#method-4-ntdsutil-ntdswolf-definitive-offline) | Definitive | Local admin on DC | Minimal (backup event only) |
 
 ---
 
@@ -143,7 +143,7 @@ accounts are the highest priority to fix).
 
     Coordinate with your SOC before running this.  Whitelist the source machine and
     account in your detection rules for the duration of the audit, or use
-    [Method 4](#method-4-ntdsutil-ntdissector-definitive-offline) to avoid network-based
+    [Method 4](#method-4-ntdsutil-ntdswolf-definitive-offline) to avoid network-based
     alerts entirely.
 
 ---
@@ -207,7 +207,7 @@ comm -23 all_kerberos.txt has_aes256.txt
     anomaly detections (unusual DRSUAPI source OS, unusual network path to the DC).
 
     Coordinate with your SOC before running, or use
-    [Method 4](#method-4-ntdsutil-ntdissector-definitive-offline) instead.
+    [Method 4](#method-4-ntdsutil-ntdswolf-definitive-offline) instead.
 
 ### Cleanup
 
@@ -221,10 +221,10 @@ rm -f all_kerberos.txt has_aes256.txt
 
 ---
 
-## Method 4: ntdsutil + ntdissector (Definitive, Offline)
+## Method 4: ntdsutil + ntdswolf (Definitive, Offline)
 
 This method creates an offline copy of the AD database, transfers it to a Linux machine,
-and parses it with [ntdissector](https://github.com/StrongWind1/ntdissector).  Because
+and parses it with [ntdswolf](https://github.com/StrongWind1/NTDSWolf).  Because
 the key extraction happens offline against a file copy, no DCSync traffic crosses the
 network and no DRSUAPI-based alerts fire.
 
@@ -260,60 +260,50 @@ scp administrator@dc01:'C:\IFM\Active Directory\ntds.dit' ./ntds.dit
 scp administrator@dc01:'C:\IFM\registry\SYSTEM' ./SYSTEM
 ```
 
-### Step 3: Install ntdissector
+### Step 3: Install ntdswolf
 
 ```bash
 # Install uv (Python package manager) if not already present
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install ntdissector as a CLI tool
-uv tool install git+https://github.com/StrongWind1/ntdissector.git
+# Install ntdswolf as a CLI tool
+uv tool install git+https://github.com/StrongWind1/NTDSWolf.git
 ```
 
 ### Step 4: Parse the database
 
-```bash title="Parse the AD database and extract user objects to JSON"
-ntdissector -ntds ntds.dit -system SYSTEM -f user -outputdir ./ntds_output -ts
+```bash title="Parse the AD database and extract user objects"
+ntdswolf ntds.dit --system SYSTEM -e user -o ./ntds_output
 ```
 
-This parses all user objects from `ntds.dit` and writes JSON files to `./ntds_output/`.
-The output is organized by object class: `user.json` contains all user accounts with
-their attributes and supplemental credentials.
+This parses all user objects from `ntds.dit` and writes NDJSON (one JSON object per line)
+to `./ntds_output/users.ndjson`.
 
 To also include computer accounts:
 
 ```bash title="Parse the AD database including computer accounts"
-ntdissector -ntds ntds.dit -system SYSTEM -f user,computer -outputdir ./ntds_output -ts
+ntdswolf ntds.dit --system SYSTEM -e user,computer -o ./ntds_output
 ```
 
 ### Step 5: Find accounts without AES keys
 
-The JSON output contains each account's supplemental credentials, including the Kerberos
-key types.  Use `jq` to filter for accounts missing AES keys:
+The NDJSON output contains each account's Kerberos keys under the `kerberos` array, with
+each entry carrying an `etypeName` field.  Use `jq` to filter for accounts missing AES keys:
 
-```bash title="Find enabled accounts without AES256 keys in ntdissector JSON output"
+```bash title="Find enabled accounts without AES256 keys in ntdswolf NDJSON output"
 # Find enabled accounts without AES256 Kerberos keys
 jq -r '
-  .[] |
-  select(.userAccountControl // 0 | . % 4 < 2) |
+  select((.userAccountControl.flags // []) | index("ACCOUNTDISABLE") | not) |
   select(
-    (.supplementalCredentials.kpiNewerKeys // [] |
-     map(.keytype) |
-     any(. == "aes256-cts-hmac-sha1-96")) | not
+    (.kerberos // [] | map(.etypeName) |
+     any(. == "AES256-CTS-HMAC-SHA1-96")) | not
   ) |
   [.sAMAccountName, .pwdLastSet, (.servicePrincipalName // [] | length | tostring)] |
   @tsv
-' ./ntds_output/*/user.json 2>/dev/null |
+' ./ntds_output/users.ndjson |
   sort -t$'\t' -k2 |
   column -t -s$'\t' -N 'Account,PasswordLastSet,SPNCount'
 ```
-
-!!! tip "Adapt the jq filter to the actual JSON structure"
-    The exact field names in ntdissector's JSON output depend on the version and schema.
-    Run `jq 'keys' ./ntds_output/*/user.json | head` first to inspect the top-level
-    fields, then adjust the filter above to match.  The key information is in the
-    supplemental credentials structure -- look for fields containing `kerberos`,
-    `credentials`, or `keytype`.
 
 ### Alert implications
 
@@ -341,7 +331,7 @@ rm -rf ./ntds_output
 | Quick estimate of how many accounts might lack AES keys | Method 1 (PowerShell dates) |
 | Definitive audit, SOC can whitelist DCSync alerts | Method 2 (DSInternals) -- best PowerShell integration |
 | Definitive audit from a Linux attack/audit box | Method 3 (secretsdump) |
-| Definitive audit, cannot trigger DCSync alerts | Method 4 (ntdsutil + ntdissector) |
+| Definitive audit, cannot trigger DCSync alerts | Method 4 (ntdsutil + ntdswolf) |
 | Regular ongoing monitoring (scheduled task) | Method 1 for triage, Method 2 for periodic verification |
 
 ---
@@ -387,7 +377,7 @@ Remove-ADFineGrainedPasswordPolicy -Identity "Temp-NoHistory" -Confirm:$false
 After the reset, the account's supplemental credentials will contain AES128 and AES256
 keys derived from the (unchanged) password.  You can verify this with
 [DSInternals](#method-2-dsinternals-definitive-online) or
-[ntdissector](#method-4-ntdsutil-ntdissector-definitive-offline).
+[ntdswolf](#method-4-ntdsutil-ntdswolf-definitive-offline).
 
 !!! warning "The FGPP must be removed immediately"
     Leaving a `PasswordHistoryCount = 0` FGPP in place disables password history for
@@ -448,26 +438,6 @@ The table below shows the property indices used in the PowerShell examples on th
     normalizes both formats automatically.
 
 #### Queries
-
-**Splunk:**
-
-```spl title="Find accounts configured for AES but still getting RC4 tickets"
-index=wineventlog EventCode IN (4768, 4769) Ticket_Encryption_Type=0x17
-| stats count dc(src) as KDC_count by Account_Name
-| lookup ad_accounts sAMAccountName as Account_Name
-    OUTPUT msDS_SupportedEncryptionTypes
-| where msDS_SupportedEncryptionTypes >= 8
-| table Account_Name msDS_SupportedEncryptionTypes count KDC_count
-```
-
-**KQL (Microsoft Sentinel):**
-
-```kql title="Find AES-configured accounts receiving RC4 tickets"
-SecurityEvent
-| where EventID in (4768, 4769)
-| where TicketEncryptionType == "0x17"
-| summarize EventCount = count(), KDCs = dcount(Computer) by TargetAccount
-```
 
 **PowerShell cross-reference:**
 

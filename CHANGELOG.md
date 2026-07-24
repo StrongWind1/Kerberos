@@ -34,7 +34,7 @@ Initial release.
 - Registry Settings -- DefaultDomainSupportedEncTypes, KdcUseRequestedEtypesForTickets, RC4DefaultDisablementPhase
 - Group Policy -- etype GPO mechanics, SYSVOL scanner, and per-DC verification
 - RC4 Deprecation (CVE-2026-20833) -- full timeline through July 2026, Kdcsvc events 201-209, pre-enforcement checklist
-- Auditing Kerberos Keys -- four methods: PowerShell date comparison, DSInternals, impacket secretsdump, ntdissector
+- Auditing Kerberos Keys -- four methods: PowerShell date comparison, DSInternals, impacket secretsdump, ntdswolf
 - Standardization Guide -- complete AES migration playbook with two paths (AES-only and RC4 fallback), all commands, all verification steps
 - Mitigations -- ten prioritized defenses from gMSA deployment to KRBTGT rotation
 

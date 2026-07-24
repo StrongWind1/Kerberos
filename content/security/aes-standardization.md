@@ -282,7 +282,7 @@ Get-ADComputer -Filter * `
 
 See [Auditing Kerberos Keys](account-key-audit.md) for the full guide covering four
 methods -- from a quick PowerShell estimate to definitive offline extraction with
-ntdissector.  The results of that audit determine which path you follow:
+ntdswolf.  The results of that audit determine which path you follow:
 
 - **Zero accounts missing AES keys** → use [Path 1](#path-1-modern-aes-only-environment)
 - **Some regular users (no SPNs) missing AES keys** → use [Path 2](#path-2-aes-opportunistic-with-rc4-fallback)
