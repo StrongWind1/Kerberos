@@ -199,17 +199,57 @@
     return toU32(v);
   }
 
-  /** Build comma-separated flag name list from value. */
+  /** Index of the lowest set bit in an unsigned 32-bit value, or 32 when none is set. */
+  function lowestBit(v) {
+    v = v >>> 0;
+    for (var i = 0; i < 32; i++) {
+      if (((v >>> i) & 1) === 1) return i;
+    }
+    return 32;
+  }
+
+  /**
+   * Build comma-separated flag name list from value, low bit first.
+   *
+   * The GPO "Future encryption types" checkbox is bits 5-30 as a single unit.  When the whole
+   * range is present it is named once and every bit it covers is consumed, so AES-SK (bit 5)
+   * and the feature flags (bits 16-19) are not listed a second time -- otherwise the same bits
+   * are reported twice under two different labels.  Names are ordered by the lowest bit each
+   * one represents, which puts the GPO range at bit 5 and the bit-31 flag last.
+   */
   function flagNames(v) {
     if (v === 0) return "(not set)";
     var setting = SETTINGS[currentSetting];
-    var names = [];
+    var futureVal = setting.futureValue >>> 0;
+    var futureSet = ((v & futureVal) >>> 0) === futureVal;
+    /* Bits already accounted for by the "Future" label, so they are skipped below. */
+    var consumed = futureSet ? futureVal : 0;
+    var found = [];
+
+    if (futureSet) {
+      found.push({ bit: lowestBit(futureVal), name: BITS[FUTURE_BIT_INDEX].name });
+    }
+    var accounted = consumed;
     BITS.forEach(function (b, idx) {
-      /* Use the active futureValue for the "Future" checkbox */
-      var checkVal = (idx === FUTURE_BIT_INDEX) ? (setting.futureValue >>> 0) : b.dec;
-      if (((v & checkVal) >>> 0) === (checkVal >>> 0)) names.push(b.name);
+      /* The Future entry is handled above, sorted by the lowest bit of its own range. */
+      if (idx === FUTURE_BIT_INDEX) return;
+      if (((consumed & b.dec) >>> 0) !== 0) return;
+      if (((v & b.dec) >>> 0) === (b.dec >>> 0)) {
+        found.push({ bit: b.bit, name: b.name });
+        accounted = (accounted | b.dec) >>> 0;
+      }
     });
-    return names.join(", ");
+
+    /* Any set bit no label covered -- a reserved bit from 8-15 or 20-30, or bit 31 on the GPO
+       setting where "Future" means bits 5-30 instead -- is shown as raw hex.  Dropping it
+       silently would render a non-zero value as an empty flag list. */
+    var leftover = (v & ~accounted) >>> 0;
+    if (leftover !== 0) {
+      found.push({ bit: 32, name: toHex(leftover) + " (undefined bits)" });
+    }
+
+    found.sort(function (a, b) { return a.bit - b.bit; });
+    return found.map(function (e) { return e.name; }).join(", ");
   }
 
   /** Build a bitmask of all ignored bits for the current setting. */
