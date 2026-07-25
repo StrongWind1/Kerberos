@@ -6,9 +6,12 @@
 *.json      text eol=lf
 *.sh        text eol=lf
 *.fish      text eol=lf
-# PowerShell ships CRLF (Microsoft's own modules and sample scripts are CRLF),
-# so .ps1 checks out CRLF while the stored blob stays LF for clean diffs.
-*.ps1       text eol=crlf
+# PowerShell ships CRLF (Microsoft's own modules and sample scripts are CRLF).
+# -text, not "text eol=crlf": the latter stores LF and only converts on checkout,
+# so a raw download from the web UI would hand a Windows user an LF file. Storing
+# the bytes verbatim keeps CRLF in every delivery path. Git still diffs it as text;
+# -text disables conversion only, not diffing.
+*.ps1       -text -eol
 Makefile    text eol=lf
 *.md        text eol=lf
 *.html      text eol=lf

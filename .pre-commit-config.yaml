@@ -18,3 +18,4 @@ repos:
       - id: check-merge-conflict
       - id: mixed-line-ending
         args: [--fix=lf]
+        exclude: \.ps1$ # PowerShell is deliberately CRLF; see .gitattributes
