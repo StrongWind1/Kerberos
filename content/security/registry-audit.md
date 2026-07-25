@@ -97,31 +97,33 @@ AES-only, the KDC issues AES tickets (not an error).
 
 ### How They Interact
 
-The DDSET value is honored **within** the filter's allowance:
+The interaction is **asymmetric**: the filter can upgrade a fallback to AES, but it cannot downgrade one to RC4. Matrix-tested on the enforced build 20348.5020 (Round 3, 2026-06-26).
 
-| Filter (Pol\SET) | DDSET | Ticket Etype | Explanation |
-|---|---|---|---|
-| 28 (RC4+AES) | 4 (RC4) | RC4 | DDSET picks RC4 from the allowed set |
-| 28 (RC4+AES) | 24 (AES) | AES256 | DDSET picks AES from the allowed set |
-| 4 (RC4 only) | 24 (AES) | **RC4** | Filter forced RC4 despite DDSET=AES |
-| 24 (AES only) | 4 (RC4) | **AES256** | Filter forced AES despite DDSET=RC4 |
+| Filter | explicit msDS=RC4 | explicit msDS=AES | msDS=0, DDSET=RC4 | msDS=0, DDSET=AES/enforced |
+|---|---|---|---|---|
+| AES-only (`0x18`) | NOSUPP | AES256 | **AES256** (upgraded) | AES256 |
+| RC4-only (`0x04`) | RC4 | NOSUPP | RC4 | **NOSUPP** (no downgrade) |
+
+For a `msDS-SupportedEncryptionTypes = 0` account, an AES-only filter over an RC4 DDSET issues an AES ticket rather than an error. The reverse does not hold: an RC4-only filter over an AES fallback returns `KDC_ERR_ETYPE_NOSUPP`, it does **not** silently issue an RC4 ticket.
+
+For an account with an **explicit** `msDS-SupportedEncryptionTypes`, the filter never overrides the account. When the account's declared etypes and the filter share no etype, the result is `KDC_ERR_ETYPE_NOSUPP`.
 
 ---
 
 ## Interaction Matrix
 
-Full 9-combination matrix from Round 2 testing (Pol\SET + Kdc\DDSET, msDS-SET=0 account,
-KDC restarted after setting values):
+Full 9-combination matrix from Round 2 testing on build 20348.4893 (Pol\SET + Kdc\DDSET, msDS-SET=0 account, KDC restarted after setting values):
 
 | Pol\SET | DDSET=4 (RC4) | DDSET=24 (AES) | DDSET=28 (RC4+AES) |
 |---|---|---|---|
-| **4 (RC4)** | T=23 S=RC4 | T=23 S=RC4 | T=23 S=RC4 |
+| **4 (RC4)** | T=23 S=RC4 | T=23 S=RC4 **(superseded)** | T=23 S=RC4 |
 | **24 (AES)** | T=18 S=AES256 | T=18 S=AES256 | T=18 S=AES256 |
 | **28 (RC4+AES)** | T=23 S=RC4 | T=18 S=RC4 | T=18 S=RC4 |
 
-**Pattern**: When the filter is restrictive (Pol=4 or Pol=24), the ticket etype is
-entirely determined by the filter regardless of DDSET.  When the filter is permissive
-(Pol=28), DDSET controls which etype is selected from the allowed set.
+!!! warning "One cell is superseded: RC4-only filter over an AES fallback"
+    Pol=4 + DDSET=24 was recorded as an RC4 ticket in Round 2 on the pre-enforcement build. Re-tested in Round 3 on the enforced build 20348.5020, that combination returns `KDC_ERR_ETYPE_NOSUPP` — the KDC does **not** downgrade an AES fallback to RC4. The other cells stand: where the filter and the fallback share an etype, the filter still picks it. See [How They Interact](#how-they-interact) for the current model.
+
+**Pattern**: a restrictive filter still determines the outcome regardless of DDSET, but only in the direction the account's available keys allow. Restricting to AES resolves to AES; restricting to RC4 when the fallback is AES fails rather than downgrading. When the filter is permissive (Pol=28), DDSET controls which etype is selected from the allowed set.
 
 ---
 
@@ -134,6 +136,9 @@ entirely determined by the filter regardless of DDSET.  When the filter is permi
 | 3 | `SupportedEncryptionTypes` (Policies path) | Etype **filter** (overrides etype list for issuance) |
 | 4 | `SupportedEncryptionTypes` (Lsa path) | Etype **filter** (lower precedence than Pol) |
 | 5 | Target account's stored keys | Must have key for chosen etype |
+
+!!! warning "Rows 3 and 4 swap on Server 2025"
+    The Policies-over-Lsa order holds on Server 2022 (20348), where both paths are honored. On Server 2025 (lab-tested 26100.32522) the KDC reads the **Lsa** path and ignores Policies entirely. Because the "Configure encryption types allowed for Kerberos" GPO writes only the Policies path, a standard Kerberos-encryption GPO does not filter etypes on a Server 2025 DC.
 
 ---
 

@@ -81,8 +81,7 @@ is not set (value `0` or absent), the KDC falls back to `DefaultDomainSupportedE
 
 ## Bit Flag Reference
 
-The attribute is a bitmask.  Bits 0-5 control encryption types, bits 16-19 are
-protocol feature flags, and bit 31 enables future etypes:
+The attribute is a bitmask. Bits 0-5 control encryption types and bits 16-19 are protocol feature flags. Bit 31 carries a "future encryption types" label in some documentation but is not honored in any of the three settings:
 
 | Bit | Hex | Decimal | Name | Notes |
 |---|---|---|---|---|
@@ -98,9 +97,9 @@ protocol feature flags, and bit 31 enables future etypes:
 | 18 | `0x40000` | 262144 | Claims-supported | Claims-based authentication.  Server 2012+. |
 | 19 | `0x80000` | 524288 | Resource-SID-compression-disabled | Disables resource SID compression in the PAC.  Server 2012+. |
 | 20-30 | | | Reserved | |
-| 31 | `0x80000000` | 2147483648 | Future encryption types | Allows future etypes |
+| 31 | `0x80000000` | 2147483648 | Future encryption types | Label only — **not honored** here.  The GPO "Future encryption types" checkbox sets bits 5-30 (`0x7FFFFFE0`), not bit 31 (lab-validated April 2026). |
 
-Source: [MS-KILE] section 2.2.7 -- Supported Encryption Types Bit Flags.
+Source: [MS-KILE] section 2.2.7 -- Supported Encryption Types Bit Flags, which defines bits 0-5 and 16-19 (flags A-J). Bit 31 is not in that section; it appears only in Microsoft's Group Policy documentation.
 
 !!! info "Bits 16-19 are not encryption types"
     Bits 16-19 are protocol feature flags, not encryption types.  They are only meaningful
