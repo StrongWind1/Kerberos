@@ -23,5 +23,9 @@ indent_size = 2
 [*.md]
 trim_trailing_whitespace = false
 
+# Match .gitattributes: PowerShell is CRLF, so editors must not fight Git over it.
+[*.ps1]
+end_of_line = crlf
+
 [Makefile]
 indent_style = tab

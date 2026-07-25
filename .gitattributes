@@ -6,6 +6,9 @@
 *.json      text eol=lf
 *.sh        text eol=lf
 *.fish      text eol=lf
+# PowerShell ships CRLF (Microsoft's own modules and sample scripts are CRLF),
+# so .ps1 checks out CRLF while the stored blob stays LF for clean diffs.
+*.ps1       text eol=crlf
 Makefile    text eol=lf
 *.md        text eol=lf
 *.html      text eol=lf
