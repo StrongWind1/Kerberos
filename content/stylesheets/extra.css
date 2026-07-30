@@ -1,132 +1,9 @@
-/* Kerberos Guide theme — gold accent for the golden ticket motif
+/* Kerberos -- layout and calculator/decoder UI.
  *
- * Palette:
- *   Background:  #0a1628 → #0d1117 (deep navy, shared with wolf family)
- *   Accent:      #ffd740 / #ffab00 (gold — golden tickets, Cerberus)
- *   Glow:        #ffe082 (warm gold)
- *   Text:        #c9d1d9
- *   Circuit:     #2a4a6b (steel blue)
+ * Colour lives in theme.css, not here. Keep this file free of palette variables
+ * and of direct background-color/color rules on Material chrome -- Material
+ * derives those from --md-primary-fg-color and --md-hue.
  */
-
-/* ---------- Custom primary color (both schemes) ---------- */
-
-:root>* {
-  --md-primary-fg-color: #0d1b2a;
-  --md-primary-fg-color--light: #1b2838;
-  --md-primary-fg-color--dark: #060e18;
-}
-
-/* ---------- Dark mode (slate — default) ---------- */
-
-[data-md-color-scheme="slate"] {
-  /* Tune the slate hue to match deep navy */
-  --md-hue: 215;
-
-  /* Accent — gold from the golden ticket motif */
-  --md-accent-fg-color: #ffd740;
-  --md-accent-fg-color--transparent: #ffd7401a;
-
-  /* Deep navy background */
-  --md-default-bg-color: #0d1117;
-  --md-default-bg-color--light: #111d2b;
-  --md-default-bg-color--lighter: #162234;
-  --md-default-bg-color--lightest: #1c2d42;
-
-  /* Code blocks — slightly lighter navy */
-  --md-code-bg-color: #0d1a2d;
-  --md-code-fg-color: #c9d1d9;
-  --md-code-hl-color: #ffd7401a;
-
-  /* Footer */
-  --md-footer-bg-color: #060e18;
-  --md-footer-bg-color--dark: #040a12;
-  --md-footer-fg-color: #ffffffb3;
-  --md-footer-fg-color--light: #ffffff73;
-  --md-footer-fg-color--lighter: #ffffff42;
-
-  /* Typeset */
-  --md-typeset-color: #c9d1d9;
-  --md-typeset-a-color: #ffd740;
-}
-
-/* Header bar — deep navy */
-[data-md-color-scheme="slate"] .md-header {
-  background-color: #0a1628;
-}
-
-/* Tabs bar — same deep navy */
-[data-md-color-scheme="slate"] .md-tabs {
-  background-color: #0a1628;
-}
-
-/* Left sidebar — subtle navy */
-[data-md-color-scheme="slate"] .md-sidebar {
-  background-color: #0d1117;
-}
-
-/* Nav link hover — gold glow */
-[data-md-color-scheme="slate"] .md-nav__link:hover {
-  color: #ffd740;
-}
-
-/* Active nav item — gold */
-[data-md-color-scheme="slate"] .md-nav__link--active {
-  color: #ffd740;
-}
-
-/* Search bar */
-[data-md-color-scheme="slate"] .md-search__input {
-  background-color: #162234;
-}
-
-/* Admonitions — steel blue border */
-[data-md-color-scheme="slate"] .md-typeset .admonition,
-[data-md-color-scheme="slate"] .md-typeset details {
-  border-color: #2a4a6b;
-}
-
-/* Tables — deep navy headers */
-[data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
-  background-color: #1b2838;
-  color: #e0e0e0;
-}
-
-[data-md-color-scheme="slate"] .md-typeset table:not([class]) td {
-  border-color: #1c2d42;
-}
-
-/* Announcement bar — dark navy with gold accent */
-[data-md-color-scheme="slate"] .md-banner {
-  background-color: #060e18;
-  color: #ffffffb3;
-}
-
-/* ---------- Header title — make site name clickable via logo link ---------- */
-
-.md-header__title {
-  cursor: pointer;
-  pointer-events: none;
-}
-
-.md-header__ellipsis {
-  pointer-events: auto;
-}
-
-/* Wrap the logo link over the adjacent title text */
-.md-header__button.md-logo {
-  position: relative;
-  z-index: 1;
-}
-
-.md-header__button.md-logo::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: -200px;
-  bottom: 0;
-  left: 0;
-  z-index: 1;
-}
 
 /* ---------- Wider content area on large screens ---------- */
 
@@ -154,22 +31,6 @@
   white-space: nowrap;
 }
 
-/* ---------- Light mode ---------- */
-
-[data-md-color-scheme="default"] {
-  --md-accent-fg-color: #f57f17;
-  --md-typeset-a-color: #f57f17;
-}
-
-/* Header + tabs in light mode — same deep navy */
-[data-md-color-scheme="default"] .md-header {
-  background-color: #0d1b2a;
-}
-
-[data-md-color-scheme="default"] .md-tabs {
-  background-color: #0d1b2a;
-}
-
 /* ---------- Etype calculator ---------- */
 
 /* Tab bar */
@@ -181,7 +42,7 @@
      margin-bottom:-2px trick that made tab borders overlap the container
      border.  An inset shadow renders inside the padding box and is not
      affected by overflow clipping. */
-  box-shadow: inset 0 -2px 0 0 var(--md-default-bg-color--lightest, #1c2d42);
+  box-shadow: inset 0 -2px 0 0 var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
   margin-bottom: 1rem;
   overflow-x: auto;
 }
@@ -190,7 +51,7 @@
   padding: 0.6rem 1rem;
   border: none;
   background: none;
-  color: var(--md-typeset-color, #c9d1d9);
+  color: var(--md-typeset-color, var(--md-typeset-color));
   font-family: var(--md-text-font-family, inherit);
   font-size: 0.8rem;
   cursor: pointer;
@@ -200,12 +61,12 @@
 }
 
 .etype-tab:hover {
-  color: var(--md-accent-fg-color, #ffd740);
+  color: var(--md-accent-fg-color, var(--md-accent-fg-color));
 }
 
 .etype-tab--active {
-  color: var(--md-accent-fg-color, #ffd740);
-  border-bottom-color: var(--md-accent-fg-color, #ffd740);
+  color: var(--md-accent-fg-color, var(--md-accent-fg-color));
+  border-bottom-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
 }
 
 /* Setting description */
@@ -244,7 +105,7 @@
 }
 
 .etype-status--notset {
-  background: #1c2d42;
+  background: var(--md-default-bg-color--lightest);
   color: #94a3b8;
   border: 1px solid #2a4a6b;
 }
@@ -307,7 +168,7 @@
 }
 
 .etype-bit-row:hover {
-  background: var(--md-default-bg-color--lighter, #162234);
+  background: var(--md-default-bg-color--lighter, var(--md-default-bg-color--lighter));
 }
 
 .etype-bit-row label {
@@ -322,7 +183,7 @@
   flex-shrink: 0;
   width: 1rem;
   height: 1rem;
-  accent-color: var(--md-accent-fg-color, #ffd740);
+  accent-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
 }
 
 .etype-bit-info {
@@ -381,7 +242,7 @@
 }
 
 .etype-bit-badge--neutral {
-  background: #1c2d42;
+  background: var(--md-default-bg-color--lightest);
   color: #94a3b8;
 }
 
@@ -452,15 +313,15 @@
   padding: 0.5rem 0.75rem;
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.9rem;
-  background: var(--md-code-bg-color, #0d1a2d);
-  color: var(--md-code-fg-color, #c9d1d9);
-  border: 1px solid var(--md-default-bg-color--lightest, #1c2d42);
+  background: var(--md-code-bg-color, var(--md-code-bg-color));
+  color: var(--md-code-fg-color, var(--md-typeset-color));
+  border: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
   border-radius: 4px;
   outline: none;
 }
 
 .etype-input-row input:focus {
-  border-color: var(--md-accent-fg-color, #ffd740);
+  border-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
 }
 
 .etype-input-row input.etype-input--invalid {
@@ -477,9 +338,9 @@
   padding: 0.4rem 0.75rem;
   font-size: 0.75rem;
   font-family: var(--md-text-font-family, inherit);
-  background: var(--md-default-bg-color--lightest, #1c2d42);
-  color: var(--md-typeset-color, #c9d1d9);
-  border: 1px solid var(--md-default-bg-color--lightest, #1c2d42);
+  background: var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
+  color: var(--md-typeset-color, var(--md-typeset-color));
+  border: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
   border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
@@ -487,7 +348,7 @@
 }
 
 .etype-copy-btn:hover {
-  background: var(--md-accent-fg-color, #ffd740);
+  background: var(--md-accent-fg-color, var(--md-accent-fg-color));
   color: #000;
 }
 
@@ -515,22 +376,22 @@
   padding: 0.35rem 0.7rem;
   font-size: 0.75rem;
   font-family: var(--md-code-font-family, monospace);
-  background: var(--md-default-bg-color--lighter, #162234);
-  color: var(--md-typeset-color, #c9d1d9);
-  border: 1px solid var(--md-default-bg-color--lightest, #1c2d42);
+  background: var(--md-default-bg-color--lighter, var(--md-default-bg-color--lighter));
+  color: var(--md-typeset-color, var(--md-typeset-color));
+  border: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .etype-preset-btn:hover {
-  border-color: var(--md-accent-fg-color, #ffd740);
+  border-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
 }
 
 /* Active preset — matches the current value */
 .etype-preset-btn--active {
-  border-color: var(--md-accent-fg-color, #ffd740);
-  background: var(--md-default-bg-color--lightest, #1c2d42);
+  border-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
+  background: var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
 }
 
 /* Warnings */
@@ -538,7 +399,7 @@
   border-left: 3px solid #fbbf24;
   padding: 0.5rem 0.75rem;
   margin-bottom: 1rem;
-  background: var(--md-default-bg-color--lighter, #162234);
+  background: var(--md-default-bg-color--lighter, var(--md-default-bg-color--lighter));
   border-radius: 0 4px 4px 0;
 }
 
@@ -549,7 +410,7 @@
 }
 
 .etype-warning-item+.etype-warning-item {
-  border-top: 1px solid var(--md-default-bg-color--lightest, #1c2d42);
+  border-top: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
 }
 
 .etype-no-warnings {
@@ -591,8 +452,8 @@
 .etype-ps-block pre {
   margin: 0;
   padding: 0.75rem;
-  background: var(--md-code-bg-color, #0d1a2d);
-  border: 1px solid var(--md-default-bg-color--lightest, #1c2d42);
+  background: var(--md-code-bg-color, var(--md-code-bg-color));
+  border: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
   border-radius: 4px;
   overflow-x: auto;
 }

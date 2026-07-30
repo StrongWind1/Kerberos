@@ -1,8 +1,10 @@
 site_name: Kerberos in Active Directory
 site_description: Comprehensive guide to Kerberos authentication in Microsoft Windows Active Directory
-site_url: https://strongwind1.github.io/Kerberos/
+site_url: https://strongwind.dev/Kerberos/
 repo_url: https://github.com/StrongWind1/Kerberos
 repo_name: StrongWind1/Kerberos
+# Deviation from the shared baseline: this repo keeps its sources in content/
+# rather than docs/, so edit_uri points there.
 edit_uri: edit/main/content/
 copyright: Copyright &copy; 2025 - 2026 StrongWind1
 
@@ -21,7 +23,7 @@ theme:
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
       primary: custom
-      accent: amber
+      accent: custom
       toggle:
         icon: material/weather-night
         name: Switch to light mode
@@ -29,7 +31,7 @@ theme:
     - media: "(prefers-color-scheme: light)"
       scheme: default
       primary: custom
-      accent: amber
+      accent: custom
       toggle:
         icon: material/weather-sunny
         name: Switch to dark mode
@@ -44,6 +46,9 @@ theme:
     - navigation.top
     - navigation.indexes
     - navigation.footer
+    # Deviation from the shared baseline: this is a reference site with a
+    # three-level nav over 50 pages, so top-level sections become tabs rather
+    # than one very long sidebar, and prune keeps the rendered nav small.
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.prune
@@ -59,21 +64,32 @@ theme:
     # Content
     - content.code.copy
     - content.code.annotate
-    - content.code.select
-    - content.tooltips
     - content.action.edit
     - content.action.view
+    # Project-specific: language selectors on code blocks, and <abbr> tooltips
+    # driven by the shared abbreviation glossary.
+    - content.code.select
+    - content.tooltips
 
 plugins:
   - search
+  # Downloads the Google Fonts requested by theme.font at build time so the
+  # published site makes no third-party requests.
   - privacy
-  - offline
+  # Project-specific: page footers show real last-modified dates. Requires
+  # fetch-depth: 0 on the checkout in .github/workflows/docs.yml.
   - git-revision-date-localized:
       type: date
       locale: en
       enable_creation_date: true
       fallback_to_build_date: false
       strict: false
+
+# Emits a legacy `<page>.html` alias beside every directory URL. This site was
+# previously built with use_directory_urls disabled, so those URLs are already
+# published; the hook keeps them resolving. See the module docstring.
+hooks:
+  - hooks/html_aliases.py
 
 markdown_extensions:
   - admonition
@@ -92,6 +108,17 @@ markdown_extensions:
       alternate_style: true
   - pymdownx.mark
   - pymdownx.keys
+  - tables
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - toc:
+      permalink: true
+      toc_depth: 3
+  # Project-specific: typographic substitutions, task lists, and the shared
+  # abbreviation glossary appended to every page.
+  - abbr
   - pymdownx.smartsymbols
   - pymdownx.tasklist:
       custom_checkbox: true
@@ -100,17 +127,9 @@ markdown_extensions:
         - .
       auto_append:
         - includes/abbreviations.md
-  - tables
-  - attr_list
-  - md_in_html
-  - def_list
-  - abbr
-  - toc:
-      permalink: true
-      toc_depth: 3
 
 nav:
-  - Home: 
+  - Home:
       - index.md
       - Quick Start Guide: security/quick-start.md
   - Protocol:
@@ -177,11 +196,14 @@ extra:
     new: Recently updated
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/kerbwolf/kerberos
-      name: Kerberos Guide on GitHub
+      link: https://github.com/StrongWind1/Kerberos
+      name: Kerberos in Active Directory on GitHub
   generator: false
 
 extra_css:
+  # theme.css is the site palette; primary and accent are both `custom`,
+  # so every Material colour variable is defined there.
+  - stylesheets/theme.css
   - stylesheets/extra.css
 
 extra_javascript:
@@ -189,3 +211,9 @@ extra_javascript:
   - javascripts/event-decoder.js
 
 strict: true
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
