@@ -25,10 +25,10 @@ port 88 -- no domain membership, no LDAP bind, and no existing credentials.
 
 ## Tool Coverage
 
-[CredWolf](https://github.com/) supports Kerberos-based credential testing and user enumeration:
+[CredWolf](https://github.com/StrongWind1/CredWolf) supports Kerberos-based credential testing and user enumeration:
 
 - **`credwolf kerberos`** -- test passwords, NT hashes, AES keys, and ticket files against
-  the KDC via pre-authentication (see [CredWolf Kerberos usage](https://github.com/))
+  the KDC via pre-authentication (see [CredWolf Kerberos usage](https://github.com/StrongWind1/CredWolf))
 - **`credwolf userenum`** -- enumerate valid usernames via bare AS-REQs without triggering
   login attempts or incrementing the bad-password counter
 
