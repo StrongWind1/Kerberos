@@ -2,14 +2,16 @@
 
 Kerberos user enumeration exploits the different error codes the KDC returns for valid and invalid principal names. An attacker with nothing more than network access to the domain controller on port 88 can determine which usernames exist in the domain -- no credentials, no LDAP bind, no domain membership required.
 
+**MITRE ATT&CK:** [T1087.002](https://attack.mitre.org/techniques/T1087/002/) Account Discovery: Domain Account
+
 ## How It Works
 
 When the KDC receives an AS-REQ, it must look up the requested client principal (`cname`) in the Active Directory database before it can process the request. The KDC's response varies depending on whether the account exists and how it is configured:
 
 | AS-REQ Scenario | KDC Response | Error Code |
 |----------------|-------------|------------|
-| Principal **does not exist** | `KRB5KDC_ERR_C_PRINCIPAL_UNKNOWN` | 6 |
-| Principal **exists**, pre-auth required | `KRB5KDC_ERR_PREAUTH_REQUIRED` | 25 |
+| Principal **does not exist** | `KDC_ERR_C_PRINCIPAL_UNKNOWN` | 6 |
+| Principal **exists**, pre-auth required | `KDC_ERR_PREAUTH_REQUIRED` | 25 |
 | Principal **exists**, pre-auth not required | Full AS-REP (TGT returned) | N/A |
 | Principal **exists**, account disabled, locked, or expired | `KDC_ERR_CLIENT_REVOKED` | 18 |
 
@@ -21,10 +23,10 @@ sequenceDiagram
     participant KDC
 
     Attacker->>KDC: AS-REQ (cname=administrator, no PA-DATA)
-    KDC->>Attacker: KRB5KDC_ERR_PREAUTH_REQUIRED (exists!)
+    KDC->>Attacker: KDC_ERR_PREAUTH_REQUIRED (exists!)
 
     Attacker->>KDC: AS-REQ (cname=nonexistent_user, no PA-DATA)
-    KDC->>Attacker: KRB5KDC_ERR_C_PRINCIPAL_UNKNOWN (doesn't exist)
+    KDC->>Attacker: KDC_ERR_C_PRINCIPAL_UNKNOWN (doesn't exist)
 
     Attacker->>KDC: AS-REQ (cname=vuln_user, no PA-DATA)
     KDC->>Attacker: AS-REP (exists + DONT_REQUIRE_PREAUTH!)
@@ -58,7 +60,8 @@ Kerberos enumeration generates Event ID 4768 entries, but in environments with t
 
 User enumeration through Kerberos error codes is fundamental protocol behavior. The KDC **must** distinguish between "principal not found" and "pre-auth required" to function correctly. There is no configuration that makes the KDC return the same error for both cases.
 
-!!! info "This is a known limitation acknowledged in [RFC 4120 &sect;7.5.1]: the KDC error messages inherently reveal information about the principal database. The RFC recommends rate limiting as a mitigation."
+!!! info "Both answers are specified behavior"
+    The two answers are specified behavior. [RFC 4120 &sect;3.1.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1.3) requires `KDC_ERR_C_PRINCIPAL_UNKNOWN` when the client principal 'doesn't exist in the KDC's principal database' and `KDC_ERR_PREAUTH_REQUIRED` when pre-authentication is required and missing, and [&sect;7.5.9](https://datatracker.ietf.org/doc/html/rfc4120#section-7.5.9) assigns them different codes (6 and 25). The RFC does not discuss username enumeration and recommends no mitigation for it; rate limiting is an operational control, not something the protocol provides.
 
 ### Network-Level Rate Limiting
 
@@ -85,7 +88,9 @@ While the core enumeration cannot be prevented, you can reduce its value:
 
 ### Event ID 4768 with Failure Code 6
 
-The most direct signal is a burst of Event ID 4768 entries with failure status `0x6` (principal unknown) from a single source IP. Legitimate clients almost never trigger this error because they know their own username.
+The most direct signal is a burst of Event ID 4768 entries with failure status `0x6` (principal unknown) from a single source IP. Legitimate clients almost never trigger this error because they know their own username. Microsoft's monitoring guidance for the event names the same pattern: result code `0x6`, "if you see, for example N events in last N minutes", "can be an indicator of account enumeration attack".
+
+These are Failure events on domain controllers, so the **Audit Kerberos Authentication Service** subcategory must audit failures (see [Kerberos Auditing Policies](../../security/group-policy.md#kerberos-auditing-policies)).
 
 ```text
 index=security EventCode=4768 Status=0x6
@@ -188,19 +193,19 @@ kerbwolf does not include a dedicated user enumeration tool. The `kw-asrep` comm
 
 ```bash
 # Enumerate from a user list
-credwolf -d CORP.LOCAL userenum --kdc-ip 10.0.0.1 -U users.txt
+credwolf -d CORP.LOCAL userenum --kdc-ip 192.0.2.10 -U users.txt
 
 # Single user check
-credwolf -d CORP.LOCAL userenum --kdc-ip 10.0.0.1 -u administrator
+credwolf -d CORP.LOCAL userenum --kdc-ip 192.0.2.10 -u administrator
 
 # Write valid usernames to a file
-credwolf -d CORP.LOCAL -o valid_users.txt userenum --kdc-ip 10.0.0.1 -U users.txt
+credwolf -d CORP.LOCAL -o valid_users.txt userenum --kdc-ip 192.0.2.10 -U users.txt
 
 # Use TCP transport instead of UDP (default)
-credwolf -d CORP.LOCAL userenum --kdc-ip 10.0.0.1 -U users.txt --transport tcp
+credwolf -d CORP.LOCAL userenum --kdc-ip 192.0.2.10 -U users.txt --transport tcp
 
 # Rate-limit requests to avoid IDS detection
-credwolf -d CORP.LOCAL userenum --kdc-ip 10.0.0.1 -U users.txt --delay 2 --jitter 0.5
+credwolf -d CORP.LOCAL userenum --kdc-ip 192.0.2.10 -U users.txt --delay 2 --jitter 0.5
 ```
 
 Key features for enumeration:
@@ -217,7 +222,7 @@ The most widely used Kerberos enumeration tool. Fast, cross-platform, and handle
 
 ```bash
 # Enumerate users from a wordlist
-kerbrute userenum -d CORP.LOCAL --dc 10.0.0.1 usernames.txt
+kerbrute userenum -d CORP.LOCAL --dc 192.0.2.10 usernames.txt
 
 # Output shows which users exist and which returned AS-REPs
 # [+] VALID USERNAME:    administrator@CORP.LOCAL
@@ -230,7 +235,7 @@ kerbrute userenum -d CORP.LOCAL --dc 10.0.0.1 usernames.txt
 The `krb5-enum-users` NSE script performs Kerberos enumeration during an nmap scan:
 
 ```bash
-nmap -p 88 --script krb5-enum-users --script-args krb5-enum-users.realm='CORP.LOCAL',userdb=users.txt 10.0.0.1
+nmap -p 88 --script krb5-enum-users --script-args krb5-enum-users.realm='CORP.LOCAL',userdb=users.txt 192.0.2.10
 ```
 
 #### Rubeus brute
@@ -238,7 +243,7 @@ nmap -p 88 --script krb5-enum-users --script-args krb5-enum-users.realm='CORP.LO
 Rubeus can enumerate users as part of its brute-force mode by observing KDC error codes:
 
 ```powershell
-.\Rubeus.exe brute /users:users.txt /domain:CORP.LOCAL /dc:10.0.0.1 /noticket
+.\Rubeus.exe brute /users:users.txt /domain:CORP.LOCAL /dc:192.0.2.10 /noticket
 ```
 
 ### Tool Comparison

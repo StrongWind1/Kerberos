@@ -1,0 +1,42 @@
+name: Links
+
+# External link check. Kept out of the Docs workflow on purpose: third-party
+# sites time out and rate-limit, and that must not block a PR or a deploy.
+# Internal links and anchors are already enforced by `mkdocs build --strict`.
+
+"on":
+  schedule:
+    - cron: 23 5 * * 1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: links
+  cancel-in-progress: true
+
+jobs:
+  lychee:
+    name: Check external links
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check links
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8  # v2.9.0
+        with:
+          # corp.local hosts are documentation examples, not real sites.
+          args: >-
+            --no-progress
+            --max-concurrency 8
+            --exclude-loopback
+            --exclude 'corp\.local'
+            --exclude '^https://strongwind\.dev/Kerberos/'
+            --exclude 'schemas\.microsoft\.com'
+            content includes README.md
+          fail: true

@@ -1,9 +1,24 @@
+---
+description: >-
+  Five ways to find Active Directory accounts that have no AES Kerberos keys, from a
+  password-age estimate and the 4768/4769 event fields to DSInternals, secretsdump and
+  offline ntds.dit analysis, with the alerting and handling trade-offs of each.
+---
+
 # Auditing Kerberos Keys
 
-Before migrating to AES, you need to know which accounts have AES keys and which only
-have RC4.  There is no single AD attribute that directly exposes an account's stored
-key types -- the keys are buried in the replicated secret data in `ntds.dit`.  This page
-covers four methods to surface that information, each with different trade-offs.
+An account without AES keys cannot be issued an AES ticket.  On a domain controller with
+the April 2026 update or later that is no longer a theoretical concern: an account with no
+AES keys and no explicit RC4 configuration **fails** with `KDC_ERR_ETYPE_NOSUPP` when a
+service ticket is requested for it — the KDC does not fall back to RC4.  (That is the case
+the lab ran, on Server 2022 build 20348.5020; a logon by such an account was not tested.)
+So the question this page answers is both "what must be
+fixed before I tighten anything" and "what is already broken, or only working because of an
+RC4 exception".
+
+There is no AD attribute that exposes an account's stored key types -- the keys are part of
+the replicated secret data in `ntds.dit`.  This page covers five ways to surface that
+information, each with different trade-offs.
 
 | Method | Accuracy | Requires | Triggers Alerts |
 |---|---|---|---|
@@ -11,55 +26,44 @@ covers four methods to surface that information, each with different trade-offs.
 | [DSInternals](#method-2-dsinternals-definitive-online) | Definitive | Domain admin / DCSync rights | **Yes** (DCSync) |
 | [Impacket secretsdump](#method-3-impacket-secretsdump-definitive-online) | Definitive | Domain admin / DCSync rights | **Yes** (DCSync) |
 | [ntdsutil + ntdswolf](#method-4-ntdsutil-ntdswolf-definitive-offline) | Definitive | Local admin on DC | Minimal (backup event only) |
+| [Security event fields](#detecting-accounts-that-need-password-reset-via-event-logs) | Definitive, but only for accounts that authenticated in the period you read | Event log read access on every DC | No |
+
+If you want the least intrusive start, use Method 5 for the accounts that are in use and
+Method 1 for the ones that are not.
 
 ---
 
 ## Method 1: PowerShell Date Comparison (Approximate)
 
 The fastest method with no special tools.  Compare each account's `passwordLastSet` date
-against the date AES key generation became available (when DFL was raised to 2008).
+against the date AES key generation became available in the domain.
 
 ### How it works
 
-When the domain functional level is raised to 2008, AD creates the "Read-Only Domain
-Controllers" group (RID 521).  Its `WhenCreated` timestamp marks the earliest point at
-which password changes generate AES keys.  Any account whose `passwordLastSet` predates
-that timestamp may lack AES keys.
-
-### The query
-
-```powershell title="Find enabled accounts whose passwords predate AES key generation"
-$AESdate = (Get-ADGroup -Filter * -Properties SID, WhenCreated |
-  Where-Object { $_.SID -like '*-521' }).WhenCreated
-
-Write-Host "AES keys available since: $AESdate"
-
-# All enabled accounts with passwords predating AES key generation
-Get-ADUser -Filter 'Enabled -eq $true' `
-  -Properties passwordLastSet, servicePrincipalName, 'msDS-SupportedEncryptionTypes' |
-  Where-Object { $_.passwordLastSet -lt $AESdate } |
-  Sort-Object passwordLastSet |
-  Select-Object sAMAccountName,
-    passwordLastSet,
-    @{N='HasSPN'; E={[bool]$_.servicePrincipalName}},
-    @{N='msDS-SET'; E={$_.'msDS-SupportedEncryptionTypes'}} |
-  Format-Table -AutoSize
-```
+--8<-- "includes/old-passwords-query.md"
 
 ### Why this is only approximate
 
-- **False positives**: an account created **after** DFL 2008 but whose password was
-  never changed will show a `passwordLastSet` after the cutover date -- and will have
-  AES keys.  This method cannot distinguish "password set at DFL 2008" from "password
-  set before DFL 2008, account created after."
-- **False negatives**: an account whose password was reset after DFL 2008 but whose
-  `passwordLastSet` was manually tampered with (rare) would be missed.
-- **No key verification**: this method infers key presence from dates.  It never reads
-  the actual stored keys.  An account could have the right date but still lack AES keys
-  due to a replication failure or database corruption.
+- **The reference date is a proxy.**  The RID 521 group marks when the domain was prepared
+  for Windows Server 2008 domain controllers.  A password change in the period just after
+  that date was only given AES keys if a 2008-or-later DC processed it, so treat accounts
+  with a `passwordLastSet` close to the reference date as uncertain.  Microsoft states the
+  condition differently: "If the domain has a DFL of 2008 or greater and accounts have had
+  at least one password rotation, AES keys are available"
+  ([event 4768 reference](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4768)).
+  The group can be older than the functional-level raise, so a date after the reference
+  date is not proof.
+- **Dates can lie.**  `passwordLastSet` can be rewritten without a password change (the
+  "user must change password at next logon" toggle resets it), which makes an old password
+  look new.
+- **Some password sets do not create Kerberos keys at all.**  A password written as an NT
+  hash instead of as cleartext leaves the account with a recent `passwordLastSet` and only
+  an RC4 key.  The lab reproduced this on Server 2022 with an NT-hash password set.
+- **No key verification.**  This method infers key presence from dates.  It never reads
+  the stored keys.
 
-Use this method as a quick triage to estimate scope.  For definitive results, use one of
-the methods below.
+Use this method as a quick triage to estimate scope.  For anything you are going to act
+on, use one of the methods below.
 
 ---
 
@@ -73,13 +77,13 @@ the KDC uses when selecting encryption types.
 ### Install
 
 ```powershell
-Install-Module -Name DSInternals -Force
+Install-Module -Name DSInternals -Scope CurrentUser
 ```
 
 ### Single account
 
 ```powershell
-Get-ADReplAccount -SamAccountName svc_example -Server dc01.corp.local
+Get-ADReplAccount -SamAccountName svc_example -Server dc1.corp.local
 ```
 
 In the output, look at the `SupplementalCredentials` → `KerberosNew` → `Credentials`
@@ -105,30 +109,34 @@ Kerberos:
       Key: 7f16bc4a...
 ```
 
-No `KerberosNew` section, or `KerberosNew` contains only DES/RC4 entries.
+No `KerberosNew` section, or `KerberosNew` contains only DES entries.
 
 ### All accounts: find those missing AES keys
 
 ```powershell title="Find all enabled accounts with no AES key via DSInternals"
-Get-ADReplAccount -All -Server dc01.corp.local |
-  Where-Object { $_.Enabled } |
-  Where-Object {
-    $keys = $_.SupplementalCredentials.KerberosNew.Credentials.KeyType
-    -not ($keys -match 'AES')
-  } |
-  Select-Object SamAccountName, SamAccountType,
-    @{N='PasswordLastSet'; E={$_.PasswordLastSet}},
-    @{N='HasSPN'; E={[bool]$_.ServicePrincipalName}},
-    @{N='KeyTypes'; E={
-      $k = $_.SupplementalCredentials.KerberosNew.Credentials.KeyType
-      if ($k) { $k -join ', ' } else { '(none)' }
-    }} |
-  Format-Table -AutoSize
+Get-ADReplAccount -All -Server dc1.corp.local |
+    Where-Object { $_.Enabled } |
+    Where-Object {
+        $keys = $_.SupplementalCredentials.KerberosNew.Credentials.KeyType
+        -not ($keys -match 'AES')
+    } |
+    Select-Object SamAccountName, SamAccountType,
+    @{N = 'PasswordLastSet'; E = { $_.PasswordLastSet } },
+    @{N = 'HasSPN'; E = { [bool]$_.ServicePrincipalName } },
+    @{N='KeyTypes'; E= {
+            $k = $_.SupplementalCredentials.KerberosNew.Credentials.KeyType
+            if ($k) { $k -join ', ' } else { '(none)' }
+        }
+    } |
+    Format-Table -AutoSize
 ```
 
 This outputs every enabled account that has no AES key in its supplemental credentials.
-The `HasSPN` column tells you whether the account is Kerberoastable (SPN-bearing user
-accounts are the highest priority to fix).
+The `HasSPN` column tells you whether the KDC issues service tickets for the account —
+those are the ones that fail on a patched DC, and the highest priority to fix.
+
+`krbtgt` is a disabled account, so it does not appear in this list.  Check it on its own
+with the single-account command above.
 
 ### Alert implications
 
@@ -146,6 +154,9 @@ accounts are the highest priority to fix).
     [Method 4](#method-4-ntdsutil-ntdswolf-definitive-offline) to avoid network-based
     alerts entirely.
 
+The command's output contains every account's password hashes.  Do not redirect it to a
+file or a transcript; pipe it straight into the filter as shown.
+
 ---
 
 ## Method 3: Impacket secretsdump (Definitive, Online)
@@ -155,6 +166,9 @@ from a DC via the DRSUAPI protocol.  Like DSInternals, it reads the actual store
 
 ### Install
 
+Install the tool on the audit workstation **before** any credential material arrives on
+it.
+
 ```bash
 # Install uv (Python package manager) if not already present
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -163,10 +177,18 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install git+https://github.com/fortra/impacket.git
 ```
 
+!!! warning "This machine is about to hold every credential in the domain"
+    The two commands above run an installer script straight from the internet and build
+    a tool from the head of a Git branch.  That is a reasonable convenience on a throwaway
+    lab box; it is a supply-chain risk on the host that will hold the dump.  Prefer your
+    distribution's `uv` package or a downloaded-and-reviewed installer, pin the tool to a
+    release tag or commit you have reviewed (`...impacket.git@<tag-or-commit>`), and use a
+    dedicated, hardened workstation that is wiped afterwards.
+
 ### Usage
 
 ```bash title="Dump all account credentials from a DC via DRSUAPI"
-secretsdump.py -just-dc -outputfile domain_dump 'CORP.LOCAL/admin@dc01.corp.local'
+secretsdump.py -just-dc -outputfile domain_dump 'CORP.LOCAL/admin@dc1.corp.local'
 ```
 
 Omitting the password after the username (no `:Password`) triggers an interactive prompt
@@ -182,20 +204,24 @@ old_account:des-cbc-md5:a1b2c3d4e5f67890
 ```
 
 Accounts with AES keys have `aes256-cts-hmac-sha1-96` lines.  Accounts without AES keys
-only have `des-cbc-md5` (and possibly `rc4-hmac-nt`).
+only have `des-cbc-md5` lines, or do not appear in this file at all.
 
 ### Find accounts without AES keys
 
 ```bash title="Extract accounts without AES256 keys from secretsdump output"
-# All accounts that appear in the kerberos file
-cut -d: -f1 domain_dump.ntds.kerberos | sort -u > all_kerberos.txt
+# Every account in the dump (the .ntds file has one NT-hash line per account)
+cut -d: -f1 domain_dump.ntds | sort -u > all_accounts.txt
 
 # Accounts that have AES256 keys
 grep 'aes256-cts-hmac-sha1-96' domain_dump.ntds.kerberos | cut -d: -f1 | sort -u > has_aes256.txt
 
-# Accounts WITHOUT AES keys (in all_kerberos but not in has_aes256)
-comm -23 all_kerberos.txt has_aes256.txt
+# Accounts WITHOUT AES keys (in all_accounts but not in has_aes256)
+comm -23 all_accounts.txt has_aes256.txt
 ```
+
+The list of all accounts is taken from the `.ntds` file, not the `.kerberos` file: an
+account with no Kerberos keys at all would be missing from the latter and silently
+skipped.  The result includes disabled accounts and machine accounts; filter as needed.
 
 ### Alert implications
 
@@ -216,8 +242,11 @@ securely after analysis:
 
 ```bash title="Securely delete credential dump files after analysis"
 shred -u domain_dump.ntds domain_dump.ntds.kerberos domain_dump.ntds.cleartext
-rm -f all_kerberos.txt has_aes256.txt
+rm -f all_accounts.txt has_aes256.txt
 ```
+
+`shred` is not reliable on SSDs, copy-on-write file systems or snapshotted volumes.  Keep
+the dump on an encrypted volume and destroy the volume key when you are done.
 
 ---
 
@@ -248,6 +277,9 @@ C:\IFM\
     └── SECURITY
 ```
 
+`C:\IFM` now holds a complete, decryptable copy of the domain's credentials, readable by
+any local administrator of that DC.  It stays there until you delete it (Step 6).
+
 ### Step 2: Transfer to a Linux machine
 
 Copy `ntds.dit` and `SYSTEM` to a secure Linux workstation.  Use whatever transfer
@@ -256,11 +288,13 @@ credential in the domain -- treat them accordingly.
 
 ```bash title="Copy ntds.dit and SYSTEM hive from DC for offline analysis"
 # Example: SCP from the DC
-scp administrator@dc01:'C:\IFM\Active Directory\ntds.dit' ./ntds.dit
-scp administrator@dc01:'C:\IFM\registry\SYSTEM' ./SYSTEM
+scp administrator@dc1:'C:\IFM\Active Directory\ntds.dit' ./ntds.dit
+scp administrator@dc1:'C:\IFM\registry\SYSTEM' ./SYSTEM
 ```
 
 ### Step 3: Install ntdswolf
+
+Install the tool on the analysis workstation **before** you copy the database to it.
 
 ```bash
 # Install uv (Python package manager) if not already present
@@ -269,6 +303,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Install ntdswolf as a CLI tool
 uv tool install git+https://github.com/StrongWind1/NTDSWolf.git
 ```
+
+!!! warning "Do not pipe installers into a shell on the host that holds `ntds.dit`"
+    The same caution as for Method 3 applies, with higher stakes: this machine will hold
+    the database and the key that decrypts it.  Install from a reviewed installer or your
+    distribution's package, pin the tool to a commit you have reviewed
+    (`...NTDSWolf.git@<commit>`), and take the workstation off the network before the
+    files arrive if you can.
 
 ### Step 4: Parse the database
 
@@ -305,6 +346,27 @@ jq -r '
   column -t -s$'\t' -N 'Account,PasswordLastSet,SPNCount'
 ```
 
+### Step 6: Clean up — on the DC first
+
+The copy on the domain controller is the one most likely to be forgotten.  Remove it as
+soon as the transfer has been verified:
+
+```powershell title="Remove the IFM copy from the domain controller"
+Remove-Item -LiteralPath 'C:\IFM' -Recurse -Force
+Test-Path -LiteralPath 'C:\IFM'    # must print False
+```
+
+Also remove any intermediate copy made during the transfer (an SMB share, a USB stick, a
+jump host's download folder).  Then remove the files from the analysis workstation:
+
+```bash title="Securely delete extracted AD database files after analysis"
+shred -u ntds.dit SYSTEM
+rm -rf ./ntds_output
+```
+
+As with Method 3, `shred` is not reliable on SSDs or snapshotted file systems; an
+encrypted volume whose key you destroy is the dependable option.
+
 ### Alert implications
 
 - **No DCSync alerts.**  No DRSUAPI traffic crosses the network.
@@ -314,13 +376,156 @@ jq -r '
 - The extracted files (`ntds.dit`, `SYSTEM`) contain the full domain credential set.
   Handle them with the same security controls as a domain controller.
 
-### Cleanup
+---
 
-```bash title="Securely delete extracted AD database files after analysis"
-# Securely delete the extracted files after analysis
-shred -u ntds.dit SYSTEM
-rm -rf ./ntds_output
+## Method 5: Security Event Fields (No Replication Rights) { #detecting-accounts-that-need-password-reset-via-event-logs }
+
+Since the January 2025 cumulative update, the domain controllers write the key types of
+the accounts involved into every Kerberos audit event.  Reading those fields needs no
+replication rights and triggers no DCSync alert.  The limit is coverage: you only learn
+about accounts that requested a TGT, or were the target of a service ticket request,
+within the period your Security logs cover.
+
+### The fields
+
+Kerberos auditing must be enabled on the DCs:
+
+--8<-- "includes/verify-kerberos-auditing.md"
+
+Both subcategories must show **Success and Failure**.
+
+The fields are read by **name** from the event XML.  The numeric positions shift between
+event versions, so position-based code (`Properties[16]`) breaks silently when an update
+adds a field.
+
+| Field | In 4768 (TGT request) | In 4769 (service ticket request) |
+|---|---|---|
+| `TargetUserName` | The account logging on | The requesting account |
+| `ServiceName` | `krbtgt` | The target service account; on a refused request it can be the requested SPN string instead |
+| `AccountAvailableKeys` | Key types stored for the account logging on | `N/A` on a successful request |
+| `AccountSupportedEncryptionTypes` | That account's effective etype set | `N/A` on a successful request |
+| `ServiceAvailableKeys` | Key types stored for `krbtgt` | Key types stored for the target service account |
+| `ServiceSupportedEncryptionTypes` | `krbtgt`'s effective etype set | The target's **effective** set, after the DC has substituted its fallback for an unset attribute |
+| `ClientAdvertizedEncryptionTypes` | Etypes the client offered | Etypes the client offered |
+| `PreAuthEncryptionType` | Etype used for pre-authentication | — |
+| `TicketEncryptionType` | TGT etype | Service ticket etype; `0xFFFFFFFF` when no ticket was issued |
+| `SessionKeyEncryptionType` | Session key etype | Session key etype |
+| `Status` | `0x0` on success | `0x0` on success; `0xE` is `KDC_ERR_ETYPE_NOSUPP` |
+
+!!! warning "Event format varies by Windows version"
+    These fields exist only in the event format introduced with the January 2025 updates.
+    Events from DCs without it do not contain them, and such DCs contribute nothing to the
+    queries below.
+
+    The key list is also written differently by OS version:
+
+    - **Server 2022**: keys reported as `AES-SHA1, RC4` (aggregated)
+    - **Server 2025**: keys reported individually, for example
+      `AES128-SHA96, AES256-SHA96, RC4`
+
+    Both contain the string `AES` when AES keys exist, which is what the query tests.
+
+    **A dash is not a key list.**  On a refused request a DC can write `-` in the key and
+    etype fields: Microsoft's own example of a failed 4769 (status `0xE`) shows
+    `Available Keys: -` for the account, the service and the DC.  In the lab, a refused
+    request on Server 2022 build 20348.5020 carried the requested SPN in `ServiceName`
+    and a blank or `-` in `ServiceSupportedEncryptionTypes`.  Such an event says nothing
+    about anyone's keys, and the query below ignores it.
+
+### Microsoft's scripts
+
+Microsoft maintains two scripts in its
+[Kerberos-Crypto repository](https://github.com/microsoft/Kerberos-Crypto/tree/main/scripts)
+that read exactly these fields and handle both key-list formats:
+
+| Script | What it answers |
+|---|---|
+| `List-AccountKeys.ps1` | Which key types each account seen in the logs has |
+| `Get-KerbEncryptionUsage.ps1` | Which ticket and session-key etypes were issued; `-Encryption RC4` filters to RC4 |
+
+Microsoft's walkthrough is
+[Detect and remediate RC4 usage in Kerberos](https://learn.microsoft.com/en-us/windows-server/security/kerberos/detect-remediate-rc4-kerberos).
+Use them when you can.  The query below does the same job in a form you can read and
+adapt.
+
+### Query: accounts whose stored keys do not include AES
+
+```powershell title="List accounts with no AES keys, from events 4768/4769 on every DC"
+$Since = (Get-Date).AddHours(-24)   # widen once you know how long one DC takes
+$DCs = (Get-ADDomainController -Filter *).HostName
+
+$noAes = foreach ($dc in $DCs) {
+    try {
+        Get-WinEvent -ComputerName $dc -ErrorAction Stop -FilterHashtable @{
+            LogName = 'Security'; Id = 4768, 4769; StartTime = $Since
+        } | ForEach-Object {
+            $ev = $_
+            $d = @{}
+            ([xml]$ev.ToXml()).Event.EventData.Data | ForEach-Object { $d[$_.Name] = $_.'#text' }
+
+            # Each event describes up to two principals: the account and the service.
+            $principals = @(
+                [PSCustomObject]@{ Who = $d.TargetUserName; Role = 'Logon account'
+                    KeyList = $d.AccountAvailableKeys; Etypes = $d.AccountSupportedEncryptionTypes
+                },
+                [PSCustomObject]@{ Who = $d.ServiceName; Role = 'Service'
+                    KeyList = $d.ServiceAvailableKeys; Etypes = $d.ServiceSupportedEncryptionTypes
+                }
+            )
+            foreach ($p in $principals) {
+                # 'N/A' and '-' mean "not looked up", not "no keys"
+                if ($p.KeyList -and $p.KeyList -notin @('N/A', '-') -and $p.KeyList -notmatch 'AES') {
+                    [PSCustomObject]@{
+                        Account         = $p.Who
+                        Role            = $p.Role
+                        AvailableKeys   = $p.KeyList
+                        EffectiveEtypes = $p.Etypes
+                        LastStatus      = $d.Status
+                        LastSeen        = $ev.TimeCreated
+                        DC              = $dc
+                    }
+                }
+            }
+        }
+    }
+    catch {
+        if ($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*') {
+            Write-Information "${dc}: no 4768/4769 events since $Since" -InformationAction Continue
+        }
+        else {
+            Write-Warning "${dc}: NOT CHECKED - $($_.Exception.Message)"
+        }
+    }
+}
+
+$noAes | Sort-Object Account, Role, LastSeen -Descending |
+    Group-Object Account, Role | ForEach-Object { $_.Group[0] } |
+    Format-Table Account, Role, AvailableKeys, EffectiveEtypes, LastStatus, LastSeen, DC -AutoSize
 ```
+
+How to read the result:
+
+- **Every row is an account that needs a password reset** to gain AES keys — or, if it is
+  a service that genuinely cannot use AES, a recorded RC4 exception.
+- **`LastStatus` of `0xE`** means the most recent request involving that account was
+  refused: the KDC wanted AES for it and had no AES key.  These accounts are broken now.
+- **`LastStatus` of `0x0`** with RC4-only keys means something is explicitly allowing RC4
+  for the account (its own `msDS-SupportedEncryptionTypes`, or a
+  `DefaultDomainSupportedEncTypes` that includes RC4).  It works today and stops working
+  the moment that allowance is removed.
+- **A row for `krbtgt`** means the domain's TGT key has no AES — fix that first, using the
+  [KRBTGT rotation procedure](mitigations.md#priority-9-krbtgt-password-rotation).
+- **A DC that printed `NOT CHECKED` contributed nothing.**  An empty result is only clean
+  if every DC was read.
+
+The query reads every 4768 and 4769 in the period from every DC and parses each one, which
+is slow on a busy domain.  Start with a short period on one DC to get a feel for the
+volume.
+
+What this method cannot show: an RC4 **session key** in an otherwise healthy event says
+nothing about the account's keys.  The session key etype follows what the *client* offered,
+so an AES-keyed service account regularly appears with an RC4 session key when an RC4-only
+client talks to it.
 
 ---
 
@@ -329,10 +534,11 @@ rm -rf ./ntds_output
 | Scenario | Recommended Method |
 |---|---|
 | Quick estimate of how many accounts might lack AES keys | Method 1 (PowerShell dates) |
+| Accounts in active use, without requesting replication rights | Method 5 (event fields) |
 | Definitive audit, SOC can whitelist DCSync alerts | Method 2 (DSInternals) -- best PowerShell integration |
-| Definitive audit from a Linux attack/audit box | Method 3 (secretsdump) |
+| Definitive audit from a Linux audit workstation | Method 3 (secretsdump) |
 | Definitive audit, cannot trigger DCSync alerts | Method 4 (ntdsutil + ntdswolf) |
-| Regular ongoing monitoring (scheduled task) | Method 1 for triage, Method 2 for periodic verification |
+| Regular ongoing monitoring (scheduled task) | Method 5 for continuous coverage, Method 2 or 4 for periodic verification of dormant accounts |
 
 ---
 
@@ -340,136 +546,135 @@ rm -rf ./ntds_output
 
 Some service accounts cannot have their password changed without coordinated downtime
 across multiple systems.  In these cases, you can generate AES keys by resetting the
-password **to the same value** — AD generates new key material on every password set
-operation, regardless of whether the actual password string changes.
+password **to the same value** — AD derives a complete new set of keys on every password
+set operation, whether or not the password string changed.
 
-The catch: Active Directory's password history policy normally blocks reuse.  A temporary
-Fine-Grained Password Policy (FGPP) with `PasswordHistoryCount = 0` bypasses this check
-for the duration of the operation.
+### No temporary password policy is needed
+
+An administrative **reset** is a different operation from a user-initiated **change**.
+Password history and minimum password age are enforced on a change.  On a reset, a domain
+controller applies them only when the caller explicitly asks for it with the
+`LDAP_SERVER_POLICY_HINTS_OID` control ([MS-ADTS] section 3.1.1.3.4.1.27); the standard
+tools, including `Set-ADAccountPassword -Reset`, do not send it.  Complexity and minimum
+length still apply.
+
+Earlier versions of this page created a temporary Fine-Grained Password Policy with no
+history, no minimum length and no complexity to get around the history check.  Do not do
+that: the policy is unnecessary, and if the session dies half-way it leaves a
+precedence-1 policy that removes every password rule from the account.
+
+This statement is from the protocol specification, not from this site's lab.  If a reset
+to the same value is refused in your environment — a password filter, or an identity
+product that sends the policy-hints control — do not weaken policy to force it through.
+Schedule a real password change instead.
 
 ### Step-by-Step
 
-```powershell title="Generate AES keys by resetting to the same password via temporary FGPP"
-# 1. Create a temporary FGPP that allows password reuse
-New-ADFineGrainedPasswordPolicy -Name "Temp-NoHistory" `
-  -Precedence 1 `
-  -PasswordHistoryCount 0 `
-  -MinPasswordAge "00:00:00" `
-  -MaxPasswordAge "00:00:00" `
-  -MinPasswordLength 0 `
-  -ComplexityEnabled $false
+!!! danger "A mistyped password becomes the account's password"
+    A reset does not ask the directory whether what you typed is the current password.
+    Microsoft's reference for `Set-ADAccountPassword -Reset` says: "You do not need to
+    specify the *OldPassword* parameter."  Typed wrongly, the typo **is** the new password,
+    nobody knows what it is, and every service that uses the account stops authenticating
+    until a real, coordinated password change is made.
 
-# 2. Apply the FGPP to the target account
-Add-ADFineGrainedPasswordPolicySubject -Identity "Temp-NoHistory" `
-  -Subjects "svc_example"
+    The script below therefore proves the typed password against the domain controller
+    first, and stops without changing anything when the DC does not accept it.
 
-# 3. Reset the password to the same value
-#    (the operator must know the current password)
-Set-ADAccountPassword -Identity "svc_example" `
-  -Reset -NewPassword (ConvertTo-SecureString "ExistingP@ssw0rd" -AsPlainText -Force)
+```powershell title="Regenerate an account's keys by resetting it to its current password (dry run by default)"
+# ---- Operator settings -------------------------------------------------------
+$Account = 'svc_example'
+$DC = 'dc1.corp.local'    # every step runs against this one DC
+$DryRun = $true           # $true = check the password, show the reset, change nothing
 
-# 4. Remove the temporary FGPP immediately
-Remove-ADFineGrainedPasswordPolicySubject -Identity "Temp-NoHistory" `
-  -Subjects "svc_example"
-Remove-ADFineGrainedPasswordPolicy -Identity "Temp-NoHistory" -Confirm:$false
+# ---- Logic: one block, paste it whole or save it as a .ps1 --------------------
+& {
+    $ErrorActionPreference = 'Stop'
+    if ($DryRun -isnot [bool]) {
+        throw '$DryRun must be $true or $false: run the settings lines first.'
+    }
+    $props = 'PasswordLastSet', 'msDS-KeyVersionNumber'
+    $user = Get-ADUser -Identity $Account -Server $DC -Properties $props
+    $logonName = "$((Get-ADDomain -Server $DC).NetBIOSName)\$($user.SamAccountName)"
+    #
+    # The operator types the CURRENT password.  It never appears on the command line,
+    # in the console history, or in a script-block log.
+    $pw = Read-Host -AsSecureString -Prompt "Current password of $logonName"
+    if ($pw.Length -eq 0) { throw 'STOPPED: nothing was typed.  Nothing was changed.' }
+    #
+    # Prove it IS the current password: read the account from the same DC, signed in
+    # as the account itself.  -Reset would accept anything, so this is the only check.
+    $cred = New-Object System.Management.Automation.PSCredential ($logonName, $pw)
+    try {
+        $null = Get-ADUser -Identity $user -Server $DC -Credential $cred
+    }
+    catch {
+        throw "STOPPED: nothing was changed.  $DC did not accept that password for $logonName ($($_.Exception.Message))"
+    }
+    Write-Information "$DC accepted the password for $logonName." -InformationAction Continue
+    #
+    Set-ADAccountPassword -Identity $user -Reset -NewPassword $pw -Server $DC -WhatIf:$DryRun
+    $after = Get-ADUser -Identity $user -Server $DC -Properties $props
+    [PSCustomObject]@{
+        Account             = $after.SamAccountName
+        'KeyVersion before' = $user.'msDS-KeyVersionNumber'
+        'KeyVersion after'  = $after.'msDS-KeyVersionNumber'
+        PasswordLastSet     = $after.PasswordLastSet
+    } | Format-List | Out-Host
+    if ($DryRun) {
+        Write-Information 'Dry run: the password was checked; the reset was NOT performed.' -InformationAction Continue
+    }
+}
 ```
 
-After the reset, the account's supplemental credentials will contain AES128 and AES256
-keys derived from the (unchanged) password.  You can verify this with
-[DSInternals](#method-2-dsinternals-definitive-online) or
-[ntdswolf](#method-4-ntdsutil-ntdswolf-definitive-offline).
+What to expect:
 
-!!! warning "The FGPP must be removed immediately"
-    Leaving a `PasswordHistoryCount = 0` FGPP in place disables password history for
-    the affected account.  Always remove the FGPP and verify removal as the final step.
+- **The DC accepts the password.**  The dry run prints a `What if:` line for the reset and
+  both key version numbers are the same.  With `$DryRun = $false` the reset is performed
+  and `KeyVersion after` is higher.
+- **The DC does not accept it.**  The script stops with `STOPPED: nothing was changed`.
+  The account's password is untouched.  The check is a real sign-in attempt, so a wrong
+  password counts towards the
+  [account lockout threshold](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/account-lockout-threshold)
+  — at least once; Microsoft notes that Kerberos "can automatically retry account sign-in
+  attempts that count toward the threshold limits that you set in this policy setting".
+  Look at what you typed before you try again.
+- **The DC refuses the sign-in although the password is right.**  The message is the same.
+  Causes: a disabled, locked-out or expired account; logon restrictions; membership of
+  Protected Users (Microsoft: members "can only authenticate using Kerberos with AES", so
+  one without AES keys can never pass); or an account that has only RC4 keys, checked from
+  a machine whose etype policy no longer offers RC4 while NTLM is blocked.  Run it from a
+  machine that still offers RC4, fix the cause, or schedule a real password change; do not
+  remove the check to get past it.
+- **Not within minutes of a password change.**  For NTLM, Microsoft documents that "Domain
+  users can use their old password to access the network for five minutes after the
+  password is changed"
+  ([NTLM network authentication behavior](https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/new-setting-modifies-ntlm-network-authentication));
+  `OldPasswordAllowedPeriod` on the DC can lengthen it.  In that window the check can accept
+  the previous password.
+- **There is no undo.**  A reset cannot be taken back.  After a successful run the password
+  is the same string as before and the key version number is higher (see below).
 
-### Detecting Accounts That Need Password Reset via Event Logs
+Run the block as one piece.  The password prompt reads the next thing that reaches the
+console, so nothing else may be pasted after the closing brace.
 
-Accounts that have `msDS-SupportedEncryptionTypes` set to include AES but still show
-RC4-encrypted tickets (etype `0x17`) in event logs are the clearest signal that a
-password reset is needed — they have the AES **configuration** but no AES **keys**.
+Verify the result by reading the keys — with
+[DSInternals](#method-2-dsinternals-definitive-online),
+[ntdswolf](#method-4-ntdsutil-ntdswolf-definitive-offline), or the
+`ServiceAvailableKeys` field of the next
+[4769 event](#detecting-accounts-that-need-password-reset-via-event-logs) for the account.
 
-Look for Event ID 4768 (AS-REQ) or 4769 (TGS-REQ) where the ticket encryption type is
-`0x17` (RC4-HMAC) for accounts you have already configured for AES.
+### What this does and does not change
 
-#### Event 4768 / 4769 Property Index Reference
-
-Recent Windows updates (January 2025+) extended events 4768 and 4769 with new
-properties for `msDS-SupportedEncryptionTypes`, account keys, and the session key etype.
-The table below shows the property indices used in the PowerShell examples on this page.
-
-**Event 4769** (TGS-REQ) — 21 properties in the new format:
-
-| Index | Field | Example Value |
-|---|---|---|
-| 0 | Requesting account (UPN) | `svc_sql@CORP.LOCAL` |
-| 2 | Target service name | `MSSQLSvc/sql01.corp.local` |
-| 5 | **Ticket encryption type** | `18` (AES256-SHA1) or `23` (RC4) |
-| 6 | Client IP address | `192.168.1.50` |
-| 15 | msDS-SupportedEncryptionTypes string | `0x1C (RC4, AES128-SHA96, AES256-SHA96)` |
-| 16 | Account key types | `AES128-SHA96, AES256-SHA96, RC4` |
-| 20 | **Session key encryption type** | `18` |
-
-**Event 4768** (AS-REQ) — 24 properties in the new format:
-
-| Index | Field | Example Value |
-|---|---|---|
-| 0 | Account name | `jsmith` |
-| 3 | Target service | `krbtgt` |
-| 7 | **Ticket encryption type** | `18` or `23` |
-| 9 | Client IP address | `192.168.1.50` |
-| 15 | msDS-SupportedEncryptionTypes string | `0x18 (AES128-SHA96, AES256-SHA96)` |
-| 16 | Account key types | `AES128-SHA96, AES256-SHA96` |
-| 22 | **Session key encryption type** | `18` |
-
-!!! warning "Event format varies by Windows version"
-    These property indices require the **new event format** from January 2025+ updates.
-    Events from unpatched DCs have fewer properties (< 21 for 4769, < 24 for 4768) and
-    do not contain the session key etype, account keys, or `msDS-SupportedEncryptionTypes`
-    fields.
-
-    Additionally, the account key string format differs between versions:
-
-    - **Server 2022**: keys reported as `"AES-SHA1, RC4"` (aggregated)
-    - **Server 2025+**: keys reported individually as `"AES128-SHA96, AES256-SHA96, RC4"`
-
-    Microsoft's
-    [`List-AccountKeys.ps1`](https://github.com/microsoft/Kerberos-Crypto/tree/main/scripts)
-    normalizes both formats automatically.
-
-#### Queries
-
-**PowerShell cross-reference:**
-
-```powershell title="Cross-reference AD etype config against event log RC4 usage"
-# Get accounts configured for AES (bit 0x8 or 0x10 set)
-$aesAccounts = Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -ge 8' `
-  -Properties msDS-SupportedEncryptionTypes, servicePrincipalName |
-  Where-Object { $_.servicePrincipalName } |
-  Select-Object -ExpandProperty sAMAccountName
-
-# Check event logs for RC4 tickets or RC4 session keys issued to those accounts.
-# Properties[5] = ticket etype, Properties[20] = session key etype (new format).
-Get-WinEvent -FilterHashtable @{ LogName = 'Security'; Id = 4769 } |
-  Where-Object {
-    $_.Properties.Count -ge 21 -and
-    $aesAccounts -contains $_.Properties[2].Value -and
-    ($_.Properties[5].Value -eq '0x17' -or $_.Properties[20].Value -eq '0x17')
-  } |
-  Select-Object TimeCreated,
-    @{N='Account'; E={$_.Properties[2].Value}},
-    @{N='Service'; E={$_.Properties[0].Value}},
-    @{N='TicketEtype'; E={$_.Properties[5].Value}},
-    @{N='SessionKeyEtype'; E={$_.Properties[20].Value}} |
-  Sort-Object Account -Unique |
-  Format-Table -AutoSize
-```
-
-The query checks both the ticket etype and the session key etype.  An account using the
-[AES-SK split](etype-decision-guide.md#the-aes-sk-split-when-ticket-and-session-key-differ) may show an AES ticket etype
-but an RC4 session key etype — both fields must be checked.  The `Properties.Count -ge
-21` guard ensures only events in the new format (January 2025+ updates) are processed.
-
-Each account that appears in this output needs a password reset (or the
-[FGPP same-password technique](#generating-aes-keys-without-changing-the-password) above)
-to generate AES keys.
+!!! warning "Same password, but not a no-op"
+    - **The key version number goes up.**  `msDS-KeyVersionNumber` increments on every
+      password set, including this one.  Any **keytab** exported for the account now
+      carries the wrong version and usually has to be regenerated — so "without changing
+      the password" does not mean "without touching a keytab-based service".
+    - **The RC4 key is unchanged.**  The RC4 key is derived from the password alone, so
+      the same password gives the same key (and the same NT hash).  Anyone who captured or
+      cracked it before still has a valid credential.  This technique adds AES keys; it
+      does not rotate a secret.  Plan a real password change for accounts whose RC4
+      tickets may have been exposed.
+    - **Replication and caches still apply.**  Other DCs learn the new keys through
+      replication, and clients keep using service tickets they already hold until those
+      expire (10 hours by default).

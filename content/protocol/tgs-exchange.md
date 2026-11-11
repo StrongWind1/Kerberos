@@ -1,8 +1,12 @@
+---
+description: Step-by-step walkthrough of the Kerberos TGS exchange in Active Directory -- the authenticator, SPN lookup, the service ticket, and how the PAC is carried forward.
+---
+
 # TGS Exchange (Ticket-Granting Service)
 
 The TGS exchange is the second step in the Kerberos authentication flow. Having already obtained a TGT through the [AS exchange](as-exchange.md), the client now uses that TGT to request a **Service Ticket** for a specific target service -- all without typing a password again. This is Single Sign-On in action.
 
-Per [RFC 4120 &sect;3.3]: "The TGS exchange between a client and the Kerberos TGS is initiated by a client when it seeks to obtain authentication credentials for a given server."
+Per [RFC 4120 &sect;3.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.3): "The TGS exchange between a client and the Kerberos TGS is initiated by a client when it seeks to obtain authentication credentials for a given server."
 
 ---
 
@@ -13,7 +17,7 @@ The TGS exchange accomplishes two things:
 1. **The client proves it owns the TGT** by constructing an Authenticator encrypted with the TGT Session Key.
 2. **The KDC issues a Service Ticket** encrypted with the target service's secret key, along with a new Service Session Key that the client and service will share.
 
-After this exchange, the client holds a sealed credential (the Service Ticket) that it can present directly to the target service -- without the service ever contacting the KDC.
+After this exchange, the client holds a sealed credential (the Service Ticket) that it can present directly to the target service -- the service can decrypt and check it without contacting the KDC.
 
 ---
 
@@ -91,7 +95,7 @@ The KDC takes the requested service name (`CIFS/fileserver.corp.local`) and sear
 
 In this example, the KDC finds the computer account `FILESERVER$` with the SPN `CIFS/fileserver.corp.local` registered.
 
-If the SPN is not found, the KDC returns `KDC_ERR_S_PRINCIPAL_UNKNOWN`.
+If the SPN is not found, the KDC returns `KDC_ERR_S_PRINCIPAL_UNKNOWN`. If the requested name resolves to an account that exists but has no SPN registered -- an ordinary user account, for example -- the KDC returns `KDC_ERR_MUST_USE_USER2USER` instead ([MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39)): a ticket for such an account can only be issued through the user-to-user variant of the exchange, in which the ticket is encrypted with the session key of the target's own TGT.
 
 !!! warning "Missing SPNs are a common source of failures"
     If a service does not have its SPN registered, or if the SPN is registered on the wrong account, the KDC cannot issue a service ticket. The symptom is usually an NTLM fallback or an authentication failure. Use `setspn -Q */hostname` to check SPN registrations. See [Principals and Realms](principals.md) for SPN details.
@@ -119,7 +123,9 @@ The KDC constructs the **Service Ticket**, which has the same structure as a TGT
 | &nbsp;&nbsp;`endtime` | `2026-04-03T18:00:00Z` | Expiration (cannot exceed TGT endtime) |
 | &nbsp;&nbsp;`authorization-data` | PAC | User's SID, group SIDs, logon info -- carried from the TGT |
 
-The PAC is copied from the TGT into the Service Ticket. This is how the file server knows which groups Alice belongs to, without querying the Domain Controller. Per [MS-KILE &sect;3.3.5.3], the KDC generates the PAC during the AS exchange and carries it forward into service tickets during the TGS exchange.
+The PAC is copied from the TGT into the Service Ticket. This is how the file server knows which groups Alice belongs to, without querying the Domain Controller. Per [MS-KILE &sect;3.3.5.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/c25d48df-67f0-4c5f-9e46-27a7d5710909), the KDC generates the PAC when it issues the TGT; per [MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39), it copies the populated fields into the service ticket's PAC during the TGS exchange and signs the result again. See [PAC Inclusion](#pac-inclusion) below for what is and is not re-evaluated at this point.
+
+Which encryption type the KDC uses for the ticket and for the session key is a separate decision. The ticket's etype is driven by the target account and not by the client's preference list. The session key's etype also has to be one the client listed, because the client uses that key. [RFC 4120 &sect;3.1.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1.3) states the principle where it describes how a KDC generates a session key: it selects the type "using the list of methods provided and information from the Kerberos database indicating acceptable encryption methods for the application server". The [Encryption Type Negotiation](../security/etype-negotiation.md) page covers it.
 
 ### Step 8: KDC sends KRB-TGS-REP
 
@@ -172,10 +178,18 @@ The **Privilege Attribute Certificate (PAC)** is a Microsoft extension to the Ke
 | Logon information | Account name, full name, logon count, password timestamps |
 | Client claims | AD attribute-based claims for dynamic access control |
 
-The PAC is initially built by the KDC during the AS exchange and embedded in the TGT. During the TGS exchange, the KDC copies the PAC from the TGT into the new Service Ticket. Per [MS-KILE &sect;3.3.5.7], the KDC may also update certain PAC structures (such as adding the server's checksum).
+The PAC is initially built by the KDC during the AS exchange and embedded in the TGT. During the TGS exchange, per [MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39) and its subsections, the KDC:
+
+1. When the client is from the KDC's own realm, checks that the client name in the TGT still resolves to the account whose SID is in the PAC's `PAC_REQUESTOR_SID` buffer. If it does not, the KDC returns `KDC_ERR_TGT_REVOKED`.
+2. **Copies** the populated fields from the TGT's PAC into a new PAC. Group memberships are not looked up again: the SIDs are the ones recorded when the TGT was issued, which is why a group change only takes effect once the user gets a new TGT.
+3. Adds the **domain-local groups** of the service's domain that the user belongs to ([MS-KILE &sect;3.3.5.7.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/e55ad922-4940-432d-a253-41919d6efd24)). For a TGT that already carries a PAC, these are the only memberships the specification has the KDC evaluate at TGS time. The one other case is a TGT that arrives without a PAC, from a trusted non-Windows realm: the KDC then builds a PAC from the account the principal maps to ([MS-KILE &sect;3.3.5.7.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/be1b20cd-b320-41f7-851c-4991538f4029)).
+4. Removes the `PAC_REQUESTOR_SID` and `PAC_ATTRIBUTES_INFO` buffers, which belong only in TGTs ([MS-KILE &sect;3.3.5.7.9](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/0cac21f1-ec8a-4d58-9071-92dff376932e)).
+5. Computes fresh signatures: the ticket signature, the extended KDC signature, the server signature (with the target service's key), and the KDC signature.
+
+The [Ticket Structure](tickets.md#pac) page lists every PAC buffer and what each signature covers.
 
 !!! tip "Pentester note"
-    The PAC is protected by two signatures: one using the service's key and one using the KRBTGT key. In a Silver Ticket attack (forging a service ticket with a compromised service key), the attacker can forge the service's PAC signature but not the KRBTGT signature. Whether the service validates the KRBTGT signature depends on configuration -- by default, most services do not verify it with the KDC, which is why Silver Tickets work.
+    The PAC in a service ticket carries four signatures. One -- the server signature -- uses the service's own key; the other three use the `krbtgt` key. In a Silver Ticket attack (forging a service ticket with a compromised service key), the attacker can compute a valid server signature but none of the `krbtgt`-keyed ones. The forgery works anyway when the target service never asks a domain controller to check the PAC. Windows services running as Local System, Network Service, or Local Service do not, and by default neither do services running under other accounts. See [PAC Signatures](tickets.md#pac-signatures).
 
 ---
 
@@ -205,13 +219,13 @@ sequenceDiagram
 
 ---
 
-## Key Takeaways
+## Summary
 
 - The TGS exchange proves TGT ownership through the **Authenticator**, not by re-entering a password. This is why Single Sign-On works.
 - The **Authenticator** binds the TGT to the client -- a stolen TGT is useless without the TGT Session Key.
 - The KDC finds the target account by **looking up the SPN** in Active Directory. Missing or duplicate SPNs cause failures.
 - The **Service Ticket** is encrypted with the target service's key. The client cannot read or modify it.
-- The **PAC** travels from the TGT into the Service Ticket, carrying the user's group memberships and SIDs so the service can make authorization decisions without contacting the DC.
+- The **PAC** is copied from the TGT into the Service Ticket and re-signed, carrying the user's group memberships and SIDs so the service can make authorization decisions without contacting the DC. Only domain-local groups of the service's domain are added at this point.
 - The Service Ticket's expiration time cannot exceed the TGT's expiration time.
 
 Next: the [AP Exchange](ap-exchange.md), where the client presents the Service Ticket to the target service and the session is established.

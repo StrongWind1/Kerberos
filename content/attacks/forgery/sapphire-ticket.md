@@ -2,6 +2,8 @@
 
 The stealthiest forged ticket: combining S4U2Self, U2U, and PAC transplant.
 
+**MITRE ATT&CK:** [T1558](https://attack.mitre.org/techniques/T1558/) Steal or Forge Kerberos Tickets
+
 A Sapphire Ticket takes the [Diamond Ticket](diamond-ticket.md) concept one step further.
 Instead of modifying a legitimate ticket's PAC to add fabricated group memberships, the Sapphire
 Ticket replaces the entire PAC with a **legitimate PAC** obtained from the real KDC via
@@ -109,7 +111,8 @@ Active Directory**. The groups in the PAC match the user's actual group membersh
 ### KRBTGT Password Rotation
 
 Same as Golden and Diamond Tickets -- rotate the `krbtgt` password **twice** with a full
-replication cycle between changes. Without the `krbtgt` key, the attacker cannot decrypt or
+replication cycle and at least the maximum ticket lifetime (10 hours by default) between
+changes (see [Golden Ticket -- Defend](golden-ticket.md#krbtgt-password-rotation)). Without the `krbtgt` key, the attacker cannot decrypt or
 re-encrypt TGTs.
 
 ### Restrict DCSync Privileges
@@ -127,12 +130,15 @@ systems.
 
 Microsoft's patch for CVE-2021-42287 (KB5008380) introduced the `PAC_REQUESTOR` structure in
 TGT PACs. This structure records the SID of the account that originally requested the TGT. When
-the patched KDC processes a TGS-REQ, it verifies that the `PAC_REQUESTOR` SID matches a valid
-account.
+the patched KDC processes a TGS-REQ, it verifies that the `cname` on the ticket resolves to an
+account with the same SID as the `PAC_REQUESTOR` SID, and returns `KDC_ERR_TGT_REVOKED` if it
+does not ([MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39)).
 
-If the attacker transplants an administrator's PAC into a low-privilege user's TGT, the
-`PAC_REQUESTOR` SID (from the original TGT) may not match the PAC's claimed identity. In fully
-patched environments with enforcement enabled, this can cause `KDC_ERR_TGT_REVOKED` errors.
+A transplant that leaves the ticket's client name and the `PAC_REQUESTOR` SID belonging to
+different accounts is therefore rejected. This is not optional any more: enforcement has been
+mandatory since the
+October 11, 2022 updates, which no longer read the `PacRequestorEnforcement` registry value
+([KB5008380](https://support.microsoft.com/help/5008380)).
 
 !!! info "Tooling has adapted"
     Offensive tools like impacket and Rubeus have been updated to handle the `PAC_REQUESTOR` and
@@ -142,9 +148,10 @@ patched environments with enforcement enabled, this can cause `KDC_ERR_TGT_REVOK
 
 ### Monitor S4U2Self Activity
 
-The S4U2Self+U2U step (obtaining the legitimate PAC) generates KDC logs. Monitor for S4U2Self
-requests that target high-privilege accounts from SPN-bearing accounts that have no legitimate
-delegation need.
+The S4U2Self+U2U step (obtaining the legitimate PAC) is a TGS-REQ, so it is logged as event
+4769 on the domain controller that answers it. The event shows which account made the request,
+not which user it asked to impersonate; see [Detect](#s4u2selfu2u-activity) for what can and
+cannot be read from it.
 
 ---
 
@@ -155,18 +162,27 @@ the PAC contents match Active Directory, and all signatures are valid.
 
 ### S4U2Self+U2U Activity
 
-The PAC acquisition step (S4U2Self+U2U) is the most visible part of the attack. Look for:
+The PAC acquisition step (S4U2Self+U2U) is the most visible part of the attack, but event 4769
+does not label it, and the field usually suggested for S4U does not apply:
 
-- S4U2Self requests targeting high-privilege accounts (Domain Admins, Enterprise Admins)
-  from SPN-bearing accounts that are not configured for delegation
-- Event 4769 with `Transited Services` populated, indicating S4U activity, from unexpected
-  SPN-bearing accounts
+- `Transited Services` is documented as the "list of SPNs which were requested if constrained
+  Kerberos delegation was used". That is S4U2Proxy. This step is S4U2Self and involves no
+  S4U2Proxy, so a filter on that field returns nothing for it
+- `Account Name` is "the user name of the account that requested the ticket": the controlled
+  service account, not the privileged user named in `PA-FOR-USER`. The documented fields
+  include none for the impersonated user, so "S4U2Self targeting a Domain Admin" cannot be read
+  from the event
 
-```text
-index=security EventCode=4769
-| where isnotnull(TransitedServices) AND TransitedServices!=""
-| stats count by ServiceName, TargetUserName, IpAddress
-```
+What the documented fields can show is the shape of the request: an account requesting a
+ticket to itself, with the user-to-user option set. `Ticket Options` holds the request's KDC
+options, and `enc-tkt-in-skey`, the option that requests a user-to-user ticket, is bit 28 (mask
+`0x00000008`, [RFC 4120 &sect;5.4.1](https://datatracker.ietf.org/doc/html/rfc4120#section-5.4.1)).
+A 4769 with that bit set, where the requesting account and the service are the same account,
+is the candidate to baseline and investigate. No ready-made query is given here, because this
+reading comes from the field definitions and the specification: this site has not captured the
+event for an S4U2Self+U2U request in its lab.
+Event 4769 requires the **Audit Kerberos Service Ticket Operations** subcategory (see
+[Kerberos Auditing Policies](../../security/group-policy.md#kerberos-auditing-policies)).
 
 ### Behavioral Analytics
 
@@ -180,7 +196,7 @@ Since the ticket itself is nearly undetectable, focus on behavioral indicators:
 
 | Signal | Description |
 |---|---|
-| S4U2Self for privileged users | SPN-bearing accounts requesting tickets on behalf of Domain Admins without delegation configured |
+| S4U2Self for privileged users | SPN-bearing accounts requesting tickets on behalf of Domain Admins without delegation configured. Event 4769 shows the requesting account and the user-to-user option, not the impersonated user (see above) |
 | Account behavior change | Low-privilege account performing high-privilege operations |
 | Cross-session anomalies | TGT session activity that does not match the original authentication source |
 | Defender for Identity | Microsoft's tool may detect PAC-related anomalies even with legitimate PAC contents |
@@ -214,7 +230,7 @@ Since the ticket itself is nearly undetectable, focus on behavioral indicators:
 
     ```bash title="Create Sapphire Ticket: S4U2Self+U2U PAC acquisition and TGT forging with PAC transplant"
     ticketer.py -request -impersonate administrator \
-      -domain CORP.LOCAL -user controlleduser -password 'Password1!' \
+      -domain CORP.LOCAL -user controlleduser -password '<password>' \
       -nthash <krbtgt_nthash> -aesKey <krbtgt_aes_key> \
       -user-id 1115 -domain-sid S-1-5-21-... \
       baduser
@@ -229,7 +245,7 @@ Since the ticket itself is nearly undetectable, focus on behavioral indicators:
 
     ```bash title="Use the Sapphire Ticket ccache to execute commands as administrator"
     export KRB5CCNAME=baduser.ccache
-    psexec.py -k -no-pass CORP.LOCAL/administrator@dc01.corp.local
+    psexec.py -k -no-pass CORP.LOCAL/administrator@dc1.corp.local
     ```
 
 ---

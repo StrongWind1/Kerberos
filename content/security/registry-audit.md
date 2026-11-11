@@ -1,144 +1,173 @@
 ---
-status: new
+description: The lab evidence behind the registry reference - which builds were tested, which registry paths work, and the measured etype matrices for the KDC filter, DDSET and accounts without AES keys.
 ---
 
 # Registry Audit Results
 
-Lab-validated registry reference for Kerberos etype behavior on Windows Server 2022.
-Every path and value combination was tested in isolation with KDC restarts between tests,
-then in combination to map the full interaction model.
+This is the **evidence page** for [Registry Settings](registry.md).  The rules live there;
+this page records what was measured, on which build, so you can judge how far each rule
+reaches.  Every path and value combination was tested in isolation with KDC restarts between
+tests, then in combination.
 
-**Lab**: DC01 (Server 2022 Build 20348, KB5078763) | DFL 2016 | 80+ tests
+To audit your own domain controllers against these findings, use
+[`Get-KdcKerberosRegistryAudit.ps1`](https://github.com/StrongWind1/Kerberos/blob/main/scripts/Get-KdcKerberosRegistryAudit.ps1).
+It is read-only and reports each value below per DC.
 
-**Registry paths tested:**
+---
 
-1. `HKLM\SYSTEM\CurrentControlSet\Services\KDC`
+## Lab builds { #lab-builds }
+
+--8<-- "includes/lab-builds.md"
+
+---
+
+## What was tested
+
+**Registry paths:**
+
+1. `HKLM\SYSTEM\CurrentControlSet\Services\Kdc`
 2. `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters`
 3. `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters`
 
-**Value names tested:**
+**Value names:** `DefaultDomainSupportedEncTypes`, `DefaultEncryptionType`,
+`SupportedEncryptionTypes`.
 
-- `DefaultDomainSupportedEncTypes`
-- `DefaultEncryptionType`
-- `SupportedEncryptionTypes`
-
-Every combination (3 paths × 3 values = 9) was tested.  Only 3 are functional.
+Every combination (3 paths × 3 values = 9) was tested against an unset account
+(`msDS-SupportedEncryptionTypes = 0`) on DC1, 6-7 April 2026.  Only 3 change what the KDC
+issues.
 
 ---
 
 ## Functional Registry Paths
 
-Only **3 of 9** tested value/path combinations affect KDC ticket issuance.  Two additional
-functional values (`KdcUseRequestedEtypesForTickets`, `RC4DefaultDisablementPhase`) control
-other KDC behaviors.
+Three of the nine combinations affect KDC ticket issuance.  Two further values
+(`KdcUseRequestedEtypesForTickets`, `RC4DefaultDisablementPhase`) control other KDC
+behavior.  What each one does is described in [Registry Settings](registry.md).
 
-| # | Full Path | Value Name | Timing | Mechanism |
-|---|-----------|-----------|--------|-----------|
-| 1 | `HKLM\SYSTEM\CurrentControlSet\Services\KDC` | `DefaultDomainSupportedEncTypes` | **Immediate** | Sets the fallback etype set for accounts with `msDS-SupportedEncryptionTypes = 0`.  The KDC reads this on every TGS-REQ. |
-| 2 | `HKLM\SOFTWARE\...\Policies\System\Kerberos\Parameters` | `SupportedEncryptionTypes` | **KDC restart** | Hard filter: the KDC will not issue tickets with etypes absent from this value.  Also controls client etype advertisement and triggers computer account msDS-SET auto-update.  Written by the "Configure encryption types allowed for Kerberos" GPO. |
-| 3 | `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters` | `SupportedEncryptionTypes` | **KDC restart** | Same filter as #2.  Honored on Server 2022; on Server 2025 the KDC reads **this** path and ignores #2 (lab-tested 26100.32522 — the reverse of the older, unsourced "Lsa deprecated in 2025" claim). |
-| 4 | `HKLM\SYSTEM\CurrentControlSet\Services\Kdc` | `KdcUseRequestedEtypesForTickets` | Immediate | When set to `1`, KDC honors client etype preference for ticket encryption, overriding the target's `msDS-SupportedEncryptionTypes` (reach is build-dependent: on enforced builds it only downgrades accounts that still list RC4).  **Security risk** -- never set to `1`. |
-| 5 | `HKLM\SOFTWARE\...\Policies\System\Kerberos\Parameters` | `RC4DefaultDisablementPhase` | **KDC restart** | Controls RC4 deprecation phase (0=off, 1=audit, 2=enforce).  Usually unset; on KB5078763+ an absent value behaves as enforce, so the registry alone cannot confirm enforcement -- check the build. |
+| # | Path | Value name | Timing | Observed |
+|---|------|-----------|--------|----------|
+| 1 | `...\Services\Kdc` | `DefaultDomainSupportedEncTypes` | **Immediate** | Value 24 changed an unset account's ticket from RC4 to AES256 with no restart. |
+| 2 | `...\Policies\System\Kerberos\Parameters` | `SupportedEncryptionTypes` | **KDC restart** | Value 24: no change before restart, AES256 after.  Written by the *Configure encryption types allowed for Kerberos* GPO. |
+| 3 | `...\Control\Lsa\Kerberos\Parameters` | `SupportedEncryptionTypes` | **KDC restart** | Same filter as #2.  On the Server 2025 build tested, this was the only path the KDC honored. |
+| 4 | `...\Services\Kdc` | `KdcUseRequestedEtypesForTickets` | Immediate | Value 1 let an RC4-first client downgrade an RC4 + AES account to an RC4 ticket. |
+| 5 | `...\Policies\System\Kerberos\Parameters` | `RC4DefaultDisablementPhase` | **KDC restart** | On 20348.5020, values 0 and 1 returned unset accounts to RC4; absent and 2 gave AES256. |
 
 ---
 
 ## Non-Functional Registry Paths
 
-The remaining 6 of 9 combinations have **zero effect** on KDC ticket issuance:
+The remaining 6 of 9 combinations had **zero effect** on KDC ticket issuance:
 
-| # | Full Path | Value Name | Values Tested | Result |
-|---|-----------|-----------|---------------|--------|
-| 1 | `HKLM\...\Control\Lsa\Kerberos\Parameters` | `DefaultEncryptionType` | 4, 18, 24 | No change in ticket etype, session key, or msDSSET field |
-| 2 | `HKLM\...\Services\KDC` | `DefaultEncryptionType` | 4, 18, 24 | No change |
-| 3 | `HKLM\...\Policies\System\Kerberos\Parameters` | `DefaultEncryptionType` | 4, 18, 24 | No change |
-| 4 | `HKLM\...\Control\Lsa\Kerberos\Parameters` | `DefaultDomainSupportedEncTypes` | 4, 24, 28 | No change (only works under `Services\KDC`) |
-| 5 | `HKLM\...\Policies\System\Kerberos\Parameters` | `DefaultDomainSupportedEncTypes` | 4, 24, 28 | No change (only works under `Services\KDC`) |
-| 6 | `HKLM\...\Services\KDC` | `SupportedEncryptionTypes` | 4, 24, 28 | No change (only works under Pol and Lsa paths) |
+| # | Path | Value name | Values tested | Result |
+|---|------|-----------|---------------|--------|
+| 1 | `...\Control\Lsa\Kerberos\Parameters` | `DefaultEncryptionType` | 4, 18, 24 | No change in ticket etype, session key, or the Event 4769 supported-etypes field |
+| 2 | `...\Services\Kdc` | `DefaultEncryptionType` | 4, 18, 24 | No change |
+| 3 | `...\Policies\System\Kerberos\Parameters` | `DefaultEncryptionType` | 4, 18, 24 | No change |
+| 4 | `...\Control\Lsa\Kerberos\Parameters` | `DefaultDomainSupportedEncTypes` | 4, 24, 28 | No change (only works under `Services\Kdc`) |
+| 5 | `...\Policies\System\Kerberos\Parameters` | `DefaultDomainSupportedEncTypes` | 4, 24, 28 | No change (only works under `Services\Kdc`) |
+| 6 | `...\Services\Kdc` | `SupportedEncryptionTypes` | 4, 24, 28 | No change (only works under the Policies and Lsa paths) |
+
+The `DefaultEncryptionType` rows used the values 4, 18 and 24.  Microsoft's registry
+reference documents 17, 18 and 23 for this value, with 18 as the default, and describes it as
+the client's default pre-authentication etype.  These rows therefore show only that the
+values tried changed nothing at the KDC; 17 and 23 were not tried.
+
+Re-checked on 20348.5020 in June 2026: `DefaultDomainSupportedEncTypes` at the Lsa path,
+`KdcUseRequestedEtypesForTickets` at the Lsa path, and `SupportedEncryptionTypes` under
+`Services\Kdc` were all ignored.  `RC4DefaultDisablementPhase` under `Services\Kdc\Parameters`
+was also ignored (April 2026).
 
 !!! tip "Common mistake: wrong path"
-    `DefaultDomainSupportedEncTypes` is frequently set at the wrong registry path (Policies
-    or Lsa instead of Services\KDC).  If your DDSET change has no effect, verify the path
-    is `HKLM\SYSTEM\CurrentControlSet\Services\KDC`.
+    `DefaultDomainSupportedEncTypes` is frequently set at the wrong registry path (Policies,
+    Lsa, or a `Parameters` subkey).  If your DDSET change has no effect, verify the path is
+    `HKLM\SYSTEM\CurrentControlSet\Services\Kdc`.
 
 ---
 
-## Two-Mechanism Model
+## Filter × account matrix { #how-they-interact }
 
-The KDC uses two independent systems for etype selection.  Understanding this separation
-is essential for troubleshooting mismatches between Event 4769 fields and actual ticket
-etypes.
+--8<-- "includes/kdc-filter-matrix.md"
 
-### Mechanism 1: Etype Computation (DDSET / msDS-SET)
+### Which filter path wins (Server 2022)
 
-Determines what etypes the KDC **considers** for the account:
+Both paths set, no DDSET, unset account, DC1, 6-7 April 2026:
 
-1. If the target account has `msDS-SupportedEncryptionTypes != 0`, use that value.
-2. Otherwise, if `DefaultDomainSupportedEncTypes` is set, use that value.
-3. Otherwise, use the built-in default `0x27` (DES + RC4 + AES-SK) -- or `0x18` (AES-only) on enforced KB5078763+ builds, where an absent `DefaultDomainSupportedEncTypes` resolves to AES-only for unconfigured accounts.
+| Policies value | Lsa value | Ticket |
+|---|---|---|
+| 4 (RC4) | 24 (AES) | RC4 |
+| 24 (AES) | 4 (RC4) | AES256 |
+| 4 (RC4) | 28 (RC4 + AES) | RC4 |
+| 28 (RC4 + AES) | 4 (RC4) | RC4 |
 
-This computed etype set appears in the Event 4769 `msDSSET` field.
-
-**Timing**: `msDS-SupportedEncryptionTypes` changes take effect on the next TGS-REQ.
-`DefaultDomainSupportedEncTypes` changes also take effect immediately.
-
-### Mechanism 2: Etype Filter (SupportedEncryptionTypes)
-
-Filters what the KDC will **actually issue**:
-
-1. If `SupportedEncryptionTypes` at the Policies path exists, use it as the filter.
-2. Otherwise, if `SupportedEncryptionTypes` at the Lsa path exists, use it.
-3. Otherwise, no filter is applied (all etypes allowed).
-
-The filter **overrides** the computed etype set.  If DDSET says RC4 but the filter says
-AES-only, the KDC issues AES tickets (not an error).
-
-**Timing**: the KDC reads this value only at service start.  Changes require
-`Restart-Service kdc`.
-
-### How They Interact
-
-The interaction is **asymmetric**: the filter can upgrade a fallback to AES, but it cannot downgrade one to RC4. Matrix-tested on the enforced build 20348.5020 (Round 3, 2026-06-26).
-
-| Filter | explicit msDS=RC4 | explicit msDS=AES | msDS=0, DDSET=RC4 | msDS=0, DDSET=AES/enforced |
-|---|---|---|---|---|
-| AES-only (`0x18`) | NOSUPP | AES256 | **AES256** (upgraded) | AES256 |
-| RC4-only (`0x04`) | RC4 | NOSUPP | RC4 | **NOSUPP** (no downgrade) |
-
-For a `msDS-SupportedEncryptionTypes = 0` account, an AES-only filter over an RC4 DDSET issues an AES ticket rather than an error. The reverse does not hold: an RC4-only filter over an AES fallback returns `KDC_ERR_ETYPE_NOSUPP`, it does **not** silently issue an RC4 ticket.
-
-For an account with an **explicit** `msDS-SupportedEncryptionTypes`, the filter never overrides the account. When the account's declared etypes and the filter share no etype, the result is `KDC_ERR_ETYPE_NOSUPP`.
+The Policies value decided the outcome every time.  For the Server 2022 versus Server 2025
+path comparison, see
+[Registry Settings — Which path the KDC reads](registry.md#which-path-the-kdc-reads).
 
 ---
 
-## Interaction Matrix
+## Interaction Matrix (pre-April build)
 
-Full 9-combination matrix from Round 2 testing on build 20348.4893 (Pol\SET + Kdc\DDSET, msDS-SET=0 account, KDC restarted after setting values):
+Filter at the Policies path × DDSET, unset account, KDC restarted after each change.
+DC1, 6-7 April 2026, **not enforcing**.  T = ticket etype, S = session key (the test client
+listed RC4 first, so RC4 session keys here are a property of the client).
 
-| Pol\SET | DDSET=4 (RC4) | DDSET=24 (AES) | DDSET=28 (RC4+AES) |
+| Policies filter | DDSET = 4 (RC4) | DDSET = 24 (AES) | DDSET = 28 (RC4 + AES) |
 |---|---|---|---|
 | **4 (RC4)** | T=23 S=RC4 | T=23 S=RC4 **(superseded)** | T=23 S=RC4 |
 | **24 (AES)** | T=18 S=AES256 | T=18 S=AES256 | T=18 S=AES256 |
-| **28 (RC4+AES)** | T=23 S=RC4 | T=18 S=RC4 | T=18 S=RC4 |
+| **28 (RC4 + AES)** | T=23 S=RC4 | T=18 S=RC4 | T=18 S=RC4 |
 
 !!! warning "One cell is superseded: RC4-only filter over an AES fallback"
-    Pol=4 + DDSET=24 was recorded as an RC4 ticket in Round 2 on the pre-enforcement build. Re-tested in Round 3 on the enforced build 20348.5020, that combination returns `KDC_ERR_ETYPE_NOSUPP` — the KDC does **not** downgrade an AES fallback to RC4. The other cells stand: where the filter and the fallback share an etype, the filter still picks it. See [How They Interact](#how-they-interact) for the current model.
-
-**Pattern**: a restrictive filter still determines the outcome regardless of DDSET, but only in the direction the account's available keys allow. Restricting to AES resolves to AES; restricting to RC4 when the fallback is AES fails rather than downgrading. When the filter is permissive (Pol=28), DDSET controls which etype is selected from the allowed set.
+    Filter = 4 with DDSET = 24 produced an RC4 ticket on this build.  On the enforcing build
+    20348.5020 the same combination returns `KDC_ERR_ETYPE_NOSUPP`: the KDC does **not**
+    downgrade an AES fallback to RC4.  The other cells stand.
 
 ---
 
-## Precedence Order
+## DDSET sweep (enforcing build)
 
-| Priority | Source | Controls |
+`DefaultDomainSupportedEncTypes` swept against an unset account on 20348.5020, June 2026.
+No KDC restart between values.
+
+| DDSET | Result | Note |
 |---|---|---|
-| 1 (highest) | Target account `msDS-SupportedEncryptionTypes` | Etype list (overrides DDSET) |
-| 2 | `DefaultDomainSupportedEncTypes` (Services\KDC) | Etype list (when msDS-SET=0) |
-| 3 | `SupportedEncryptionTypes` (Policies path) | Etype **filter** (overrides etype list for issuance) |
-| 4 | `SupportedEncryptionTypes` (Lsa path) | Etype **filter** (lower precedence than Pol) |
-| 5 | Target account's stored keys | Must have key for chosen etype |
+| `0x18` (AES128 + AES256) | AES256 | Strongest of the set |
+| `0x10` (AES256) | AES256 | |
+| `0x08` (AES128 only) | `KDC_ERR_ETYPE_NOSUPP` | The test client offered AES256 but not AES128, so no session key etype was shared |
+| `0x04` (RC4) | RC4 | An explicit DDSET overrides the enforcement default |
+| `0x1C` (RC4 + AES) | AES256 | |
+| `0x27` (old default, set explicitly) | RC4 | |
+| `0x100` | `KDC_ERR_ETYPE_NOSUPP` | No usable etype bit |
 
-!!! warning "Rows 3 and 4 swap on Server 2025"
-    The Policies-over-Lsa order holds on Server 2022 (20348), where both paths are honored. On Server 2025 (lab-tested 26100.32522) the KDC reads the **Lsa** path and ignores Policies entirely. Because the "Configure encryption types allowed for Kerberos" GPO writes only the Policies path, a standard Kerberos-encryption GPO does not filter etypes on a Server 2025 DC.
+---
+
+## Account without AES keys (enforcing build)
+
+An account whose password was set from an NT hash, leaving only the RC4 key.  20348.5020,
+June 2026.
+
+| `msDS-SupportedEncryptionTypes` | Result | Event 4769 |
+|---|---|---|
+| `0x18` (AES-only) | `KDC_ERR_ETYPE_NOSUPP` | Service keys listed as RC4 only; **no RC4 fallback** |
+| `0x1C` (RC4 + AES) | RC4 ticket | The KDC used the only key the account has |
+| `0x04` (RC4) | RC4 ticket | |
+| 0 (unset; enforcement default applies) | `KDC_ERR_ETYPE_NOSUPP` | No AES key to satisfy the `0x18` default |
+
+On an enforcing DC, an account with no AES keys that is unset or AES-only cannot be issued a
+service ticket at all.
+
+---
+
+## UF_USE_DES_KEY_ONLY (enforcing build)
+
+Setting the `UF_USE_DES_KEY_ONLY` account flag on 20348.5020 produced a **DES** service
+ticket (Event 4769 ticket etype `0x3`, supported etypes `0x3`).  The notes say the flag
+overrode the account's `msDS-SupportedEncryptionTypes`, but they record neither the
+attribute's value nor the state of the DC's etype filter during the run (the DC's baseline
+filter, `0x7FFFFFFF`, allows DES).  An earlier run on 6-7 April 2026, on an unset account,
+recorded a failure for the same flag; the notes do not explain the difference.  This is one
+run on one build, not a general rule.  Server 2025, where Microsoft has removed DES, was not
+tested.
 
 ---
 
@@ -147,7 +176,7 @@ Full 9-combination matrix from Round 2 testing on build 20348.4893 (Pol\SET + Kd
 | Setting | Timing | Evidence |
 |---|---|---|
 | `msDS-SupportedEncryptionTypes` (AD attribute) | Immediate | AD replication latency only |
-| `DefaultDomainSupportedEncTypes` (Services\KDC) | Immediate | Set → test → confirmed within seconds |
-| `SupportedEncryptionTypes` (Pol or Lsa) | KDC restart | No effect until `Restart-Service kdc`; removing the value also has no effect until restart |
-| `RC4DefaultDisablementPhase` (Pol) | KDC restart | Phase=2 had no effect until restart |
-| `KdcUseRequestedEtypesForTickets` (Services\Kdc) | Immediate | Behavior changed on next TGS-REQ |
+| `DefaultDomainSupportedEncTypes` (`Services\Kdc`) | Immediate | Set, tested, confirmed within seconds |
+| `SupportedEncryptionTypes` (Policies or Lsa) | KDC restart | No effect until `Restart-Service kdc`; removing the value also has no effect until restart |
+| `RC4DefaultDisablementPhase` (Policies) | KDC restart | Phase = 2 had no effect until restart |
+| `KdcUseRequestedEtypesForTickets` (`Services\Kdc`) | Immediate | Behavior changed on the next TGS-REQ |

@@ -1,0 +1,36 @@
+{% extends "main.html" %}
+
+{#
+  The page GitHub Pages serves for any address that does not exist. The theme's own
+  version is a bare "404 - Not found" heading under a title that is only the site name.
+  This one says what happened and offers the same ways forward as the header: search,
+  and the top-level sections, taken from the navigation so they cannot go stale.
+#}
+{% block htmltitle %}
+  <title>Page not found - {{ config.site_name }}</title>
+{% endblock %}
+
+{% block content %}
+  <h1>Page not found</h1>
+  <p>
+    There is no page at this address. It may have been moved or renamed, or the link
+    that brought you here may be mistyped.
+  </p>
+  <p>
+    Use the search box in the header to find a topic by name, or start from one of the
+    sections:
+  </p>
+  <ul>
+    {% for item in nav %}
+      {% set target = namespace(page=item) %}
+      {% for _ in range(4) %}
+        {% if target.page and target.page.children %}
+          {% set target.page = target.page.children | first %}
+        {% endif %}
+      {% endfor %}
+      {% if target.page and target.page.url is defined %}
+        <li><a href="{{ target.page.url | url }}">{{ item.title }}</a></li>
+      {% endif %}
+    {% endfor %}
+  </ul>
+{% endblock %}

@@ -2,6 +2,8 @@
 
 Forging service tickets without contacting the domain controller.
 
+**MITRE ATT&CK:** [T1558.002](https://attack.mitre.org/techniques/T1558/002/) Steal or Forge Kerberos Tickets: Silver Ticket
+
 A Silver Ticket is a forged service ticket (TGS) encrypted with the target account's
 secret key. Unlike a [Golden Ticket](../forgery/golden-ticket.md), which forges a TGT and then requests
 service tickets through the KDC, a Silver Ticket goes directly to the
@@ -52,16 +54,21 @@ Attacker                              Target Service
 
 ### PAC Signature Bypass
 
-The PAC contains two signatures (see [Ticket Structure -- PAC](../../protocol/tickets.md#pac)):
+The PAC in a service ticket carries four signatures (see
+[Ticket Structure -- PAC](../../protocol/tickets.md#pac)):
 
-| Signature | Key | Validated by default? |
+| Signature | Key | Can the attacker compute it? |
 |---|---|---|
-| `PAC_SERVER_CHECKSUM` | Target account's key | Yes -- the service checks this |
-| `PAC_PRIVSVR_CHECKSUM` | `krbtgt` account's key | No -- requires `ValidateKdcPacSignature = 1` |
+| Server signature (`PAC_SERVER_CHECKSUM`) | Target account's key | Yes |
+| KDC signature (`PAC_PRIVSVR_CHECKSUM`) | `krbtgt` key | No |
+| Ticket signature (CVE-2020-17049) | `krbtgt` key | No |
+| Extended KDC signature (CVE-2022-37967) | `krbtgt` key | No |
 
-Since the attacker has the target account's key, they can compute a valid `PAC_SERVER_CHECKSUM`.
-The `PAC_PRIVSVR_CHECKSUM` cannot be computed (the attacker does not have the `krbtgt` key), but
-most services never validate it. The service trusts the PAC contents without contacting the KDC.
+An attacker holding only the service key can produce a valid server signature and none of the
+other three. The forged ticket is still accepted when the target service never asks a domain
+controller to validate the PAC, and Windows services running as Local System, Network Service
+or Local Service, or holding `SeTcbPrivilege`, do not. The service trusts the PAC contents
+without contacting the KDC.
 
 ---
 
@@ -76,7 +83,7 @@ is limited to the specific service (or services) whose key was compromised.
 | Remote execution (WMI) | `HOST/hostname` + `RPCSS/hostname` | Remote command execution via WMI |
 | Scheduled tasks | `HOST/hostname` | Create and modify scheduled tasks |
 | PowerShell Remoting | `HTTP/hostname` + `WSMAN/hostname` | WinRM / PSRemoting shell access |
-| LDAP on a DC | `LDAP/dc.domain.local` | AD queries; potentially DCSync if targeting a DC |
+| LDAP on a DC | `LDAP/dc1.corp.local` | AD queries; potentially DCSync if targeting a DC |
 | SQL Server | `MSSQLSvc/hostname` or `MSSQLSvc/hostname:port` | Database access as any user |
 
 !!! danger "Silver Ticket to a Domain Controller's LDAP service"
@@ -91,36 +98,53 @@ is limited to the specific service (or services) whose key was compromised.
 
 ### Enable PAC Validation
 
-Force services to validate the KDC signature by contacting a domain controller:
+PAC validation is the check that catches a Silver Ticket, but it cannot be switched on for the
+services Silver Tickets are usually aimed at. When it runs, the server sends the PAC signatures
+to a domain controller over Netlogon, the DC checks the `PAC_PRIVSVR_CHECKSUM` using the
+`krbtgt` key, and a ticket with a fabricated KDC signature fails.
 
-```
-HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters
-  ValidateKdcPacSignature = 1 (DWORD)
-```
+Windows skips that step when the service runs as Local System, Network Service, or Local
+Service, or holds `SeTcbPrivilege` (see [PAC Signature Bypass](#pac-signature-bypass) above).
+Microsoft's own examples of services that skip it are "SMB File Shares, or LDAP servers"
+([KB5037754](https://support.microsoft.com/help/5037754)). That covers the `CIFS` and `LDAP`
+rows in the target table and, in general, Windows services that run as SYSTEM.
 
-When enabled, the service sends the PAC to a DC for verification. The DC checks the
-`PAC_PRIVSVR_CHECKSUM` using the `krbtgt` key. A Silver Ticket with a fabricated KDC signature
-will fail this check.
+!!! warning "`ValidateKdcPacSignature = 1` does not protect those services"
+    The `ValidateKdcPacSignature` value under
+    `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters` is not a Silver Ticket
+    mitigation for SMB, LDAP, or any other service with TCB privilege. Per
+    [Microsoft's description](https://learn.microsoft.com/en-us/archive/blogs/openspecification/understanding-microsoft-kerberos-pac-validation),
+    a value of `0` stops PAC validation "on a process that runs as a service" and `1` leaves it
+    "as usual"; it cannot turn validation on for a service that holds `SeTcbPrivilege`. Setting
+    it to `1` on a domain controller or file server changes nothing for a forged `CIFS` or
+    `LDAP` ticket.
 
-!!! tip "Performance consideration"
-    PAC validation adds a round trip to a domain controller for every service ticket validation.
-    Enable it on high-value services first (DCs, file servers with sensitive data, SQL servers).
+What the setting governs is the opposite case: a process that runs as a service under an
+ordinary account without TCB privilege. The same Microsoft description says "the default value
+in Windows Server 2008 for this entry is 0", so PAC validation for such a service is something
+an administrator turns on by setting the value to `1`, not something to assume (see
+[PAC Signatures](../../protocol/tickets.md#pac-signatures)). For everything else, the defenses are the ones below: keep the service
+keys from being stolen or cracked, and make a stolen key short-lived.
 
 ### Strong Passwords for User Service Accounts
 
 The service key is most commonly obtained by [Kerberoasting](../roasting/kerberoasting.md) user service
 accounts with weak passwords. Mitigate this by:
 
-- Using **Group Managed Service Accounts (gMSA)**: automatically rotating, 240-character
+- Using **Group Managed Service Accounts (gMSA)**: automatically rotating, 240-byte
   cryptographic random passwords that cannot be Kerberoasted in practice
 - Setting minimum 25-character random passwords for any user service account
 - Removing SPNs from accounts that do not need them
 
 ### Credential Guard
 
-Enable Credential Guard on service hosts to prevent LSASS memory extraction of computer account
-keys. This blocks the attacker from obtaining the key through local compromise of the service
-host.
+Credential Guard is not documented as protecting the computer account's own keys. Microsoft's
+list of what it protects is NTLM hashes, Kerberos TGTs, and stored domain credentials, and its
+policy reference gives the default for the machine password as "only LSASS-bound and stored in
+$MACHINE.ACC registry key"; isolating it is a separate setting, Machine Identity Isolation
+([DeviceGuard policy](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-deviceguard)),
+listed for Windows Insider Preview. Do not rely on Credential Guard to keep a host's service
+key from a local administrator.
 
 ### Computer Account Password Rotation
 
@@ -149,12 +173,43 @@ before being presented to the service. A Silver Ticket skips the TGS Exchange. L
   corresponding **Event 4769** at the DC for the same user and service
 - This requires cross-correlating events between the target host and the DC
 
+The documented key for that correlation is the **Logon GUID**. Microsoft describes the field in
+4769 as "a GUID that can help you correlate this event (on a domain controller) with other
+events (on the target computer for which the TGS was issued) that can contain the same Logon
+GUID", and names 4624 as one of them. It "might not be captured", in which case it is all
+zeros.
+
+As a raw "4624 without 4769" query this matches normal activity too, for reasons that follow
+from how the events are written:
+
+- Event 4769 is logged when the ticket is **issued**, not when it is used. A client reuses a
+  cached service ticket for its whole lifetime (10 hours by default), so most Kerberos logons
+  have no 4769 near them in time
+- The 4769 is on whichever domain controller issued the ticket. Collect from all of them
+- Only Kerberos logons have a 4769 at all. Restrict the 4624 side to
+  `Authentication Package` = `Kerberos`
+- Event 4624 needs the Audit Logon subcategory on the target host, and 4769 needs Audit
+  Kerberos Service Ticket Operations on the domain controllers
+
 ### PAC Validation Failures
 
-If `ValidateKdcPacSignature` is enabled, failed PAC validation generates events:
+Failed PAC validation generates events only where PAC validation runs, which excludes services
+with TCB privilege such as SMB and LDAP (see [Defend](#enable-pac-validation)). For a service
+that is validated, [KB5037754](https://support.microsoft.com/help/5037754) defines the events,
+logged in the System log of the server that accepted the connection (updates of April 9, 2024
+or later):
 
-- The service contacts the DC, the DC rejects the PAC signature, and the authentication fails
-- Monitor for authentication failures on services with PAC validation enabled
+| Event | Source | Meaning |
+|---|---|---|
+| 22 | Security-Kerberos | The service ticket "was denied by DC" during the validation request; the event text carries the reason and error code |
+| 21 | Security-Kerberos | The DC took a non-fatal action, such as filtering SIDs |
+| 23 | Security-Kerberos | The validation request could not be forwarded to a domain controller |
+| 5842 / 5843 | Netlogon | Netlogon hit an unexpected error, or could not forward the request (5843 is off by default) |
+
+A forged service ticket that is handed back to a KDC, for example as evidence in S4U2Proxy,
+meets the KDC's own signature checks instead. A ticket whose full PAC signature fails or is
+missing is logged by the KDC as System event 43 or 44
+([KB5020805](https://support.microsoft.com/help/5020805)).
 
 ### Anomalous Access Patterns
 
@@ -168,7 +223,7 @@ If `ValidateKdcPacSignature` is enabled, failed PAC validation generates events:
 |---|---|---|
 | 4624 (type 3) | Target host | Network logon from unexpected source |
 | 4634 | Target host | Logoff following suspicious 4624 |
-| 4769 | Domain controller | **Absence** of this event for the session in 4624 |
+| 4769 | Domain controller | **Absence** of this event for the session in 4624 (match on Logon GUID; see the caveats under [Missing TGS Request](#missing-tgs-request)) |
 | 4672 | Target host | Special privilege logon -- indicates the forged PAC claimed admin rights |
 
 ---
@@ -193,7 +248,7 @@ If `ValidateKdcPacSignature` is enabled, failed PAC validation generates events:
     For a user service account, Kerberoast and crack the ticket:
 
     ```bash
-    kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u jsmith -p 'Password1!' -t svc_sql
+    kw-roast -d CORP.LOCAL --dc-ip 192.0.2.10 -u jsmith -p '<password>' -t svc_sql
     hashcat -m 13100 hash.txt wordlist.txt
     ```
 

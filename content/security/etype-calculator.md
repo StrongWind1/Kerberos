@@ -1,4 +1,5 @@
 ---
+description: Convert msDS-SupportedEncryptionTypes, DefaultDomainSupportedEncTypes and the Kerberos GPO value between decimal, hex and bit flags.
 hide:
   - navigation
   - toc
@@ -10,165 +11,197 @@ Three settings control Kerberos encryption types in Active Directory, and each o
 interprets the same bitmask differently.  Use this calculator to convert between
 decimal, hex, and individual flags for any of the three settings.
 
+The calculator converts and explains values.  It does not simulate which etype the
+KDC issues for a given account, client and DC; for that, use the
+[Etype Decision Guide](etype-decision-guide.md).
+
 For the full reference on each setting, see
 [msDS-SupportedEncryptionTypes](msds-supported.md),
 [Registry Settings](registry.md), and
 [Group Policy](group-policy.md).
 
 <div id="etype-calculator">
-<div class="etype-tabs">
-  <button class="etype-tab etype-tab--active" data-setting="msds">msDS-SupportedEncryptionTypes</button>
-  <button class="etype-tab" data-setting="default">DefaultDomainSupportedEncTypes</button>
-  <button class="etype-tab" data-setting="gpo">SupportedEncryptionTypes (GPO)</button>
+<div class="etype-tabs" role="group" aria-label="Setting to interpret the value for">
+  <button type="button" class="etype-tab etype-tab--active" data-setting="msds" aria-pressed="true">msDS-SupportedEncryptionTypes</button>
+  <button type="button" class="etype-tab" data-setting="default" aria-pressed="false">DefaultDomainSupportedEncTypes</button>
+  <button type="button" class="etype-tab" data-setting="gpo" aria-pressed="false">SupportedEncryptionTypes (GPO)</button>
 </div>
 <p id="etype-setting-desc" class="etype-setting-desc"></p>
-<div id="etype-status" class="etype-status"></div>
+<div id="etype-status" class="etype-status" role="status"></div>
 <div class="etype-calc-grid">
 <div class="etype-bits">
-<h3>Bit Flags</h3>
+<h2>Bit Flags</h2>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="1">
+    <input type="checkbox" class="etype-cb" value="1" data-bit="0" aria-describedby="etype-note-0">
     <span class="etype-bit-info"><code>0x1</code> (1)</span>
     <span class="etype-bit-name">DES-CBC-CRC</span>
     <span class="etype-bit-etype">etype 1</span>
     <span class="etype-bit-badge etype-bit-badge--removed">Removed</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-0"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="2">
+    <input type="checkbox" class="etype-cb" value="2" data-bit="1" aria-describedby="etype-note-1">
     <span class="etype-bit-info"><code>0x2</code> (2)</span>
     <span class="etype-bit-name">DES-CBC-MD5</span>
     <span class="etype-bit-etype">etype 3</span>
     <span class="etype-bit-badge etype-bit-badge--removed">Removed</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-1"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="4">
+    <input type="checkbox" class="etype-cb" value="4" data-bit="2" aria-describedby="etype-note-2">
     <span class="etype-bit-info"><code>0x4</code> (4)</span>
     <span class="etype-bit-name">RC4-HMAC</span>
     <span class="etype-bit-etype">etype 23</span>
     <span class="etype-bit-badge etype-bit-badge--deprecated">Deprecated</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-2"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="8">
+    <input type="checkbox" class="etype-cb" value="8" data-bit="3" aria-describedby="etype-note-3">
     <span class="etype-bit-info"><code>0x8</code> (8)</span>
     <span class="etype-bit-name">AES128-CTS-HMAC-SHA1-96</span>
     <span class="etype-bit-etype">etype 17</span>
     <span class="etype-bit-badge etype-bit-badge--recommended">Recommended</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-3"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="16">
+    <input type="checkbox" class="etype-cb" value="16" data-bit="4" aria-describedby="etype-note-4">
     <span class="etype-bit-info"><code>0x10</code> (16)</span>
     <span class="etype-bit-name">AES256-CTS-HMAC-SHA1-96</span>
     <span class="etype-bit-etype">etype 18</span>
     <span class="etype-bit-badge etype-bit-badge--recommended">Recommended</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-4"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="32">
+    <input type="checkbox" class="etype-cb" value="32" data-bit="5" aria-describedby="etype-note-5">
     <span class="etype-bit-info"><code>0x20</code> (32)</span>
     <span class="etype-bit-name">AES256-CTS-HMAC-SHA1-96-SK</span>
     <span class="etype-bit-etype">session key</span>
     <span class="etype-bit-badge etype-bit-badge--special">AES-SK</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-5"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="65536">
+    <input type="checkbox" class="etype-cb" value="64" data-bit="6" aria-describedby="etype-note-6">
+    <span class="etype-bit-info"><code>0x40</code> (64)</span>
+    <span class="etype-bit-name">AES128-CTS-HMAC-SHA256-128</span>
+    <span class="etype-bit-etype">etype 19</span>
+    <span class="etype-bit-badge etype-bit-badge--neutral">Off by default</span>
+  </label>
+  <span class="etype-bit-ignored-note" id="etype-note-6"></span>
+</div>
+<div class="etype-bit-row">
+  <label>
+    <input type="checkbox" class="etype-cb" value="128" data-bit="7" aria-describedby="etype-note-7">
+    <span class="etype-bit-info"><code>0x80</code> (128)</span>
+    <span class="etype-bit-name">AES256-CTS-HMAC-SHA384-192</span>
+    <span class="etype-bit-etype">etype 20</span>
+    <span class="etype-bit-badge etype-bit-badge--neutral">Off by default</span>
+  </label>
+  <span class="etype-bit-ignored-note" id="etype-note-7"></span>
+</div>
+<div class="etype-bit-row">
+  <label>
+    <input type="checkbox" class="etype-cb" value="65536" data-bit="16" aria-describedby="etype-note-16">
     <span class="etype-bit-info"><code>0x10000</code></span>
     <span class="etype-bit-name">FAST-supported</span>
     <span class="etype-bit-etype">bit 16</span>
     <span class="etype-bit-badge etype-bit-badge--feature">Feature</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-16"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="131072">
+    <input type="checkbox" class="etype-cb" value="131072" data-bit="17" aria-describedby="etype-note-17">
     <span class="etype-bit-info"><code>0x20000</code></span>
     <span class="etype-bit-name">Compound-identity-supported</span>
     <span class="etype-bit-etype">bit 17</span>
     <span class="etype-bit-badge etype-bit-badge--feature">Feature</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-17"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="262144">
+    <input type="checkbox" class="etype-cb" value="262144" data-bit="18" aria-describedby="etype-note-18">
     <span class="etype-bit-info"><code>0x40000</code></span>
     <span class="etype-bit-name">Claims-supported</span>
     <span class="etype-bit-etype">bit 18</span>
     <span class="etype-bit-badge etype-bit-badge--feature">Feature</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-18"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="524288">
+    <input type="checkbox" class="etype-cb" value="524288" data-bit="19" aria-describedby="etype-note-19">
     <span class="etype-bit-info"><code>0x80000</code></span>
     <span class="etype-bit-name">Resource-SID-compression-disabled</span>
     <span class="etype-bit-etype">bit 19</span>
     <span class="etype-bit-badge etype-bit-badge--feature">Feature</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-19"></span>
 </div>
 <div class="etype-bit-row">
   <label>
-    <input type="checkbox" class="etype-cb" value="2147483648">
-    <span class="etype-bit-info"><code>0x80000000</code></span>
+    <input type="checkbox" class="etype-cb" value="2147483616" data-bit="future" aria-describedby="etype-note-future">
+    <span class="etype-bit-info"><code>0x7FFFFFE0</code></span>
     <span class="etype-bit-name">Future encryption types</span>
-    <span class="etype-bit-etype">bit 31</span>
-    <span class="etype-bit-badge etype-bit-badge--neutral">Future</span>
+    <span class="etype-bit-etype">bits 5-30</span>
+    <span class="etype-bit-badge etype-bit-badge--neutral">GPO</span>
   </label>
-  <span class="etype-bit-ignored-note"></span>
+  <span class="etype-bit-ignored-note" id="etype-note-future"></span>
 </div>
 </div>
 <div class="etype-values">
-<h3>Values</h3>
+<h2>Values</h2>
 <div class="etype-field">
   <label for="etype-dec">Decimal</label>
   <div class="etype-input-row">
-    <input type="number" id="etype-dec" min="0" max="4294967295" value="0">
-    <button class="etype-copy-btn" id="etype-copy-dec" title="Copy decimal value">Copy</button>
+    <input type="text" inputmode="numeric" autocomplete="off" spellcheck="false" id="etype-dec" value="0" aria-describedby="etype-input-msg">
+    <button type="button" class="etype-copy-btn" id="etype-copy-dec" title="Copy decimal value">Copy</button>
   </div>
 </div>
 <div class="etype-field">
   <label for="etype-hex">Hexadecimal</label>
   <div class="etype-input-row">
-    <input type="text" id="etype-hex" value="0x0">
-    <button class="etype-copy-btn" id="etype-copy-hex" title="Copy hex value">Copy</button>
+    <input type="text" autocomplete="off" spellcheck="false" id="etype-hex" value="0x0" aria-describedby="etype-input-msg">
+    <button type="button" class="etype-copy-btn" id="etype-copy-hex" title="Copy hex value">Copy</button>
   </div>
 </div>
+<p id="etype-input-msg" class="etype-input-msg" role="alert"></p>
 <div class="etype-field">
   <label for="etype-flags">Flag Names</label>
   <div class="etype-input-row">
-    <input type="text" id="etype-flags" value="(not set)" readonly>
-    <button class="etype-copy-btn" id="etype-copy-flags" title="Copy flag names">Copy</button>
+    <output id="etype-flags" class="etype-flags" for="etype-dec etype-hex" aria-live="off">(not set)</output>
+    <button type="button" class="etype-copy-btn" id="etype-copy-flags" title="Copy flag names">Copy</button>
   </div>
 </div>
-<h3>Quick Presets</h3>
+<p class="etype-link-row">
+  <button type="button" class="etype-copy-btn" id="etype-copy-link" title="Copy a link that reopens this setting and value">Copy link to this value</button>
+</p>
+<h2>Quick Presets</h2>
 <div id="etype-presets" class="etype-presets"></div>
-<h3>Warnings</h3>
-<div id="etype-warnings" class="etype-warnings" style="display:none"></div>
+<h2>Warnings</h2>
+<div id="etype-warnings" class="etype-warnings" aria-live="polite" style="display:none"></div>
 <p id="etype-no-warnings" class="etype-no-warnings">No warnings for the current configuration.</p>
-<h3>PowerShell Command</h3>
+<p class="etype-link-row">
+  <button type="button" class="etype-copy-btn" id="etype-clear-undefined" hidden>Clear undefined bits</button>
+</p>
+<p id="etype-derived" class="etype-derived" aria-live="polite" hidden></p>
+<h2 id="etype-ps-heading">PowerShell Command</h2>
 <div class="etype-ps-block">
-  <pre><code id="etype-powershell"></code></pre>
-  <button class="etype-copy-btn" id="etype-copy-ps" title="Copy PowerShell command">Copy</button>
+  <pre id="etype-powershell" class="etype-ps" role="region" tabindex="0" aria-labelledby="etype-ps-heading"></pre>
+  <button type="button" class="etype-copy-btn" id="etype-copy-ps" title="Copy PowerShell command">Copy</button>
 </div>
 </div>
 </div>
@@ -183,65 +216,20 @@ interpret certain bits differently.
 
 | Setting | Where | Scope | Key Difference |
 |---|---|---|---|
-| `msDS-SupportedEncryptionTypes` | AD attribute on each account | Per-account | Carries etype bits (0-5), protocol feature flags (16-19), and the future flag (31).  AES-SK (bit 5) is honored here.  Always overrides the other two settings. |
-| `DefaultDomainSupportedEncTypes` | `HKLM\...\Services\KDC` on each DC | Per-DC (not replicated) | AES-SK (bit 5) is **honored** here.  Bits 16-19 and 31 are not meaningful. |
-| `SupportedEncryptionTypes` | `HKLM\...\Policies\System\Kerberos\Parameters` | Per-machine (written by GPO) | Acts as a hard **filter**.  The GPO "Future encryption types" checkbox sets bits 5-30 (`0x7FFFFFE0`), not bit 31.  High bits are stripped when the machine auto-writes its AD attribute. |
+| `msDS-SupportedEncryptionTypes` | AD attribute on each account | Per-account | When non-zero it **is** the account's effective etype set; the two fallbacks below are not consulted.  Carries etype bits (0-7) and protocol feature flags (16-19).  AES-SK (bit 5) is honored here.  It does not bypass the KDC filter: if nothing in the set passes the filter, or the account has no key for it, the request fails with `KDC_ERR_ETYPE_NOSUPP`. |
+| `DefaultDomainSupportedEncTypes` | `HKLM\SYSTEM\CurrentControlSet\Services\Kdc` on each DC | Per-DC (not replicated) | The effective set for accounts whose `msDS-SupportedEncryptionTypes` is 0 or unset.  When the value is absent the build default applies: `0x27` before the April 2026 cumulative update, `0x18` (AES only) on it or later.  AES-SK (bit 5) is **honored** here.  Bits 16-19 are ignored. |
+| `SupportedEncryptionTypes` | `HKLM\...\Policies\System\Kerberos\Parameters` | Per-machine (written by GPO) | On any machine: the etypes its Kerberos client offers.  On a DC it is also the KDC **filter**: it needs a KDC restart, and it is not recorded in events 4768/4769.  On Server 2025 the lab saw only the `Lsa\Kerberos\Parameters` path honored.  The GPO "Future encryption types" checkbox sets bits 5-30 (`0x7FFFFFE0`), not bit 31.  A computer writes only the low five bits to its own AD attribute. |
 
-For the full precedence rules and 14 worked examples, see
+For the full precedence rules and worked examples, see
 [Etype Decision Guide](etype-decision-guide.md).
 
 ---
 
 ## Bit Flag Reference
 
-Source: [MS-KILE] section 2.2.7 — Supported Encryption Types Bit Flags.
+--8<-- "includes/etype-bits.md"
 
-### Encryption Type Bits (0-5)
-
-| Bit | Hex | Decimal | Name | Etype # | Status |
-|---|---|---|---|---|---|
-| 0 | `0x1` | 1 | DES-CBC-CRC | 1 | Removed in Server 2025 |
-| 1 | `0x2` | 2 | DES-CBC-MD5 | 3 | Removed in Server 2025 |
-| 2 | `0x4` | 4 | RC4-HMAC | 23 | Deprecated (July 2026) |
-| 3 | `0x8` | 8 | AES128-CTS-HMAC-SHA1-96 | 17 | **Recommended** |
-| 4 | `0x10` | 16 | AES256-CTS-HMAC-SHA1-96 | 18 | **Recommended** |
-| 5 | `0x20` | 32 | AES256-CTS-HMAC-SHA1-96-SK | — | Session key variant (Nov 2022+).  Honored in both `DefaultDomainSupportedEncTypes` and per-account `msDS-SupportedEncryptionTypes`. |
-
-### Protocol Feature Flags (16-19)
-
-These bits are **not encryption types** — they are protocol feature flags defined in
-[MS-KILE] section 2.2.7 and stored in the same `msDS-SupportedEncryptionTypes` bitmask.
-They are only meaningful on the AD attribute, not in registry-based settings.
-
-| Bit | Hex | Decimal | Name | Introduced | Description |
-|---|---|---|---|---|---|
-| 16 | `0x10000` | 65536 | FAST-supported | Server 2012 | Account supports Kerberos armoring ([RFC 6113]) |
-| 17 | `0x20000` | 131072 | Compound-identity-supported | Server 2012 | Account supports compound identity for Dynamic Access Control |
-| 18 | `0x40000` | 262144 | Claims-supported | Server 2012 | Account supports claims-based authentication |
-| 19 | `0x80000` | 524288 | Resource-SID-compression-disabled | Server 2012 | Disables resource SID compression in the PAC |
-
-### AES-SHA2 Encryption Types (6-7)
-
-Windows Server 2025 introduces two new AES encryption types that use SHA-2 based key
-derivation instead of SHA-1[^aes-sha2].  These bits are defined in the bitmask but are
-**not yet active in etype negotiation** as of April 2026.
-
-| Bit | Hex | Decimal | Name | Etype # | Status |
-|---|---|---|---|---|---|
-| 6 | `0x40` | 64 | AES128-CTS-HMAC-SHA256-128 | 19 | Defined, not yet active |
-| 7 | `0x80` | 128 | AES256-CTS-HMAC-SHA384-192 | 20 | Defined, not yet active |
-
-[^aes-sha2]: These algorithms are defined in Microsoft's
-    [PSKerb](https://github.com/microsoft/Kerberos-Crypto/tree/main/PSKerb) module and
-    appear in the `Get-KerbEncryptionUsage.ps1` etype table.  They correspond to
-    [RFC 8009](https://datatracker.ietf.org/doc/html/rfc8009) (AES Encryption with
-    HMAC-SHA2 for Kerberos 5).  When activated, they will replace the SHA-1 based AES
-    variants (bits 3-4) as the strongest available etypes.
-
-### Reserved and Future Bits
-
-| Bit | Hex | Decimal | Name | Notes |
-|---|---|---|---|---|
-| 8-15 | — | — | Reserved | Must be zero |
-| 20-30 | — | — | Reserved | Must be zero |
-| 31 | `0x80000000` | 2147483648 | Future encryption types | Allows future etypes added by Microsoft |
+The Group Policy "Future encryption types" checkbox is not a bit of its own.  It
+writes bits 5-30 as one unit (`0x7FFFFFE0`, decimal 2147483616) to the
+`SupportedEncryptionTypes` registry value, which is why the calculator shows it as
+a single row and only enables it on the GPO tab.

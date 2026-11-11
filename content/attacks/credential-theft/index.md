@@ -7,8 +7,12 @@ discovery, or reuse stolen Kerberos artifacts (tickets and keys) to impersonate 
 [roasting attacks](../roasting/index.md), which require offline cracking, the attacks in this
 category either test credentials in real time against the KDC or replay stolen material directly.
 
-Most of these attacks require nothing more than network access to the domain controller on
-port 88 -- no domain membership, no LDAP bind, and no existing credentials.
+Two of these attacks -- password spraying and user enumeration -- require nothing more than
+network access to the domain controller on port 88: no domain membership, no LDAP bind, and no
+existing credentials. Pass-the-Ticket and Pass-the-Key start from a ticket or key the attacker
+has already stolen.
+
+--8<-- "includes/authorized-use.md"
 
 ---
 
@@ -42,8 +46,10 @@ kerbwolf tools handle the offensive side:
 
 ## Common Defenses
 
-- **Credential Guard** -- isolate LSASS secrets to prevent ticket and key extraction
-- **Protected Users group** -- disable NTLM caching, reduce TGT lifetime to 4 hours, force AES
+- **Credential Guard** -- isolates NTLM hashes and Kerberos TGTs outside LSASS; service tickets
+  are not protected
+- **Protected Users group** -- no NTLM authentication, a 4-hour TGT that cannot be renewed, and
+  no DES or RC4 in Kerberos pre-authentication
 - **Short TGT lifetimes** -- limit the window during which a stolen ticket is usable
 - **Account lockout policies** -- limit password spraying attempts (but beware of lockout-based
   denial of service)

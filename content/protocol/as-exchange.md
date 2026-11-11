@@ -1,8 +1,12 @@
+---
+description: Step-by-step walkthrough of the Kerberos AS exchange in Active Directory -- pre-authentication, PA-ETYPE-INFO2, the TGT, and the TGT session key.
+---
+
 # AS Exchange (Authentication Service)
 
 The AS exchange is the first step in Kerberos authentication. It is how a client proves its identity to the KDC and obtains a **Ticket-Granting Ticket (TGT)** -- the credential that unlocks access to everything else. This exchange typically happens once per login session.
 
-Per [RFC 4120 &sect;3.1]: "The Authentication Service (AS) Exchange between the client and the Kerberos Authentication Server is initiated by a client when it wishes to obtain authentication credentials for a given server but currently holds no credentials."
+Per [RFC 4120 &sect;3.1](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1): "The Authentication Service (AS) Exchange between the client and the Kerberos Authentication Server is initiated by a client when it wishes to obtain authentication credentials for a given server but currently holds no credentials."
 
 ---
 
@@ -13,13 +17,13 @@ The AS exchange accomplishes two things:
 1. **The client proves it knows the password** (or more precisely, the secret key derived from the password) without sending it over the network.
 2. **The KDC issues a TGT and a TGT Session Key** that the client will use for all subsequent TGS requests.
 
-After this exchange, the password-derived key is no longer needed until the TGT expires. This is the foundation of Single Sign-On: type your password once, then use the TGT for hours.
+After this exchange, the protocol does not need the password-derived key again until the TGT can no longer be renewed. This is the foundation of Single Sign-On: type your password once, then use the TGT for hours.
 
 ---
 
 ## Step-by-Step: AS Exchange with Pre-Authentication
 
-In Active Directory, pre-authentication is **required by default** for all accounts. This prevents an attacker from requesting a TGT for any username and attempting to crack the response offline. The following walkthrough uses Alice (`alice@CORP.LOCAL`) as the client.
+In Active Directory, pre-authentication is **required by default** for all accounts. This prevents an attacker from requesting a TGT for any username and attempting to crack the response offline. The following walkthrough uses Alice (`alice@CORP.LOCAL`) as the client. It shows a client that sends its first request without pre-authentication data and learns the salt from the KDC's error reply; [Pre-Authentication](preauth.md#how-the-flow-works) quotes what MS-KILE says about the initial request, which differs.
 
 ### Step 1: Initial AS-REQ (no pre-auth data)
 
@@ -44,7 +48,7 @@ The KDC finds Alice's account in Active Directory and sees that pre-authenticati
 | `error-code` | `KDC_ERR_PREAUTH_REQUIRED` (25) | Pre-authentication is needed |
 | `e-data` | PA-ETYPE-INFO2 | Tells the client which encryption types the KDC accepts and provides the **salt** for key derivation |
 
-The salt is critical. For AES encryption types in Active Directory, the salt is typically `CORP.LOCALalice` (realm + sAMAccountName). The client needs this salt to correctly derive the secret key from the password. Per [RFC 4120 &sect;3.1.3], the KDC sends PA-ETYPE-INFO2 to provide the salt and encryption type parameters.
+The salt is critical. For AES encryption types in Active Directory, the salt is typically `CORP.LOCALalice` (realm + sAMAccountName). The client needs this salt to correctly derive the secret key from the password. Per [RFC 4120 &sect;3.1.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1.3), the KDC sends PA-ETYPE-INFO2 to provide the salt and encryption type parameters.
 
 !!! info "Why the salt matters"
     The salt ensures that two users with the same password end up with different secret keys. Without a salt, identical passwords would produce identical keys, making dictionary attacks easier. For the RC4-HMAC encryption type, no salt is used -- the key is simply `MD4(password)` -- which is one reason RC4 is considered weaker. See the [Encryption Types](encryption.md) page for details.
@@ -55,7 +59,7 @@ The workstation now has the information it needs. It:
 
 1. Takes Alice's plaintext password
 2. Combines it with the salt received from the KDC
-3. Runs the **string-to-key** function (per [RFC 3961]) for the selected encryption type to produce the **secret key**
+3. Runs the **string-to-key** function (per [RFC 3961](https://datatracker.ietf.org/doc/html/rfc3961)) for the selected encryption type to produce the **secret key**
 4. Encrypts the current timestamp using this key, producing the `PA-ENC-TIMESTAMP` pre-authentication data
 
 ### Step 4: Second AS-REQ (with pre-authentication)
@@ -78,11 +82,11 @@ The KDC retrieves Alice's stored secret key from the AD database and attempts to
 1. **Decryption succeeds**: This proves Alice knows the correct password (since only the correct key can produce a valid decryption).
 2. **Timestamp is within the clock skew window**: The decrypted timestamp must be within 5 minutes of the KDC's clock. This prevents replay of old pre-authentication data.
 
-If decryption fails, the KDC returns `KDC_ERR_PREAUTH_FAILED`. If the timestamp is outside the skew window, the KDC returns `KRB_AP_ERR_SKEW`.
+If decryption fails, the KDC returns `KDC_ERR_PREAUTH_FAILED`. If the timestamp is outside the skew window, the KDC returns `KRB_AP_ERR_SKEW` (result code `0x25` in Microsoft's reference for [event 4768](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4768), the TGT request event).
 
 ### Step 6: KDC generates the TGT Session Key
 
-If pre-authentication passes, the KDC generates a random **TGT Session Key**. This is a short-lived symmetric key that the client and KDC will share for all subsequent TGS exchanges. Per [RFC 4120 &sect;3.1.3], this key should be generated from a cryptographically strong random number source.
+If pre-authentication passes, the KDC generates a random **TGT Session Key**. This is a short-lived symmetric key that the client and KDC will share for all subsequent TGS exchanges. Per [RFC 4120 &sect;3.1.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1.3), this key should be generated from a cryptographically strong random number source.
 
 ### Step 7: KDC builds the TGT
 
@@ -131,9 +135,12 @@ The workstation decrypts the encrypted part using Alice's secret key and extract
 - The **nonce** (verified against the nonce in the original request to prevent replay)
 - **Timestamps** (validated for sanity)
 
-The client also verifies that the nonce in the response matches the nonce it sent. Per [RFC 4120 &sect;3.1.5], this is essential to ensure the response is not a replay of an old AS-REP.
+The client also verifies that the nonce in the response matches the nonce it sent. Per [RFC 4120 &sect;3.1.5](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1.5), this is essential to ensure the response is not a replay of an old AS-REP.
 
-The TGT itself is stored in the **ticket cache** (volatile memory). The workstation can now discard the password-derived secret key from memory -- it will not be needed again until the TGT expires or the user needs to re-authenticate.
+The TGT itself is stored in the **ticket cache** (volatile memory), together with the TGT Session Key.
+
+!!! warning "Windows keeps the long-term keys in memory"
+    As far as the protocol is concerned, the password-derived key has done its job once the AS-REP is decrypted. Windows does **not** discard it, though. LSASS keeps the user's long-term keys for the lifetime of the logon session so that it can obtain a new TGT without prompting when the old one can no longer be renewed, and so that it can fall back to NTLM. That cached key material is what [Pass-the-Key](../attacks/credential-theft/pass-the-key.md) and related credential-theft techniques go after. Membership in Protected Users and Credential Guard change what is cached and where; see [Mitigations](../security/mitigations.md).
 
 ---
 
@@ -161,7 +168,7 @@ The client is essentially carrying a sealed letter (the TGT) that it cannot read
 
 When a TGT approaches expiration, the client can **renew** it by sending a TGS request with the `RENEW` option set, presenting the existing TGT. The KDC issues a new TGT with a fresh expiration time, as long as the current time is within the `renew-till` window. Renewal does not require the user to re-enter their password.
 
-After the renewal window expires (7 days by default), the user must re-authenticate with their password through a new AS exchange.
+After the renewal window expires (7 days by default), the TGT can no longer be renewed and a new AS exchange is needed. For the protocol that means proving knowledge of the password-derived key again. It does not necessarily mean a password prompt: as described [above](#step-9-client-processes-the-response), Windows keeps the user's long-term keys for the logon session and can run the new AS exchange with them. Members of Protected Users are the exception, because for them Kerberos "doesn't cache the user's plaintext credentials, or long-term keys after acquiring the initial Ticket Granting Ticket" ([Protected Users security group](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group)).
 
 ---
 
@@ -191,17 +198,17 @@ sequenceDiagram
         KDC-->>C: KRB-AS-REP<br/>(TGT + enc-part containing TGT Session Key)
     end
 
-    Note over C: Decrypt enc-part with secret key<br/>Verify nonce matches request<br/>Extract and cache TGT Session Key<br/>Cache TGT<br/>Discard password-derived key
+    Note over C: Decrypt enc-part with secret key<br/>Verify nonce matches request<br/>Extract and cache TGT Session Key<br/>Cache TGT
 ```
 
 ---
 
-## Key Takeaways
+## Summary
 
 - The password is used **only on the workstation** to derive a secret key. It never leaves the machine.
 - The KDC validates the client by decrypting a timestamp -- not by receiving the password.
 - The TGT is encrypted with the KRBTGT key, making it **opaque to the client** and tamper-proof.
-- After obtaining the TGT, the client no longer needs the password-derived key. This is what enables Single Sign-On.
-- The TGT has a finite lifetime (default 10 hours). Once it expires, the user must re-authenticate or renew.
+- After obtaining the TGT, the protocol no longer needs the password-derived key. This is what enables Single Sign-On. Windows still caches that key in LSASS for the logon session.
+- The TGT has a finite lifetime (default 10 hours). Once it expires, it has to be renewed or replaced through a new AS exchange.
 
 Next: the [TGS Exchange](tgs-exchange.md), where the client uses the TGT to obtain service tickets.

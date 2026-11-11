@@ -1,7 +1,28 @@
 {% extends "base.html" %}
 
+{#
+  The theme writes "<page title> - <site name>" for every page it does not consider the
+  home page, and the home page here sits inside a nav section, so its title came out as
+  the site name twice.
+#}
+{% block htmltitle %}
+  {% if page and page.title and page.title | striptags == config.site_name %}
+    <title>{{ config.site_name }}</title>
+  {% else %}
+    {{ super() }}
+  {% endif %}
+{% endblock %}
+
+{#
+  Site-wide announcement. Keep this free of countdowns and future dates: it is
+  shown on every page and nothing rebuilds it when a date passes.
+
+  The middle sentence is the detail; extra.css hides .announce-detail on narrow
+  screens, where the whole bar otherwise takes four lines above every page.
+#}
 {% block announce %}
-  <strong>RC4 enforcement begins April 2026.</strong>
-  Accounts without explicit <code>msDS-SupportedEncryptionTypes</code> will default to AES-only.
-  {% for p in nav.pages %}{% if p.file.src_path == 'security/rc4-deprecation.md' %}<a href="{{ p.url | url }}">Read the timeline &rarr;</a>{% endif %}{% endfor %}
+  <strong>RC4 is no longer a Kerberos default.</strong>
+  <span class="announce-detail">Domain controllers with the April 2026 update or later treat accounts without an explicit
+  <code>msDS-SupportedEncryptionTypes</code> as AES-only by default.</span>
+  {% for p in nav.pages %}{% if p.file.src_path == 'security/enforcement-triage.md' %}<a href="{{ p.url | url }}">Seeing <code>KDC_ERR_ETYPE_NOSUPP</code>? Start here &rarr;</a>{% endif %}{% endfor %}
 {% endblock %}

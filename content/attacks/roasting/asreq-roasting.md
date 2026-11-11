@@ -2,15 +2,17 @@
 
 AS-REQ Roasting extracts crackable hashes from Kerberos pre-authentication traffic captured passively on the network. Unlike Kerberoasting and AS-REP Roasting, this attack does not require any interaction with the KDC -- the attacker simply observes legitimate authentication traffic.
 
+**MITRE ATT&CK:** [T1040](https://attack.mitre.org/techniques/T1040/) Network Sniffing; [T1110.002](https://attack.mitre.org/techniques/T1110/002/) Brute Force: Password Cracking
+
 ## How It Works
 
-During a standard [AS Exchange](../../protocol/as-exchange.md), the client proves its identity by encrypting a timestamp with its long-term key. This encrypted timestamp is the `PA-ENC-TIMESTAMP` field in the AS-REQ's pre-authentication data ([RFC 4120 &sect;5.2.7.2]).
+During a standard [AS Exchange](../../protocol/as-exchange.md), the client proves its identity by encrypting a timestamp with its long-term key. This encrypted timestamp is the `PA-ENC-TIMESTAMP` field in the AS-REQ's pre-authentication data ([RFC 4120 &sect;5.2.7.2](https://datatracker.ietf.org/doc/html/rfc4120#section-5.2.7.2)).
 
 Every time a user authenticates to the domain -- at workstation logon, screen unlock, accessing a new service -- their client sends an AS-REQ containing this encrypted timestamp. The encryption key is derived from the user's password:
 
 - **RC4-HMAC** (etype 23): key = `MD4(UTF-16LE(password))` -- no salt, no iterations
-- **AES256** (etype 18): key = `PBKDF2-SHA1(password, salt, 4096)` where salt = `<REALM><principal>`
-- **AES128** (etype 17): key = `PBKDF2-SHA1(password, salt, 4096)` with a different constant
+- **AES256** (etype 18): key = `DK(PBKDF2-HMAC-SHA1(password, salt, 4096, 32 bytes), "kerberos")` where salt = `<REALM><principal>` ([RFC 3962 &sect;4](https://datatracker.ietf.org/doc/html/rfc3962#section-4))
+- **AES128** (etype 17): the same derivation with a 16-byte key
 
 An attacker positioned on the network between clients and the KDC can capture these AS-REQ packets and extract the encrypted timestamp. Since the plaintext is a known structure (a timestamp in ASN.1 DER encoding with a predictable format), the attacker has both the ciphertext and a strong guess at the plaintext structure, enabling offline cracking.
 
@@ -56,7 +58,9 @@ The encryption type used in the AS-REQ is determined by the client's configurati
 
 ### AES Enforcement
 
-Enforcing AES for Kerberos pre-authentication is the single most effective mitigation. AES pre-authentication uses PBKDF2 with 4096 iterations, making each cracking attempt thousands of times slower than RC4. See [Group Policy](../../security/group-policy.md) and [RC4 Deprecation](../../security/rc4-deprecation.md) for configuration details.
+Enforcing AES for Kerberos pre-authentication is the single most effective mitigation. AES pre-authentication uses PBKDF2 with 4096 iterations, making each cracking attempt hundreds of times slower than RC4 (the table above). See [Group Policy](../../security/group-policy.md) and [RC4 Deprecation](../../security/rc4-deprecation.md) for configuration details.
+
+The April 2026 RC4 default change (CVE-2026-20833) does not do this. It applies to service tickets only, and in this site's lab the AS exchange behaved the same before and after it. In this site's lab, removing RC4 from the domain controller's own Kerberos encryption-type policy also blocked RC4 pre-authentication (seen on one pre-April 2026 Server 2022 build, not re-run on later builds); that step requires every user to have AES keys first.
 
 ### Network Segmentation
 
@@ -70,15 +74,17 @@ Specific measures:
 
 ### FAST Armor (Kerberos Armoring)
 
-Flexible Authentication Secure Tunneling (FAST), defined in [RFC 6113], wraps the entire AS exchange inside an encrypted tunnel. This prevents eavesdroppers from seeing the `PA-ENC-TIMESTAMP` at all, completely neutralizing passive capture attacks.
+Flexible Authentication Secure Tunneling (FAST), defined in [RFC 6113], wraps the AS exchange inside an encrypted tunnel, so an eavesdropper does not see the user's `PA-ENC-TIMESTAMP`. The protection has two limits. The tunnel for a user's AS exchange is keyed from the computer's TGT, so the computer account's own AS exchange is not armored ([MS-KILE &sect;1.3.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/444fe47b-4b56-4ba3-ad6d-bde7f7c83532)). And unless the domain controllers are set to reject unarmored requests, a client that does not armor is still served and still sends a capturable timestamp.
 
 FAST armoring requires:
 
-- Windows Server 2012+ domain functional level
+- Domain controllers running Windows Server 2012 or later
 - Domain-joined clients running Windows 8+ or equivalent
-- Group Policy: `KDC support for claims, compound authentication, and Kerberos armoring` = **Supported** or **Always provide claims**
+- Group Policy on domain controllers: `KDC support for claims, compound authentication and Kerberos armoring`. **Supported** makes armoring available. Only **Fail unarmored authentication requests** rejects unarmored requests, and that option and **Always provide claims** take effect only at the Windows Server 2012 domain functional level; below it the DC behaves as if **Supported** were selected
+- Group Policy on clients: `Kerberos client support for claims, compound authentication and Kerberos armoring` enabled. Without it, "Kerberos authentication messages won't use these features" ([Microsoft policy reference](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-admx-kdc))
 
-!!! warning "FAST armoring is not widely deployed in most environments because it requires all clients to support it. Non-domain-joined devices and many third-party Kerberos clients do not support FAST."
+!!! warning "FAST is not widely deployed"
+    FAST armoring is not widely deployed in most environments because it requires all clients to support it. Non-domain-joined devices and many third-party Kerberos clients do not support FAST.
 
 ### IPSec / Encrypted Transport
 
@@ -104,14 +110,16 @@ The attacker must be positioned to capture traffic. Look for indicators of the n
 
 ### Monitor for RC4 Pre-Authentication
 
-If AES is enforced but you see RC4 pre-authentication in your network traffic (via packet inspection or DC logs), this may indicate a downgrade attack or a misconfigured client -- both worth investigating.
+If AES is enforced but you see RC4 pre-authentication in your network traffic (via packet inspection or DC logs), this may indicate a downgrade attack or a misconfigured client -- both worth investigating. This finds exposure (accounts whose pre-authentication can be cracked at RC4 speed), not the capture itself.
 
-Event ID 4768 includes the encryption type used. Look for etype 23 (RC4) in environments where AES is expected:
+Event ID 4768 records the pre-authentication etype, but not in the field its name suggests. `Ticket Encryption Type` is "the cryptographic suite that was used for issued TGT", and the TGT is encrypted with the `krbtgt` account's key: AES256 on any domain whose `krbtgt` has AES keys, whatever the client pre-authenticated with (see [TGT encryption type](../../security/rc4-deprecation.md#tgt-encryption-type)). A filter on `TicketEncryptionType=0x17` therefore does not find RC4 pre-authentication. The field to use is `Pre-Authentication EncryptionType` (`PreAuthEncryptionType` in the event XML), "the Encryption Type that was selected for the Pre-Authentication flow". It is one of the fields added to 4768 by the January 2025 updates, so it is absent on domain controllers that predate them. This site's lab recorded the field only with the values `0x12` and `0x0`, so the RC4 value in the query below rests on Microsoft's field definition and has not been tested here:
 
 ```text
-index=security EventCode=4768 TicketEncryptionType=0x17
+index=security EventCode=4768 PreAuthType=2 PreAuthEncryptionType=0x17
 | stats count by TargetUserName, IpAddress
 ```
+
+A failed attempt is not in this event at all: wrong-password pre-authentication is logged as Event 4771, not 4768. Both events need the **Audit Kerberos Authentication Service** subcategory (see [Kerberos Auditing Policies](../../security/group-policy.md#kerberos-auditing-policies)); the [Event Decoder](../../security/event-decoder.md) explains the fields.
 
 ### Network Traffic Anomalies
 
@@ -167,7 +175,8 @@ hashcat -m 7500 hashes.txt wordlist.txt -r rules/best64.rule
 hashcat -m 19900 hashes.txt wordlist.txt -r rules/best64.rule
 ```
 
-!!! info "AS-REQ Roasting can also capture AS-REP and TGS-REP data from the same traffic. If the capture includes responses to no-preauth accounts, you get AS-REP hashes as well. If it includes TGS-REP traffic, you get Kerberoast-equivalent hashes. kw-extract handles all three types automatically."
+!!! info "The same capture can hold AS-REP and TGS-REP data"
+    AS-REQ Roasting can also capture AS-REP and TGS-REP data from the same traffic. If the capture includes responses to no-preauth accounts, you get AS-REP hashes as well. If it includes TGS-REP traffic, you get Kerberoast-equivalent hashes. kw-extract handles all three types automatically.
 
 ---
 

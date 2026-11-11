@@ -10,9 +10,10 @@
 
 <!-- How did you verify the changes? -->
 
-- [ ] `make check` passes (lint + typecheck + tests)
-- [ ] New/changed behavior is covered by tests
-- [ ] Documentation updated (if applicable)
+- [ ] `make check` passes (strict docs build, lint, JS and PowerShell tests)
+- [ ] Technical claims cite a spec section, a Microsoft KB, or a lab result with its build number
+- [ ] Commands that write to AD default to `-WhatIf` and were parsed with PowerShell
+- [ ] `CHANGELOG.md` updated
 
 ## Notes
 

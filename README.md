@@ -18,9 +18,11 @@ Protocol internals, security configuration, and attack techniques for Kerberos i
 
 ## Quick start
 
-**RC4 enforcement starts April 2026.** Accounts without `msDS-SupportedEncryptionTypes` explicitly set will stop getting RC4 tickets. July 2026 makes it permanent with no rollback. The fix is two settings: `msDS-SupportedEncryptionTypes = 24` on every SPN-bearing account, and `DefaultDomainSupportedEncTypes = 24` on every DC.
+**RC4 is no longer a Kerberos default.** Domain controllers with the April 2026 cumulative update or later treat accounts that have no explicit `msDS-SupportedEncryptionTypes` as AES-only (CVE-2026-20833, [KB5073381](https://support.microsoft.com/help/5073381)). Enforcement follows the update installed on each DC, not the calendar. Per Microsoft's timeline, updates from July 2026 onward also remove the `RC4DefaultDisablementPhase` rollback value; this site's lab results cover builds up to June 2026.
 
-Not sure where your domain stands? The [Quick Start Guide](https://strongwind.dev/Kerberos/security/quick-start/) covers what you need to know in 5 minutes. Ready to run the migration? Go straight to the [Standardization Guide](https://strongwind.dev/Kerberos/security/aes-standardization/).
+- Something broke, or you want to confirm you are unaffected: [RC4 enforcement: am I affected?](https://strongwind.dev/Kerberos/security/enforcement-triage/)
+- The 5-minute overview: [Quick Start Guide](https://strongwind.dev/Kerberos/security/quick-start/)
+- Finishing the move to AES and retiring RC4 exceptions: [Standardization Guide](https://strongwind.dev/Kerberos/security/aes-standardization/)
 
 ## Protocol
 
@@ -43,14 +45,14 @@ How Kerberos actually works in Active Directory. Wire protocol, ticket structure
 
 ## Security
 
-The RC4 deprecation deadline is April 2026 with permanent enforcement in July. This section covers how to audit your domain, what to configure, and how to migrate before it matters.
+How the KDC picks an encryption type, what each setting really does, and how to run a domain now that RC4 is opt-in only: audit, configure, migrate, and keep exceptions small.
 
 ### Encryption
 
 | Page | What it covers |
 |---|---|
 | [Encryption Negotiation](https://strongwind.dev/Kerberos/security/etype-negotiation/) | How the KDC, client, and service account flags combine to select an etype |
-| [Etype Decision Guide](https://strongwind.dev/Kerberos/security/etype-decision-guide/) | All 12 inputs that determine which etype appears in a ticket |
+| [Etype Decision Guide](https://strongwind.dev/Kerberos/security/etype-decision-guide/) | Every input that determines which etype appears in a ticket |
 | [Algorithms & Keys](https://strongwind.dev/Kerberos/security/algorithms/) | DES / RC4 / AES key derivation, cracking speed comparison, the double-reset problem |
 
 ### Configuration
@@ -66,28 +68,30 @@ The RC4 deprecation deadline is April 2026 with permanent enforcement in July. T
 
 | Page | What it covers |
 |---|---|
-| [RC4 Deprecation](https://strongwind.dev/Kerberos/security/rc4-deprecation/) | CVE-2026-20833 timeline, Kdcsvc events 201-209, and pre-enforcement checklist |
-| [Auditing Kerberos Keys](https://strongwind.dev/Kerberos/security/account-key-audit/) | Finding accounts with weak or missing AES keys before enforcement hits |
+| [RC4 Enforcement: Am I Affected?](https://strongwind.dev/Kerberos/security/enforcement-triage/) | Symptom-to-fix runbook for `KDC_ERR_ETYPE_NOSUPP` and Kdcsvc 203/204/208/209 |
+| [RC4 Deprecation](https://strongwind.dev/Kerberos/security/rc4-deprecation/) | CVE-2026-20833: what shipped, Kdcsvc events 201-209, and how to scope RC4 exceptions |
+| [Auditing Kerberos Keys](https://strongwind.dev/Kerberos/security/account-key-audit/) | Finding accounts with weak or missing AES keys |
 | [Standardization Guide](https://strongwind.dev/Kerberos/security/aes-standardization/) | AES migration playbook: two paths, every command, every verification step |
 | [Mitigations](https://strongwind.dev/Kerberos/security/mitigations/) | Defenses ranked by impact, from gMSA deployment to KRBTGT rotation |
 
-### Reference
+### Start here and troubleshooting
 
 | Page | What it covers |
 |---|---|
-| [Troubleshooting](https://strongwind.dev/Kerberos/security/troubleshooting/) | Common Kerberos errors, event IDs, and diagnostic procedures |
 | [Quick Start Guide](https://strongwind.dev/Kerberos/security/quick-start/) | 5-minute encryption type overview with diagrams, for people who want the short version |
+| [Troubleshooting](https://strongwind.dev/Kerberos/security/troubleshooting/) | Common Kerberos errors, event IDs, and diagnostic procedures |
 
 ## Interactive tools
 
 | Tool | What it does |
 |---|---|
 | [Encryption Type Calculator](https://strongwind.dev/Kerberos/security/etype-calculator/) | Compute the winning etype given any combination of account flags and registry settings |
-| [Event Decoder](https://strongwind.dev/Kerberos/security/event-decoder/) | Decode Kerberos event log entries (IDs 4768, 4769, 4770) into human-readable output |
+| [Event Decoder](https://strongwind.dev/Kerberos/security/event-decoder/) | Decode Kerberos event log entries (IDs 4768, 4769, 4770, 4771) into human-readable output |
+| [`Get-KdcKerberosRegistryAudit.ps1`](scripts/Get-KdcKerberosRegistryAudit.ps1) | Read-only PowerShell audit of the Kerberos registry values on every domain controller ([usage](scripts/README.md)) |
 
 ## Attacks
 
-Every major Kerberos attack with enough detail to understand why it works, not just how to run the tool.
+Every major Kerberos attack with enough detail to understand why it works, not just how to run the tool. Each page covers how it works, how to defend, and how to detect. Tool installation is on the [Tools Setup](https://strongwind.dev/Kerberos/attacks/tools/) page.
 
 ### Roasting (offline credential cracking)
 
@@ -129,9 +133,12 @@ Every major Kerberos attack with enough detail to understand why it works, not j
 git clone https://github.com/StrongWind1/Kerberos.git
 cd Kerberos
 uv sync --group docs                              # install dependencies
-uv run --group docs mkdocs serve                  # live preview at http://127.0.0.1:8000
-uv run --group docs mkdocs build --strict         # full build with link checking
+make serve                                        # live preview at http://127.0.0.1:8000
+make docs                                         # strict build: broken internal links and anchors fail
+make check                                        # everything CI runs: build, lint, JS and PowerShell tests
 ```
+
+Layout: page sources live in `content/` (not `docs/`), shared snippets and tables in `includes/`, the browser tools in `content/javascripts/` with tests in `tests/js/`, and the audit script in `scripts/` with tests in `tests/ps/`. `docs/` holds the lab notes the security pages are built from; it is not published.
 
 ## Related tools
 

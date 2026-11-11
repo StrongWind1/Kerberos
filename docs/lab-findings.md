@@ -3,6 +3,19 @@
 What we learned from ~80 registry tests, etype matrix tests, and Windows client
 validation against Server 2022 (Build 20348, April 2026 CU).
 
+> **Note added 2026-11-10 — build and KB labels.**  These notes call the enforcing update
+> "KB5078763" and a later retest build "KB5082137+".  Neither number resolves on Microsoft
+> Support.  Microsoft's Server 2022 update history lists 20348.4893 as KB5078766 (10 March
+> 2026, not enforcing) and 20348.5020 as **KB5082142 (14 April 2026)**, the update that
+> changes the default `DefaultDomainSupportedEncTypes`.  Trust the build numbers, not the KB
+> labels.  The reconciled table is `includes/lab-builds.md`.
+>
+> The original tests behind this file ran on 6-7 April 2026, before the 14 April release, and
+> recorded unset accounts still receiving RC4.  That is a pre-enforcement build, whatever the
+> header above says.  Several statements below were later refuted or narrowed on the enforcing
+> build; each is marked in place.  The current, reconciled statements are on the published
+> pages `content/security/registry.md` and `content/security/registry-audit.md`.
+
 ---
 
 ## Registry: what works and what doesn't
@@ -45,6 +58,13 @@ When they disagree: Pol=24 (AES) + DDSET default 0x27 (RC4) = AES ticket,
 not an auth failure. Pol=4 (RC4) + DDSET=24 (AES) = RC4 ticket. The filter
 always wins.
 
+> **Superseded 2026-06-26** (`lab-verify-2026-06-26.md`, round 3, build 20348.5020).  "The
+> filter always wins" and "overrides, does not intersect" are not general rules.  On the
+> enforcing build the interaction is asymmetric: an AES-only filter lifts an RC4 fallback to
+> AES, but an RC4-only filter over an AES fallback returns KDC_ERR_ETYPE_NOSUPP, and an
+> explicit msDS-SET that shares no etype with the filter also returns NOSUPP.  The
+> "Pol=4 + DDSET=24 = RC4 ticket" result stands only for the pre-enforcement build.
+
 Precedence: Pol > Lsa > (nothing). When Pol exists, Lsa is ignored.
 
 ---
@@ -82,6 +102,12 @@ requested RC4. Event 4769 confirmed: ServiceSupportedEncryptionTypes=0x18
 but TicketEncryptionType=0x17. This completely defeats per-account etype
 hardening.
 
+> **Narrowed 2026-06-26** (`lab-verify-2026-06-26.md`, headline finding 3, build 20348.5020).
+> On the enforcing build KdcUseRequestedEtypesForTickets=1 is bounded by msDS-SET: it
+> downgraded an account at 28 (which lists RC4) to RC4, but an AES-only account (24) and an
+> unset account stayed AES256.  "Ignores msDS-SET entirely" holds only for the
+> pre-enforcement build.
+
 ### 4. Session key is bounded by target's msDS-SET
 
 **Claimed:** Session key = intersection of client + target + KDC.
@@ -90,6 +116,12 @@ hardening.
 strictly bound the session key. An AES-only account (msDS-SET=24) can have
 an RC4 session key if the client requests RC4. The session key comes from
 the client/KDC intersection, independent of the target's declaration.
+
+> **Build-specific; superseded for enforcing builds 2026-04-14** (`april-2026-findings.md`,
+> `matrix-findings.md`, build 20348.5020).  On the enforcing build an RC4-only request against
+> an AES-only account (msDS-SET=24) is refused (Kdcsvc 208), so the target's set does bound
+> the session key there.  The same file's finding 8 already shows the bound in the other
+> direction on the pre-enforcement build (RC4-only account, AES256-only client: FAIL).
 
 ### 5. Lsa\SupportedEncryptionTypes: honored on 2022 and 2025; Policies dropped on 2025
 
@@ -128,6 +160,8 @@ failed to authenticate after the filter was applied.
 - TGT always AES256 on modern DCs (DFL >= 2008)
 - Client etype preference doesn't affect ticket etype (when KdcUseReq=0)
 - USE_DES_KEY_ONLY causes failure on Server 2022 (DES disabled)
+  — **superseded 2026-06-26**: on build 20348.5020 the flag forced a DES ticket (4769
+  ticket=0x3, ServiceSET=0x3); see `lab-verify-2026-06-26.md` round 3, claim C10.
 - AES-SK split: RC4 ticket + AES256 session key for msDS-SET=0 accounts — **caveat: enforcement blocks RC4 for msDS-SET=0 after April 2026 patch**
 
 ### 8. Empty etype intersection produces KRB_ERROR
@@ -135,14 +169,18 @@ failed to authenticate after the filter was applied.
 When the client's etype list and the target's supported etypes have no
 overlap, the KDC returns KDC_ERR_ETYPE_NOSUPP. This is the expected
 failure mode -- not a silent fallback:
-- svc_val_02 (msDS-SET=4, RC4 only) with client requesting only AES256: FAIL
-- svc_val_05 (msDS-SET=8, AES128 only) with client requesting only AES256: FAIL
+- svc_check_02 (msDS-SET=4, RC4 only) with client requesting only AES256: FAIL
+- svc_check_05 (msDS-SET=8, AES128 only) with client requesting only AES256: FAIL
 
 ---
 
 ## Kdcsvc events (201-209)
 
 The April 2026 CU introduces Kdcsvc events in the System log.
+
+> **Correction added 2026-11-10.**  Per Microsoft's KB5073381 the Kdcsvc 201-209 events were
+> introduced by the **January** 2026 updates, not the April one.  Per the same KB, 205 is
+> logged at KDC start when an explicit DDSET includes anything other than AES-SHA1.
 Updated after April 2026 patch validation (2026-04-14) — see `april-2026-findings.md` for full event text.
 
 | Event | Phase | Trigger | Type | Notes |
@@ -159,6 +197,14 @@ Events 202, 204, 206, 207, 209 not triggered in either testing session.
 
 ## Untestable claims (lab limitations)
 
+> **Status update 2026-06-26 / 2026-11-10.**  Two rows below were tested later
+> (`lab-verify-2026-06-26.md`): the Server 2025 Lsa-path claim was refuted on build
+> 26100.32522 (rounds 3-4: Lsa honoured, Policies ignored — note that build is the March 2026
+> update and Microsoft's April update KB5082063 mentions a policy-reading fix, not retested),
+> and "msDS-SET=0x18 without AES keys" was confirmed as NOSUPP (round 4).  The July 2026 row
+> is **still untested** as of 2026-11-10.  Server 2025 default DDSET, dMSA defaults and DES
+> removal on 2025 also remain untested.
+
 | Claim | Why untestable |
 |-------|---------------|
 | Server 2025 default DDSET=0x24 | Lab DC is Server 2022 |
@@ -172,6 +218,10 @@ Events 202, 204, 206, 207, 209 not triggered in either testing session.
 ---
 
 ## Operational recommendations
+
+> **Historical (note added 2026-11-10).**  Items 4 and 6 below refer to the audit and rollback
+> phases of `RC4DefaultDisablementPhase`.  Per Microsoft's KB5073381 that value is no longer
+> read from the July 2026 updates on (not lab-verified).  Item 3 still applies.
 
 ### Priority actions
 
@@ -253,6 +303,11 @@ The calculator models ticket etype as a bitwise AND (intersection) of
 target and KDC. Lab testing shows the SupportedEncryptionTypes filter
 overrides rather than intersects. The calculator would show ETYPE_NOSUPP
 when KDC=AES and target=RC4, but the actual KDC issues an AES ticket.
+
+> **Superseded 2026-06-26.**  This is true only for an *unset* target whose fallback is RC4.
+> For a target with an explicit RC4-only msDS-SET under an AES-only filter the KDC does
+> return NOSUPP (`lab-verify-2026-06-26.md`, round 3).  Neither "intersects" nor "overrides"
+> describes the whole behaviour.
 
 The calculator also:
 - Uses 0x24 as the DDSET default (Server 2025). Server 2022 uses 0x27.

@@ -12,6 +12,8 @@ users, including Domain Admins, to target services.
 Delegation abuse is one of the most common privilege escalation and lateral movement paths in
 Active Directory environments.
 
+--8<-- "includes/authorized-use.md"
+
 ---
 
 ## Attacks in This Category
@@ -20,7 +22,7 @@ Active Directory environments.
 |--------|----------------|--------------|-------------|
 | [Delegation Attacks](delegation-attacks.md) | Unconstrained, Constrained, RBCD | Varies (see below) | Comprehensive coverage of all three delegation abuse paths: TGT theft from unconstrained delegation hosts, S4U chains for constrained delegation, and RBCD abuse via writable computer objects |
 | [S4U2Self Abuse](s4u2self-abuse.md) | S4U2Self (no delegation required) | Code execution as machine/virtual account | Local privilege escalation by requesting a service ticket as Domain Admin to the machine itself |
-| [SPN-jacking](spn-jacking.md) | Constrained | Write access to `servicePrincipalName` attribute | Redirect constrained delegation to attacker-controlled accounts by moving the target SPN |
+| [SPN-jacking](spn-jacking.md) | Constrained | Control of an account with constrained delegation + write access to `servicePrincipalName` on the account that will receive the SPN | Redirect constrained delegation to attacker-controlled accounts by moving the target SPN |
 
 ---
 
@@ -32,7 +34,7 @@ Active Directory environments.
 | **Constrained delegation abuse** | Compromise of an account with `msDS-AllowedToDelegateTo` configured |
 | **RBCD abuse** | Write access to a target computer's `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute + control of a computer account (default `ms-DS-MachineAccountQuota` allows creating one) |
 | **S4U2Self abuse** | Code execution as `NETWORK SERVICE`, a virtual account, or any context that authenticates as the computer account |
-| **SPN-jacking** | Write access to the `servicePrincipalName` attribute on the target account (and on the original SPN owner for live SPN-jacking) |
+| **SPN-jacking** | Control of an SPN-bearing account whose `msDS-AllowedToDelegateTo` lists the target SPN, plus write access to the `servicePrincipalName` attribute on the account that will receive the SPN (and on the original SPN owner for live SPN-jacking) |
 
 ---
 
@@ -56,5 +58,7 @@ Protocol section:
 - **Set `ms-DS-MachineAccountQuota` to 0** -- prevent unprivileged users from creating machine
   accounts for RBCD abuse
 - **Monitor attribute changes** -- Event 5136 for modifications to `msDS-AllowedToDelegateTo`,
-  `msDS-AllowedToActOnBehalfOfOtherIdentity`, and `servicePrincipalName`
+  `msDS-AllowedToActOnBehalfOfOtherIdentity`, and `servicePrincipalName`. The event is logged
+  only when Audit Directory Service Changes is enabled and the object's SACL audits writes to
+  that attribute
 - **Audit delegation configurations** regularly with PowerShell queries

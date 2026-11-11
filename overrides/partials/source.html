@@ -1,0 +1,20 @@
+{#-
+  The repository link in the header and the drawer.
+
+  The theme's own partial marks this link with data-md-component="source", and the
+  theme's script then asks api.github.com for the repository's stars, forks and latest
+  release on every page load. That is a third-party request from a site that otherwise
+  makes none (the privacy plugin exists to keep it that way), and it logs a console error
+  whenever GitHub answers 403 (rate limit) or 404 (no release). Leaving the attribute off
+  keeps the link and drops the request. The edit and view-source buttons are built from
+  repo_url and edit_uri, not from this partial, and are unaffected.
+-#}
+<a href="{{ config.repo_url }}" title="{{ lang.t('source') }}" class="md-source">
+  <div class="md-source__icon md-icon">
+    {% set icon = config.theme.icon.repo or "fontawesome/brands/git-alt" %}
+    {% include ".icons/" ~ icon ~ ".svg" %}
+  </div>
+  <div class="md-source__repository">
+    {{ config.repo_name }}
+  </div>
+</a>

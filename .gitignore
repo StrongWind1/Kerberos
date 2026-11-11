@@ -258,4 +258,8 @@ __marimo__/
 specs/
 scripts/*
 !scripts/Get-KdcKerberosRegistryAudit.ps1
+!scripts/README.md
 docs/
+
+# --------------- node (tests and lint for the browser tools) ---------------
+node_modules/

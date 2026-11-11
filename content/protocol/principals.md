@@ -1,3 +1,7 @@
+---
+description: How Kerberos names users, computers, and services in Active Directory -- principal name format, realms, sAMAccountName and UPN, computer accounts, and Service Principal Names.
+---
+
 # Principals and Realms
 
 Every participant in a Kerberos exchange -- whether a user, a computer, or a service -- needs a unique identity. Kerberos calls these identities **principals**. Principals live inside administrative boundaries called **realms**. This page explains how naming works and how Active Directory maps its own naming conventions onto the Kerberos model.
@@ -6,7 +10,7 @@ Every participant in a Kerberos exchange -- whether a user, a computer, or a ser
 
 ## Kerberos Principals
 
-A **principal** is any entity that can authenticate using the Kerberos protocol. Per [RFC 4120 &sect;1.7], a principal is "a named client or server entity that participates in a network communication, with one name that is considered canonical."
+A **principal** is any entity that can authenticate using the Kerberos protocol. Per [RFC 4120 &sect;1.7](https://datatracker.ietf.org/doc/html/rfc4120#section-1.7), a principal is "a named client or server entity that participates in a network communication, with one name that is considered canonical."
 
 In practice, principals fall into three categories:
 
@@ -51,7 +55,7 @@ Examples:
 
 A **realm** is the administrative boundary within which a KDC has authority. The KDC can only issue tickets for principals registered in its own realm (or provide referrals to other realms via trust relationships).
 
-Per [RFC 4120 &sect;6.1], realm names are case-sensitive, and by convention uppercase is used.
+Per [RFC 4120 &sect;6.1](https://datatracker.ietf.org/doc/html/rfc4120#section-6.1), realm names are case-sensitive, and by convention uppercase is used.
 
 In Active Directory, the mapping is straightforward:
 
@@ -133,7 +137,7 @@ When a client wants to access a service (say, an HTTP web application on `web.co
 
 ### SPN Format
 
-Per [MS-KILE &sect;3.1.5.11] and [RFC 4120 &sect;6.2.1], SPNs follow this format:
+Per [MS-KILE &sect;3.1.5.11](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/04033bd5-913c-4c78-a398-b549b09e65d9), SPNs follow this format ([RFC 4120 &sect;6.2.1](https://datatracker.ietf.org/doc/html/rfc4120#section-6.2.1) defines only the underlying two-part server name, a service component followed by a host component):
 
 ```
 ServiceClass/Host[:Port][/ServiceName]
@@ -154,7 +158,7 @@ Windows automatically registers SPNs for standard services. These are mapped thr
 
 | SPN Service Class | Service | Notes |
 |-------------------|---------|-------|
-| `HOST` | General host services | Alias for CIFS, HTTP (on the DC), LDAP, DNS, and many others |
+| `HOST` | General host services | Alias for about fifty built-in service classes, including `cifs`, `http`, `www`, `dns`, `rpcss`, `spooler`, and `schedule` |
 | `HTTP` | Web services (IIS, etc.) | Used for both HTTP and HTTPS |
 | `CIFS` | File sharing (SMB) | Common Internet File System |
 | `LDAP` | Directory services | LDAP queries to a DC |
@@ -165,13 +169,14 @@ Windows automatically registers SPNs for standard services. These are mapped thr
 | `krbtgt` | Ticket-Granting Service | Special SPN for the KDC itself |
 
 !!! info "HOST is a catch-all"
-    When a computer joins the domain, Windows registers `HOST/<hostname>` and `HOST/<fqdn>` on the computer account. The HOST SPN is mapped to a long list of service classes (CIFS, HTTP, WSMAN, etc.), so a single HOST registration covers many standard services. You only need to register additional SPNs for non-standard services or services running under a different account.
+    When a computer joins the domain, Windows registers `HOST/<hostname>` and `HOST/<fqdn>` on the computer account. The forest-wide `sPNMappings` attribute (on the `CN=Directory Service` object in the configuration partition) maps HOST to a long list of service classes such as `cifs`, `http`, `www`, `dns`, `rpcss`, and `spooler`, so a single HOST registration covers many standard services. Microsoft's [`setspn` reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/setspn) lists the 52 built-in service classes and notes that "a host SPN can substitute for any of the mentioned SPNs". Service classes that are **not** in the default mapping -- `ldap`, `TERMSRV`, `WSMAN`, `MSSQLSvc`, and others -- are registered as SPNs in their own right, either by the service itself or by an administrator. You also need explicit SPNs for services running under a different account.
 
 ### Where SPNs Are Stored
 
 SPNs are stored in the `servicePrincipalName` attribute of the account that runs the service:
 
-- Services running as **Local System, Network Service, or a managed service account** register their SPNs on the **computer account** (`WORKSTATION1$`).
+- Services running as **Local System, Network Service, or a virtual account** (for example `NT SERVICE\MSSQLSERVER` or an IIS application pool identity) use the computer's identity on the network, so their SPNs are registered on the **computer account** (`WORKSTATION1$`). For virtual accounts, Microsoft's [service accounts overview](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-service-accounts) says they "access network resources by using the credentials of the computer account".
+- Services running as a **managed service account** (MSA, gMSA, or dMSA) register their SPNs on **that managed account**, which is its own object in AD.
 - Services running as a **domain user account** register their SPNs on that **user account**.
 
 One account can have multiple SPNs. For example, a Domain Controller's computer account typically has SPNs for LDAP, DNS, Kerberos, and more.
@@ -209,7 +214,7 @@ Five Active Directory object types can have `servicePrincipalName` registered:
 - **Computer accounts** (`computer`) — SPNs registered automatically at domain join;
   passwords auto-rotate every 30 days.
 - **gMSA** (`msDS-GroupManagedServiceAccount`) — explicitly registered SPNs;
-  240-character auto-rotating password.
+  240-byte randomly generated, auto-rotating password.
 - **MSA** (`msDS-ManagedServiceAccount`) — explicitly registered SPNs; auto-rotating
   password.
 - **dMSA** (`msDS-DelegatedManagedServiceAccount`, Server 2025+) — explicitly registered
@@ -220,3 +225,16 @@ For the full table of defaults, targets, and GPO coverage per type, see
 
 !!! tip "Pentester note"
     SPNs registered on **user service accounts** (objectCategory=person) are the viable Kerberoasting targets. Computer accounts, gMSA, MSA, and dMSA all use auto-rotating passwords that are infeasible to crack even if you obtain an RC4-encrypted ticket. Focus enumeration on the LDAP filter `(&(servicePrincipalName=*)(objectCategory=person))` to isolate the actionable targets.
+
+---
+
+## Summary
+
+- A principal is any user, computer, or service that can authenticate; its name has the form `primary/instance@REALM`
+- The realm is the AD DNS domain name in uppercase
+- Whatever logon name a user types, the ticket carries the sAMAccountName and the realm
+- Computers are principals too: they hold a password-derived key and obtain their own TGT
+- An SPN maps a service request to the account whose key encrypts the service ticket; it must be unique in the forest
+- SPNs live on the account the service runs as -- the computer account, a managed service account, or a user account
+
+Next: [Protocol Overview](overview.md), the three exchanges and the keys that tie them together.

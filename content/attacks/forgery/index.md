@@ -11,6 +11,8 @@ account key) and uses ticket forgery to maintain access or escalate privileges.
 The four forgery variants differ in what they forge, what key they require, and how detectable
 the result is. Each represents a trade-off between simplicity and stealth.
 
+--8<-- "includes/authorized-use.md"
+
 ---
 
 ## Attacks in This Category
@@ -48,7 +50,11 @@ All forgery attacks require stolen key material. The most common sources:
 | Detection Method | Golden | Silver | Diamond | Sapphire |
 |---|---|---|---|---|
 | Missing Event 4768 (no AS Exchange) | Detectable | N/A | Not detectable (real AS Exchange) | Not detectable (real AS Exchange) |
-| Anomalous ticket lifetime | Detectable | Detectable | Not detectable (real lifetime) | Not detectable (real lifetime) |
-| PAC group mismatch with AD | Detectable | Detectable | Detectable | **Not detectable** (real PAC) |
-| PAC KDC signature validation | Not effective (valid sig) | **Detectable** (invalid KDC sig) | Not effective (valid sig) | Not effective (valid sig) |
+| Anomalous ticket lifetime | Detectable | Only at the target host (the DC never sees the ticket) | Not detectable (real lifetime) | Not detectable (real lifetime) |
+| PAC group mismatch with AD | Detectable | Only at the target host (the DC never sees the ticket) | Detectable | **Not detectable** (real PAC) |
+| PAC KDC signature validation | Not effective (valid sig) | Only for services that ask a DC to validate the PAC; services running as SYSTEM (SMB, LDAP) do not | Not effective (valid sig) | Not effective (valid sig) |
 | Behavioral analytics | Possible | Possible | Required | Required |
+
+The Silver column follows from where the ticket goes: it is presented to the service and never
+to a domain controller, so none of the ticket-based checks can be made from domain controller
+logs. See [Silver Ticket -- Detect](silver-ticket.md#detect).

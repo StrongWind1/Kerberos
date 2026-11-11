@@ -2,10 +2,12 @@
 
 Stealing and reusing cached Kerberos tickets.
 
+**MITRE ATT&CK:** [T1550.003](https://attack.mitre.org/techniques/T1550/003/) Use Alternate Authentication Material: Pass the Ticket
+
 Pass-the-Ticket (PtT) is a lateral movement technique where the attacker extracts Kerberos
 tickets from one machine and injects them into another session. Unlike
 [Pass-the-Key](pass-the-key.md), the attacker does not need the user's password or encryption
-key -- just the ticket blob itself. A stolen TGT grants access to any service in the domain;
+key -- just the ticket and the session key cached with it. A stolen TGT grants access to any service in the domain;
 a stolen service ticket is limited to the specific service it was issued for.
 
 ---
@@ -39,15 +41,17 @@ in the domain through the [TGS Exchange](../../protocol/tgs-exchange.md). A stol
 the attacker the same access as the original user until the ticket expires.
 
 **Service tickets are limited** to the specific service they target (e.g., `CIFS/fileserver`).
-Although the `sname` field is encrypted inside the `EncTicketPart`, it is not covered by the
-PAC checksum. An attacker who possesses the target account's long-term key can decrypt the
-ticket, modify the service class (e.g., change `HTTP/host` to `CIFS/host`), and re-encrypt it.
+The limit is weaker than it looks. The `sname` field sits in the cleartext part of the ticket,
+outside the encrypted `EncTicketPart`
+([RFC 4120 &sect;5.3](https://datatracker.ietf.org/doc/html/rfc4120#section-5.3)), and none of the
+PAC signatures covers it. Whoever holds the ticket can rewrite the service class (e.g., change
+`HTTP/host` to `CIFS/host`) without knowing any key, and the ticket still decrypts.
 This is practical when both services run under the same account -- see
 [SPN-jacking](../delegation/spn-jacking.md) for details on SPN substitution.
 
 ### Ticket Lifetime and Revocation
 
-Per [RFC 4120 &sect;5.3], tickets have an `endtime` field set by the KDC. The default TGT
+Per [RFC 4120 &sect;5.3](https://datatracker.ietf.org/doc/html/rfc4120#section-5.3), tickets have an `endtime` field set by the KDC. The default TGT
 lifetime in Active Directory is **10 hours**, with a maximum renewal period of **7 days**.
 
 !!! warning "Kerberos tickets cannot be revoked"
@@ -83,16 +87,25 @@ ticketConverter.py ticket.ccache ticket.kirbi
 ### Credential Guard
 
 Windows Credential Guard isolates LSASS secrets in a virtualization-based security (VBS)
-container. When Credential Guard is enabled, Kerberos tickets are stored in the isolated LSA
-process (`LsaIso.exe`), which is inaccessible to local administrators and kernel-level
-attackers that lack VBS bypass capabilities.
+container. When Credential Guard is enabled, the TGT is protected: it is held by the isolated
+LSA process (`LsaIso.exe`), which is inaccessible to local administrators and kernel-level
+attackers that lack VBS bypass capabilities. Service tickets are not. Microsoft's description:
+"Kerberos service tickets aren't protected by Credential Guard, but the Kerberos Ticket
+Granting Ticket (TGT) is protected"
+([How Credential Guard works](https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/how-it-works)).
+A service ticket already in the cache can still be extracted and replayed against that one
+service.
+
+Starting in Windows 11 22H2 and Windows Server 2025, Credential Guard is enabled by default on
+domain-joined systems that are not domain controllers and meet the hardware requirements.
 
 ### Protected Users Group
 
 Members of the **Protected Users** security group receive hardened TGT properties:
 
 - TGT lifetime is reduced to **4 hours** (non-renewable)
-- TGTs are not cached after initial logon on the DC
+- The member's device does not cache plaintext credentials or long-term keys once the initial
+  TGT has been acquired
 - NTLM authentication is disabled (reducing credential exposure)
 
 A 4-hour non-renewable TGT limits the window during which a stolen ticket is usable.
@@ -134,10 +147,39 @@ Look for Event ID 4769 (service ticket request) where the same user's TGT is use
 `IpAddress` values within the TGT's lifetime:
 
 ```text
-index=security EventCode=4769
+index=security EventCode=4769 earliest=-10h
 | stats dc(IpAddress) as source_ips, values(IpAddress) as ip_list by TargetUserName
 | where source_ips > 1
 ```
+
+!!! warning "This query counts accounts, not tickets"
+    Nothing in the query ties a request to a particular TGT. It groups by account name, so every
+    account that legitimately requests tickets from more than one address inside the search
+    window matches as well. Keep the window no longer
+    than the TGT lifetime (10 hours by default, as above), exclude accounts that normally appear
+    from several addresses, and treat a match as a lead to investigate rather than an alert.
+
+On domain controllers with the January 14, 2025 or later updates, events 4768 and 4769 carry
+ticket hashes that allow the comparison this section actually describes. Event 4768 records a
+`Response ticket hash`, "the hash of the ticket that the Windows Domain Controller replied back
+to the client", and event 4769 records a `Request ticket hash`, "the hash of the ticket that
+the client sent to the Windows Domain Controller as part of the Kerberos Request". The same TGT
+presented from two addresses then shows up as one hash with two sources:
+
+```text
+index=security (EventCode=4768 OR EventCode=4769)
+| eval tgt_hash=if(EventCode=4768, ResponseTicket, RequestTicketHash)
+| stats dc(IpAddress) as source_ips, values(IpAddress) as ip_list, values(TargetUserName) as accounts by tgt_hash
+| where source_ips > 1
+```
+
+The field names are the XML names in Microsoft's event documentation (`ResponseTicket` in 4768,
+`RequestTicketHash` in 4769), where the sample 4768 and 4769 events show the same value in
+both. This site has not tested the correlation in its lab.
+
+Both events are logged on domain controllers only: 4768 needs **Audit Kerberos Authentication
+Service** and 4769 needs **Audit Kerberos Service Ticket Operations** (see
+[Kerberos Auditing Policies](../../security/group-policy.md#kerberos-auditing-policies)).
 
 ### Event ID 4768 -- TGT from Unexpected Source
 
@@ -145,10 +187,15 @@ A TGT request (Event 4768) followed by TGS requests (Event 4769) from a **differ
 indicates the TGT was moved to another machine:
 
 ```text
-index=security (EventCode=4768 OR EventCode=4769)
+index=security (EventCode=4768 OR EventCode=4769) earliest=-10h
 | stats values(IpAddress) as ips, dc(IpAddress) as ip_count by TargetUserName
 | where ip_count > 1
 ```
+
+The same caveat applies: this groups by account, so it also returns every account that signed
+in from two addresses. Event 4768 reports the account as `user` and event 4769 as
+`user@REALM`, so the two have to be normalized before they group together at all. Prefer the
+ticket-hash comparison above where the fields are available.
 
 ### Sysmon: LSASS Access (Event 10)
 
@@ -158,6 +205,10 @@ Monitor for processes accessing LSASS memory, which is the extraction step:
 index=sysmon EventCode=10 TargetImage="*lsass.exe" GrantedAccess=0x1010
 | stats count by SourceImage, Computer
 ```
+
+The `GrantedAccess=0x1010` filter matches that one access mask and nothing else; an access to
+LSASS made with any other mask is not returned. Treat the value as an example to extend, not
+as coverage.
 
 ### Behavioral Anomalies
 
@@ -241,13 +292,13 @@ Once the ticket is injected, any Kerberos-authenticated tool will use it transpa
 
 ```bash title="Use injected ticket to access file shares, remote execute, or DCSync"
 # Access file shares
-dir \\dc01.corp.local\c$
+dir \\dc1.corp.local\c$
 
 # Remote execution (impacket)
-psexec.py -k -no-pass CORP.LOCAL/administrator@dc01.corp.local
+psexec.py -k -no-pass CORP.LOCAL/administrator@dc1.corp.local
 
 # DCSync (if the stolen ticket belongs to a Domain Admin)
-secretsdump.py -k -no-pass CORP.LOCAL/administrator@dc01.corp.local
+secretsdump.py -k -no-pass CORP.LOCAL/administrator@dc1.corp.local
 ```
 
 ---
@@ -262,10 +313,10 @@ via `credwolf kerberos --ticket`:
 
 ```bash
 # Generate a TGT (outputs ccache)
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!'
+kw-tgt -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin -p '<password>'
 
 # Validate an existing ticket
-credwolf -d CORP.LOCAL kerberos --kdc-ip 10.0.0.1 -u admin --ticket admin.ccache
+credwolf -d CORP.LOCAL kerberos --kdc-ip 192.0.2.10 -u admin --ticket admin.ccache
 ```
 
 ### Other Tools

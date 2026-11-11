@@ -1,0 +1,23 @@
+{
+  "name": "kerberos-guide-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tests, lint and built-site checks for the Kerberos docs site. Not published; the site itself has no JavaScript dependencies.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "test": "node --test \"tests/js/*.test.js\"",
+    "lint": "eslint content/javascripts tests/js tools eslint.config.js",
+    "html": "node tools/require-site.js site && java -jar node_modules/vnu-jar/build/dist/vnu.jar --skip-non-html site",
+    "a11y": "node tools/require-site.js site && node tools/check-a11y.js site"
+  },
+  "devDependencies": {
+    "eslint": "^10.14.0",
+    "jsdom": "^31.0.0",
+    "pa11y": "^10.0.0",
+    "puppeteer": "^25.17.0",
+    "vnu-jar": "^26.11.9"
+  }
+}

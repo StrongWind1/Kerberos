@@ -2,6 +2,8 @@
 
 Using stolen encryption keys to request Kerberos tickets without knowing the password.
 
+**MITRE ATT&CK:** [T1550.002](https://attack.mitre.org/techniques/T1550/002/) Use Alternate Authentication Material: Pass the Hash (covers overpass-the-hash)
+
 This attack converts a stolen credential artifact -- an NT hash or AES key -- into a fully
 functional Kerberos TGT. The attacker never needs the plaintext password. Because the resulting
 TGT is issued by a real KDC and contains a legitimate PAC, it is indistinguishable from a ticket
@@ -85,6 +87,11 @@ is enabled.
     Credential Guard protects against LSASS memory dumps but does not prevent DCSync, NTDS.dit
     extraction, or keytab file theft. It is one layer, not a complete solution.
 
+    Starting in Windows 11 22H2 and Windows Server 2025, Credential Guard is enabled by default
+    on domain-joined systems that are not domain controllers and meet the hardware requirements
+    ([Credential Guard overview](https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/)).
+    Older systems need it turned on.
+
 ### Protected Users Group
 
 Members of the **Protected Users** security group receive several hardening measures relevant to
@@ -116,6 +123,16 @@ eliminates the NT-hash-as-Kerberos-key equivalence. Attackers would need the AES
 which is not interchangeable with NTLM hashes. This does not prevent the attack entirely but
 reduces the attack surface.
 
+The April 2026 RC4 default change (CVE-2026-20833) is not this control. It applies to service
+tickets only and does not touch logon: on every build in this site's lab, including the
+enforcing one, an AS request that asked for RC4 was still answered with RC4. In this site's
+lab, removing RC4 from the domain controller's own Kerberos encryption-type policy also blocked
+RC4 pre-authentication (seen on one pre-April 2026 Server 2022 build, not re-run on later
+builds); that step requires every user to have AES keys first. See
+[RC4 Deprecation](../../security/rc4-deprecation.md). For
+individual accounts, Microsoft documents Protected Users membership as having the same effect
+on pre-authentication; this site's lab test of that was inconclusive.
+
 ---
 
 ## Detect
@@ -124,11 +141,25 @@ Detection focuses on correlating credential theft indicators with subsequent TGT
 
 ### Event ID 4768 -- TGT Request Anomalies
 
-Every TGT request generates a 4768 event on the domain controller. Look for:
+Every issued TGT generates a 4768 event on the domain controller, provided the **Audit Kerberos
+Authentication Service** subcategory is enabled (see
+[Kerberos Auditing Policies](../../security/group-policy.md#kerberos-auditing-policies)). Look for:
 
 - TGT requests for privileged accounts from workstations those accounts do not normally use
-- TGT requests with RC4 encryption (`0x17`) when the environment is configured for AES
+- TGT requests whose pre-authentication used RC4 (`Pre-Authentication EncryptionType` = `0x17`)
+  when the environment is configured for AES
 - Bursts of TGT requests from a single source for multiple accounts
+
+The RC4 signal is in the pre-authentication field, not in `Ticket Encryption Type`. Microsoft
+defines `Ticket Encryption Type` as "the cryptographic suite that was used for issued TGT", and
+the TGT is encrypted with the `krbtgt` key: AES256 on any domain whose `krbtgt` has AES keys,
+whichever key the client pre-authenticated with. `Pre-Authentication EncryptionType`
+(`PreAuthEncryptionType` in the event XML) is "the Encryption Type that was selected for the
+Pre-Authentication flow". It was added to the event by the January 2025 updates, so domain
+controllers that predate them do not log it. This site's lab recorded the field only with the
+values `0x12` and `0x0`; an RC4 value there rests on Microsoft's field definition and has not
+been tested here. An overpass-the-hash request made with an AES key
+looks like any other AES logon in this event.
 
 ```text
 Log Name:      Security
@@ -136,9 +167,16 @@ Event ID:      4768
 Task Category: Kerberos Authentication Service
 Keywords:      Audit Success
 Account Name:  admin
-Ticket Encryption Type: 0x17     <-- RC4, suspicious if AES is expected
-Client Address: 10.0.0.50        <-- is this a normal source for this user?
+Client Address: 192.0.2.50                 <-- is this a normal source for this user?
+Ticket Encryption Type: 0x12               <-- the TGT itself: AES256 whatever key was used
+Pre-Authentication Type: 2
+Pre-Authentication EncryptionType: 0x17    <-- RC4 pre-authentication, suspicious if AES is expected
 ```
+
+For members of Protected Users, Microsoft documents that RC4 pre-authentication fails and that
+the domain controller records it as event 104 in the `ProtectedUserFailures-DomainController` log
+under *Applications and Services Logs\Microsoft\Windows\Authentication*. That log is disabled
+by default and has to be enabled on each domain controller.
 
 ### Correlate with LSASS Access (Sysmon Event 10)
 
@@ -201,22 +239,22 @@ ccache file that can be used with other kerbwolf tools or any tool that reads `K
 
 ```bash
 # Overpass-the-hash with NT hash (RC4)
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -H :7facdc498ed1680c4fd1448319a8c04f
+kw-tgt -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin -H :31d6cfe0d16ae931b73c59d7e0c089c0
 ```
 
 ```bash
 # Pass-the-key with AES-256
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin --aes256-key aad3b435b51404eeaad3b435b51404ee...
+kw-tgt -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin --aes256-key <aes256_key>
 ```
 
 ```bash
 # Standard password authentication (for comparison)
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -p 'Password1!'
+kw-tgt -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin -p '<password>'
 ```
 
 ```bash title="Get TGT via pass-the-hash, then Kerberoast with the resulting ccache"
 # Chain: get TGT, then use it for Kerberoasting
-kw-tgt -d CORP.LOCAL --dc-ip 10.0.0.1 -u admin -H :7facdc498ed1680c4fd1448319a8c04f
+kw-tgt -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin -H :31d6cfe0d16ae931b73c59d7e0c089c0
 kw-roast -k -c admin.ccache --ldap
 ```
 
@@ -226,4 +264,4 @@ kw-roast -k -c admin.ccache --ldap
 |---|---|---|
 | mimikatz | `sekurlsa::pth /user:admin /domain:CORP.LOCAL /ntlm:<hash>` | Injects credentials into a new process on Windows |
 | Rubeus | `Rubeus.exe asktgt /user:admin /rc4:<hash> /domain:CORP.LOCAL` | Requests TGT and can inject into current session with `/ptt` |
-| impacket | `getTGT.py CORP.LOCAL/admin -hashes :7facdc498ed1680c4fd1448319a8c04f` | Outputs ccache file for use with other impacket tools |
+| impacket | `getTGT.py CORP.LOCAL/admin -hashes :31d6cfe0d16ae931b73c59d7e0c089c0` | Outputs ccache file for use with other impacket tools |

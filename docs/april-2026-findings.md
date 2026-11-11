@@ -1,17 +1,27 @@
 # April 2026 Patch Lab Findings
 
-Lab validation of KB5078763 behavior on Server 2022 Build 20348 (UBR 5020), domain evil.corp, DFL Windows2016Domain.
+Lab validation of KB5078763 behavior on Server 2022 Build 20348 (UBR 5020), domain corp.local, DFL Windows2016Domain.
 Test date: 2026-04-14. All tests run with reg.py (impacket) and kw-roast.
+
+> **Note added 2026-11-10 — build and KB labels.**  These notes call the enforcing update
+> "KB5078763" and a later retest build "KB5082137+".  Neither number resolves on Microsoft
+> Support.  Microsoft's Server 2022 update history lists 20348.4893 as KB5078766 (10 March
+> 2026, not enforcing) and 20348.5020 as **KB5082142 (14 April 2026)**, the update that
+> changes the default `DefaultDomainSupportedEncTypes`.  Trust the build numbers, not the KB
+> labels.  The reconciled table is `includes/lab-builds.md`.
+>
+> Findings 1 (the svc_matrix_05 row), 4 and 5 (the msDS=28 row), and correction 1 below were
+> later reversed or refined; each is marked in place.
 
 Test accounts created for this session:
 
 | Account | msDS-SupportedEncryptionTypes | SPN |
 |---------|-------------------------------|-----|
-| svc_apr_01 | blank (no attribute) | HTTP/svc-apr-01.evil.corp |
-| svc_apr_02 | 0 (explicit integer) | HTTP/svc-apr-02.evil.corp |
-| svc_apr_03 | 4 (RC4 only) | HTTP/svc-apr-03.evil.corp |
-| svc_apr_04 | 24 (AES only) | HTTP/svc-apr-04.evil.corp |
-| svc_apr_05 | 28 (RC4+AES) | HTTP/svc-apr-05.evil.corp |
+| svc_matrix_01 | blank (no attribute) | HTTP/app-01.corp.local |
+| svc_matrix_02 | 0 (explicit integer) | HTTP/app-02.corp.local |
+| svc_matrix_03 | 4 (RC4 only) | HTTP/app-03.corp.local |
+| svc_matrix_04 | 24 (AES only) | HTTP/app-04.corp.local |
+| svc_matrix_05 | 28 (RC4+AES) | HTTP/app-05.corp.local |
 
 ---
 
@@ -25,11 +35,15 @@ Baseline test (clean registry — no DDSET, no Phase key, `Pol\SupportedEncrypti
 
 | Account | msDS-SET | RC4 forced (kw-roast) | AES256 forced | Ticket via getST.py |
 |---------|----------|----------------------|---------------|---------------------|
-| svc_apr_01 | blank | **BLOCKED** | ALLOWED | AES256 (etype 18) |
-| svc_apr_02 | 0 | **BLOCKED** | ALLOWED | AES256 (etype 18) |
-| svc_apr_03 | 4 | ALLOWED | BLOCKED | RC4 (etype 23) |
-| svc_apr_04 | 24 | **BLOCKED** | ALLOWED | AES256 (etype 18) |
-| svc_apr_05 | 28 | ALLOWED | ALLOWED | AES256 (etype 18), RC4 session |
+| svc_matrix_01 | blank | **BLOCKED** | ALLOWED | AES256 (etype 18) |
+| svc_matrix_02 | 0 | **BLOCKED** | ALLOWED | AES256 (etype 18) |
+| svc_matrix_03 | 4 | ALLOWED | BLOCKED | RC4 (etype 23) |
+| svc_matrix_04 | 24 | **BLOCKED** | ALLOWED | AES256 (etype 18) |
+| svc_matrix_05 | 28 | ALLOWED | ALLOWED | AES256 (etype 18), RC4 session |
+
+> **Refined 2026-04-14 (v2)** (`matrix-findings.md`).  "RC4 forced: ALLOWED" for svc_matrix_05
+> (msDS-SET=28) means a hash was returned, not that it was RC4: the KDC returned an AES256
+> ticket for that account whatever was requested.
 
 Event 4769 confirms: for blank and 0 accounts, `SvcSET=0x18` (AES-only) is reported. Before the patch, these accounts showed `SvcSET=0x27` (DES+RC4+AES-SK).
 
@@ -72,6 +86,14 @@ Correct version: Phase=absent already does this. Phase=2 is redundant — it's t
 
 ## Finding 4: DDSET cannot override enforcement
 
+> **Superseded 2026-04-25 and 2026-06-26.**  This finding is wrong.  Retesting on a later
+> build (`matrix-findings.md`, correction dated 2026-04-25) and again on 20348.5020
+> (`lab-verify-2026-06-26.md`: "Phase 2 + explicit DDSET=0x04 → RC4 (explicit wins)", and the
+> DDSET sweep) showed that an explicit DDSET **does** take precedence over the enforcement
+> default.  That matches Microsoft's KB5073381: "On domain controllers with a defined
+> DefaultDomainSupportedEncTypes registry value, behavior will not be functionally impacted
+> by these changes."  The original result is unexplained (test error or build difference).
+
 Previously documented as: "Explicit DDSET with RC4 overrides enforcement (Phase=2 + DDSET=4 = RC4 tickets)."
 
 **This is wrong after KB5078763.**
@@ -107,6 +129,11 @@ Accounts with `msDS-SupportedEncryptionTypes=4` (explicit RC4-only) continue to 
 | 28 | RC4+AES | ALLOWED | ALLOWED |
 
 Accounts with explicit msDS-SET=4 trigger Event 205 at KDC startup (DDSET contains insecure cipher warning), but are not blocked.
+
+> **Correction added 2026-11-10.**  Per KB5073381, Event 205 is about the DC's explicit
+> `DefaultDomainSupportedEncTypes`, not about an account's msDS-SET.  It was logged here
+> because DDSET contained RC4 during the test.  In the table above, "ALLOWED" for msDS-SET=28
+> means a ticket was issued; it was AES256 (`matrix-findings.md` v2).
 
 ---
 
@@ -157,12 +184,12 @@ Both events include:
 ## Event 4769 behavior under enforcement
 
 When an RC4 request is blocked, Event 4769 still fires but shows:
-- `Service Name` = full SPN string (e.g. `HTTP/svc-apr-01.evil.corp`), not the resolved account name
+- `Service Name` = full SPN string (e.g. `HTTP/app-01.corp.local`), not the resolved account name
 - `TicketEncryptionType` = `0xffffffff` (failure indicator)
 - `ServiceSupportedEncryptionTypes` = blank/dash
 
 When allowed:
-- `Service Name` = resolved account name (e.g. `svc_apr_01`)
+- `Service Name` = resolved account name (e.g. `svc_matrix_01`)
 - `TicketEncryptionType` = actual etype (e.g. `0x12` for AES256, `0x17` for RC4)
 - `ServiceSupportedEncryptionTypes` = the effective bitmask (e.g. `0x18 (AES128-SHA96, AES256-SHA96)`)
 
@@ -173,6 +200,10 @@ When allowed:
 ## Corrections to previous lab-findings.md
 
 ### 1. DDSET can override enforcement [WRONG]
+
+> **Superseded 2026-04-25 / 2026-06-26.**  The "previous" statement was right and this
+> correction is wrong: an explicit DDSET does override the enforcement default.  See the
+> banner under Finding 4.
 
 Previous: "Explicit DDSET with RC4 overrides enforcement (Phase=2 + DDSET=4 = RC4 tickets)."
 
@@ -193,6 +224,13 @@ Correct: The patch makes enforcement the default state. Phase=2 is not a switch 
 ---
 
 ## Rollback window
+
+> **Historical (note added 2026-11-10).**  The rollback window has closed.  Microsoft's
+> KB5073381 (change log last updated 14 April 2026) says updates released in or after July
+> 2026 "will remove support for the registry subkey RC4DefaultDisablementPhase" and that the
+> value "will no longer be read after the enforcement date" — support is removed; the KB does
+> not say the value is deleted from the registry.  No July-or-later build has been tested
+> here.  The rollback snippets below are kept as a record only.
 
 Microsoft has confirmed a rollback window between April and July 2026.
 

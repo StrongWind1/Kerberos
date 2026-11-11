@@ -1,3 +1,7 @@
+---
+description: The three Kerberos delegation types in Active Directory -- unconstrained, constrained (S4U), and resource-based constrained delegation -- with configuration, comparison, and security implications.
+---
+
 # Delegation
 
 How services act on behalf of users to access other services.
@@ -20,16 +24,21 @@ Active Directory provides three mechanisms, each with different security propert
 ```mermaid
 flowchart TD
     subgraph Unconstrained["Unconstrained Delegation"]
+        direction LR
         A1[User sends forwarded TGT<br/>to Service A] --> B1[Service A can request tickets<br/>to ANY service as the user]
     end
 
     subgraph Constrained["Constrained Delegation (S4U)"]
+        direction LR
         A2[Service A gets ticket to<br/>specific allowed services<br/>via S4U2Proxy] --> B2[Restricted to services listed<br/>in msDS-AllowedToDelegateTo]
     end
 
     subgraph RBCD["Resource-Based Constrained Delegation"]
+        direction LR
         A3[Target service B decides<br/>who can delegate to it] --> B3[Configured on the target<br/>via msDS-AllowedToActOnBehalfOfOtherIdentity]
     end
+
+    Unconstrained ~~~ Constrained ~~~ RBCD
 ```
 
 ---
@@ -49,16 +58,16 @@ sequenceDiagram
     participant D as Database<br/>(sql.corp.local)
 
     U->>K: 1. TGS-REQ for HTTP/web.corp.local<br/>(requests FORWARDABLE ticket)
-    K->>U: 2. TGS-REP with FORWARDABLE service ticket
+    K-->>U: 2. TGS-REP with FORWARDABLE service ticket
 
     U->>K: 3. TGS-REQ for krbtgt/CORP.LOCAL<br/>(forwarded TGT request)
-    K->>U: 4. TGS-REP with forwarded TGT
+    K-->>U: 4. TGS-REP with forwarded TGT
 
     U->>W: 5. AP-REQ: service ticket +<br/>forwarded TGT in authenticator
     Note over W: Extracts and caches<br/>alice's forwarded TGT
 
     W->>K: 6. TGS-REQ for MSSQLSvc/sql.corp.local<br/>using alice's forwarded TGT
-    K->>W: 7. TGS-REP with service ticket for SQL<br/>(as alice)
+    K-->>W: 7. TGS-REP with service ticket for SQL<br/>(as alice)
 
     W->>D: 8. AP-REQ to SQL as alice
 ```
@@ -69,10 +78,18 @@ sequenceDiagram
 2. The client sees the `OK-AS-DELEGATE` flag and knows the service is trusted for delegation. It
    requests a **forwarded TGT** from the KDC -- a copy of its TGT that has the `FORWARDED` flag
    set.
-3. The client includes the forwarded TGT inside the authenticator of the AP-REQ to the service.
+3. The client includes the forwarded TGT inside the authenticator of the AP-REQ to the service
+   (in the GSS-API checksum field, see [AP Exchange](ap-exchange.md)).
 4. The service extracts the user's forwarded TGT and caches it.
 5. The service can now use the user's TGT to request service tickets for **any service in the
-   domain** on behalf of the user.
+   forest** on behalf of the user.
+
+!!! info "Not across forest or external trusts"
+    Since the 2019 security updates, the KDC does not mark tickets that cross a forest or
+    external trust as `OK-AS-DELEGATE`, so a client in one forest does not forward its TGT to
+    an unconstrained-delegation server in another. The behavior is controlled per trust by the
+    `EnableTGTDelegation` flag, which defaults to `No`. See
+    [TGT Delegation Across Trusts](cross-realm.md#tgt-delegation-across-trusts).
 
 ### Configuration
 
@@ -85,7 +102,7 @@ In Active Directory Users and Computers, this is the Delegation tab option:
 
 !!! warning "Extremely dangerous"
     Any user who authenticates to a service with unconstrained delegation hands over their entire
-    TGT. The service can impersonate that user to **any** service in the domain -- not just the
+    TGT. The service can impersonate that user to **any** service in the forest -- not just the
     one it needs.
 
     If an attacker compromises a server with unconstrained delegation, they can collect TGTs from
@@ -106,7 +123,7 @@ Constrained delegation was introduced in Windows Server 2003 to limit the scope 
 Instead of giving the service a full TGT, the service can only obtain tickets for **specific
 target services** listed in its `msDS-AllowedToDelegateTo` attribute.
 
-Constrained delegation uses two sub-protocols defined in [MS-SFU]:
+Constrained delegation uses two sub-protocols defined in [MS-SFU](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/3bff5864-8135-400e-bdd9-33b552051d94):
 
 S4U2Self (Service for User to Self)
 :   The service obtains a service ticket **to itself** on behalf of a user. This is used when the
@@ -132,13 +149,13 @@ sequenceDiagram
 
     alt User authenticated via non-Kerberos
         W->>K: 2a. S4U2Self: TGS-REQ<br/>"Give me a ticket to myself<br/>on behalf of alice"
-        K->>W: 2b. TGS-REP: Service ticket<br/>to web.corp.local as alice
+        K-->>W: 2b. TGS-REP: Service ticket<br/>to web.corp.local as alice
     end
 
     W->>K: 3. S4U2Proxy: TGS-REQ<br/>Service ticket for alice +<br/>"Give me a ticket to MSSQLSvc/sql.corp.local<br/>on behalf of alice"
     Note over K: Check msDS-AllowedToDelegateTo<br/>on web server's account<br/>MSSQLSvc/sql.corp.local is listed
 
-    K->>W: 4. TGS-REP: Service ticket<br/>for MSSQLSvc/sql.corp.local as alice
+    K-->>W: 4. TGS-REP: Service ticket<br/>for MSSQLSvc/sql.corp.local as alice
 
     W->>D: 5. AP-REQ to SQL as alice
 ```
@@ -151,25 +168,32 @@ Constrained delegation is configured through two settings on the delegating acco
    allowed to delegate to. For example: `MSSQLSvc/sql.corp.local`.
 
 2. **Delegation mode** on the Delegation tab in ADUC:
-   - **Use Kerberos only** -- the service can only delegate when the user authenticated via
-     Kerberos. The service uses the user's Kerberos service ticket directly in S4U2Proxy.
-   - **Use any authentication protocol** -- enables **protocol transition**. The service can use
-     S4U2Self to get a Kerberos ticket on behalf of a user who authenticated via a non-Kerberos
-     method (NTLM, forms, certificates), and then use S4U2Proxy to delegate.
+
+    - **Use Kerberos only** -- the service can only delegate when the user authenticated via
+      Kerberos. The service uses the user's Kerberos service ticket directly in S4U2Proxy.
+    - **Use any authentication protocol** -- enables **protocol transition**. The service can use
+      S4U2Self to get a Kerberos ticket on behalf of a user who authenticated via a non-Kerberos
+      method (NTLM, forms, certificates), and then use S4U2Proxy to delegate.
 
 !!! info "Protocol transition"
-    "Use any authentication protocol" enables both S4U2Self and S4U2Proxy together. This is called
-    **protocol transition** because it converts a non-Kerberos authentication into a Kerberos
-    delegation chain.
+    Any account with an SPN can send an S4U2Self request; that part needs no configuration.
+    What "Use any authentication protocol" changes is that the resulting S4U2Self ticket is
+    issued with the **FORWARDABLE** flag, which makes it acceptable as evidence for S4U2Proxy.
+    This is called **protocol transition** because it converts a non-Kerberos authentication
+    into a Kerberos delegation chain.
 
-    Without protocol transition ("Use Kerberos only"), the service can only use S4U2Proxy with a
-    ticket the user actually obtained through Kerberos.
+    Without protocol transition ("Use Kerberos only"), the S4U2Self ticket is not forwardable,
+    so the service can only use S4U2Proxy with a ticket the user actually obtained through
+    Kerberos. See [S4U Extensions -- FORWARDABLE Flag](s4u.md#forwardable-flag) for the rules.
 
 ### Privilege Required
 
-Configuring `msDS-AllowedToDelegateTo` requires the `SeEnableDelegationPrivilege` user right,
-which by default is granted only to **Domain Admins** and **Enterprise Admins**. This means only
-highly privileged administrators can set up constrained delegation.
+Configuring `msDS-AllowedToDelegateTo` requires the `SeEnableDelegationPrivilege` user right
+([MS-ADTS &sect;3.1.1.5.3.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/c714e48c-ea21-48b0-913d-fc065ab3dda3): "If the msDS-AllowedToDelegateTo attribute is modified, then the requester MUST
+possess SE_ENABLE_DELEGATION_PRIVILEGE"). On domain controllers that right is
+[assigned to the **Administrators** group by default](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/enable-computer-and-user-accounts-to-be-trusted-for-delegation),
+which is how Domain Admins and Enterprise Admins come to hold it. This means only highly
+privileged administrators can set up constrained delegation.
 
 ### ADUC Delegation Tab Options
 
@@ -187,7 +211,10 @@ for both setup and auditing:
 !!! note "Delegation tab visibility"
     The Delegation tab only appears on an account after at least one SPN is registered to it.
     For computer accounts, HOST SPNs are created automatically.  For user accounts, you must
-    register an SPN with `setspn` before the tab becomes available.
+    register an SPN with `setspn` before the tab becomes available.  Microsoft's
+    [Kerberos technical reference](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc772815%28v=ws.10%29)
+    gives the same diagnosis: if the Delegation tab is missing, "the SPN for the service
+    account has not been registered."
 
 ### "Account is sensitive and cannot be delegated"
 
@@ -195,7 +222,9 @@ The **"Account is sensitive and cannot be delegated"** flag (`NOT_DELEGATED`, bi
 `userAccountControl`) is set on **user accounts**, not on delegating accounts.  When set, it
 prevents that user's identity from being delegated through **any** delegation mechanism --
 unconstrained, constrained, or RBCD.  The KDC will refuse to issue a forwarded TGT for the
-user, and S4U2Proxy requests on behalf of that user will fail.
+user, and S4U2Proxy requests on behalf of that user will fail.  For RBCD this depends on the
+domain controllers enforcing the fix for CVE-2020-16996, which has been the default since the
+March 2021 updates; see [S4U Extensions](s4u.md#protected-users-and-delegation-sensitive-accounts).
 
 This flag should be set on all high-privilege accounts (Domain Admins, Enterprise Admins,
 Schema Admins, Tier 0 accounts).  It is also automatically enforced for members of the
@@ -222,7 +251,7 @@ which services are allowed to delegate to it.
 |---|---|---|
 | **Who controls it** | Account of the delegating service | Account of the target service |
 | **Attribute** | `msDS-AllowedToDelegateTo` on the delegating service | `msDS-AllowedToActOnBehalfOfOtherIdentity` on the target service |
-| **Privilege required** | `SeEnableDelegationPrivilege` (Domain Admins) | Write access to the target's AD object (resource owner) |
+| **Privilege required** | `SeEnableDelegationPrivilege` (Administrators on domain controllers by default, which includes Domain Admins) | Write access to the target's AD object (resource owner) |
 | **Cross-domain** | No -- single domain only | Yes -- works across domain boundaries |
 | **Risk** | Moderate -- controlled by domain admins | Variable -- depends on who has write access to the target account |
 
@@ -238,7 +267,7 @@ Example with PowerShell:
 # Allow the web server to delegate to the SQL server on behalf of users
 $webServer = Get-ADComputer -Identity "WEB01"
 Set-ADComputer -Identity "SQL01" `
-  -PrincipalsAllowedToDelegateToAccount $webServer
+    -PrincipalsAllowedToDelegateToAccount $webServer
 ```
 
 This sets the `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute on `SQL01` to allow `WEB01`
@@ -254,7 +283,14 @@ The difference is which attribute the KDC checks:
    user.
 3. The KDC checks the SQL server's `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute to verify
    the web server is authorized.
-4. If authorized, the KDC issues the service ticket.
+4. The KDC looks at the evidence ticket from step 1. A ticket for a user who is marked sensitive
+   or is a member of Protected Users is not forwardable and is not accepted as evidence. For
+   other users the specification is not consistent: the KDC rules in MS-SFU &sect;3.2.5.2.3 require
+   a forwardable evidence ticket, while the client rules in &sect;3.1.5.2.1 still allow a
+   non-forwardable S4U2Self ticket for a non-sensitive user. This site has not tested which
+   rule a current domain controller applies; see
+   [S4U Extensions -- FORWARDABLE Flag](s4u.md#forwardable-flag).
+5. If the checks pass, the KDC issues the service ticket.
 
 !!! warning "RBCD abuse"
     Because RBCD only requires **write access** to the target computer's AD object (not Domain
@@ -273,9 +309,9 @@ The difference is which attribute the KDC checks:
 | **Introduced** | Windows 2000 | Windows Server 2003 | Windows Server 2012 |
 | **Who controls** | Domain Admins (set on delegating service) | Domain Admins (set on delegating service) | Resource owner (set on target service) |
 | **Attribute** | `userAccountControl` `TRUSTED_FOR_DELEGATION` | `msDS-AllowedToDelegateTo` | `msDS-AllowedToActOnBehalfOfOtherIdentity` |
-| **Privilege** | Domain Admins | `SeEnableDelegationPrivilege` | Write to target's AD object |
-| **Scope** | Any service in the domain | Specific SPNs listed in attribute | Specific principals listed in attribute |
-| **Cross-domain** | Yes (TGT works everywhere) | No | Yes |
+| **Privilege** | `SeEnableDelegationPrivilege` (Administrators on domain controllers by default) | `SeEnableDelegationPrivilege` (Administrators on domain controllers by default) | Write to target's AD object |
+| **Scope** | Any service in the forest | Specific SPNs listed in attribute | Specific principals listed in attribute |
+| **Cross-domain** | Within the forest. Across forest and external trusts, TGT delegation has been blocked by default since 2019 | No | Yes |
 | **Risk level** | **Critical** -- full impersonation to any service | **Moderate** -- limited to listed SPNs | **Variable** -- depends on who has write access |
 | **Recommended** | Only for DCs | Multi-tier apps with known targets | When resource owner should control access |
 
@@ -287,9 +323,11 @@ Three ticket flags are directly related to delegation. See [Ticket Structure](ti
 full flag reference.
 
 FORWARDABLE (bit 1)
-:   Set in the TGT to indicate that a forwarded TGT may be issued. For constrained delegation, the
-    service ticket must have this flag set for S4U2Proxy to work. The FORWARDABLE flag is
-    requested by the client during the AS Exchange and granted based on policy.
+:   Set in the TGT to indicate that a forwarded TGT may be issued. For constrained delegation
+    the evidence ticket must have this flag set for S4U2Proxy to work; for RBCD the
+    specification's KDC rules say the same, but its client rules do not (see
+    [S4U Extensions -- FORWARDABLE Flag](s4u.md#forwardable-flag)). The FORWARDABLE
+    flag is requested by the client during the AS Exchange and granted based on policy.
 
 FORWARDED (bit 2)
 :   Set in a TGT that has been forwarded to another host. When a client sends its TGT to a service
@@ -299,8 +337,9 @@ FORWARDED (bit 2)
 OK-AS-DELEGATE (bit 13)
 :   Set by the KDC in the service ticket when the target service is trusted for delegation
     (has `TRUSTED_FOR_DELEGATION` set). The client uses this flag to decide whether to forward
-    its TGT. Per [RFC 4120 &sect;5.3], the client is free to ignore this flag, but the default
-    Windows behavior is to respect it.
+    its TGT. Per [RFC 4120 &sect;2.8](https://datatracker.ietf.org/doc/html/rfc4120#section-2.8), the client is free to ignore this flag, but the default
+    Windows behavior is to respect it: per [MS-KILE &sect;3.2.5.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/3affa503-59b5-47b6-92aa-ec4b9cf04982), "The client does not forward
+    the ticket unless the TGT is marked OK-AS-DELEGATE".
 
 ---
 
@@ -369,3 +408,7 @@ commands and priority-ordered hardening checklist, see
 - The FORWARDABLE, FORWARDED, and OK-AS-DELEGATE ticket flags drive delegation behavior
 - All three delegation types have significant attack surface -- see the
   [Attacks section](../attacks/delegation/delegation-attacks.md) for details
+
+This is the last page of the Protocol section. Next: the [Security section](../security/index.md)
+for configuration and hardening, or the [Attacks section](../attacks/index.md) for how these
+mechanisms are abused.

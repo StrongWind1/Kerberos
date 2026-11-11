@@ -1,78 +1,357 @@
 /* Kerberos -- layout and calculator/decoder UI.
  *
- * Colour lives in theme.css, not here. Keep this file free of palette variables
- * and of direct background-color/color rules on Material chrome -- Material
- * derives those from --md-primary-fg-color and --md-hue.
+ * Colour lives in theme.css, not here: this file contains no colour literals,
+ * only var() references, so a scheme never needs a second copy of a rule.
+ * (The `transparent` and `black` in the mask-image gradients below are alpha
+ * values of a mask, not colours anything is painted with.)
+ * Text colours used here are --md-default-fg-color, --md-code-fg-color, the
+ * accent, and the --tool-* palette -- all AAA (7:1) on the surfaces they sit
+ * on. Do not use --md-default-fg-color--light / --lighter or opacity to dim
+ * text; they fall below AA. Keep direct colour rules off Material chrome --
+ * Material derives those from --md-primary-fg-color and --md-hue.
  */
 
-/* ---------- Wider content area on large screens ---------- */
+/* ---------- Content width ---------- */
 
-/* Default max-width is 61rem (~976px).  On wide displays this wastes space
-   and squeezes tables with many columns (e.g. the etype inputs table).
-   Use a percentage with a floor so the content scales with the viewport
-   while keeping comfortable margins at every width. */
+/* Material caps the page grid at 61rem (1220px: its rem is 20px). On wide
+   displays that wastes space and squeezes tables with many columns, so the
+   grid grows with the viewport up to 100rem. The max() keeps Material's own
+   width as the floor: a bare min(90%, 100rem) made the grid *narrower* than
+   the default on every viewport between 1220px and 1355px, the most common
+   laptop widths, where the article column lost 68px. */
 @media screen and (min-width: 76.25em) {
   .md-grid {
-    max-width: min(90%, 100rem);
+    max-width: max(61rem, min(90%, 100rem));
   }
 }
 
-/* Let wide tables scroll horizontally instead of wrapping into unreadable
-   columns on mid-size screens. */
-.md-typeset table:not([class]) {
-  display: block;
-  overflow-x: auto;
-  white-space: normal;
+/* ---------- Tables ---------- */
+
+/* Material wraps every table in .md-typeset__scrollwrap, which scrolls
+   sideways when the table cannot shrink any further, and lays the table out
+   with the browser's automatic algorithm: each column gets at least its
+   narrowest content and the spare width goes to the columns with the most
+   text. The rules below only correct the inputs to that algorithm.
+
+   Cell padding: Material's 1.25em each side costs a six-column table 190px of
+   a 690px column before any text is placed. */
+.md-typeset table:not([class]) :is(th, td) {
+  padding: 0.75em 0.85em;
 }
 
-/* Keep header cells from wrapping on wide tables so column labels stay on
-   one line — the body cells wrap naturally. */
+/* Tighter still on a phone, where a three-column table is often a few pixels
+   wider than the screen and would scroll for those few pixels. */
+@media screen and (max-width: 44.9844em) {
+  .md-typeset table:not([class]) :is(th, td) {
+    padding: 0.65em 0.6em;
+  }
+}
+
+/* Header cells: no 5rem floor (it gave a "Hex" column 100px while the prose
+   column beside it starved) and no nowrap (one long header forced its column,
+   and so the table, wider than the page). Headers wrap between words only. */
 .md-typeset table:not([class]) th {
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
 }
 
-/* ---------- Etype calculator ---------- */
+/* Identifiers in cells break only where layout.js has marked a boundary
+   (DefaultDomain|Supported|Enc|Types), never mid-word. Material's
+   word-break: break-word let a squeezed column split them anywhere
+   ("SupportedE / ncryptionT / ypes"). */
+.md-typeset table:not([class]) :is(th, td) code {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* A column that holds sentences also gets a floor when the table is far too
+   wide for its place: layout.js sets an inline min-width on its header cell
+   from the longest cell below it, so the table scrolls sideways instead of
+   stacking a paragraph four words wide and many screens tall. */
+
+/* The sticky first column below needs the table itself not to clip. */
+html .md-typeset__table table:not([class]) {
+  overflow: visible;
+}
+
+/* A table that scrolls keeps its first column in view, so each row can still
+   be identified. layout.js sets data-pin when the table overflows and the
+   first column is narrow enough to leave room for the rest. */
+.md-typeset__scrollwrap[data-pin] table:not([class]) :is(th, td):first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--md-default-bg-color);
+  box-shadow: inset -0.05rem 0 0 var(--tool-neutral-border);
+}
+
+/* Inside a callout the wrapper stays within the callout's padding. Material
+   lets it run out to the callout's border, where a table that scrolls is cut
+   off flush against the frame. */
+.md-typeset :is(.admonition, details) .md-typeset__scrollwrap {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.md-typeset :is(.admonition, details) .md-typeset__table {
+  padding: 0;
+}
+
+/* ---------- Regions that scroll sideways (wide tables, wide diagrams) ---------- */
+
+/* layout.js marks a region with data-scroll while its content is wider than
+   it is: "start", "middle" or "end" for where the reader has scrolled to. The
+   region is then focusable, so the arrow keys scroll it, and the edge that
+   has more content beyond it fades out. */
+.md-typeset :is(.md-typeset__scrollwrap, .mermaid)[data-scroll="start"] {
+  mask-image: linear-gradient(to left, transparent, black 2rem);
+}
+
+.md-typeset :is(.md-typeset__scrollwrap, .mermaid)[data-scroll="middle"] {
+  mask-image: linear-gradient(to right, transparent, black 2rem, black calc(100% - 2rem), transparent);
+}
+
+.md-typeset :is(.md-typeset__scrollwrap, .mermaid)[data-scroll="end"] {
+  mask-image: linear-gradient(to right, transparent, black 2rem);
+}
+
+/* A pinned first column is never faded: only the right edge is. */
+.md-typeset .md-typeset__scrollwrap[data-pin][data-scroll="middle"] {
+  mask-image: linear-gradient(to left, transparent, black 2rem);
+}
+
+.md-typeset .md-typeset__scrollwrap[data-pin][data-scroll="end"] {
+  mask-image: none;
+}
+
+/* The focus ring replaces the fade while the region has keyboard focus: a
+   mask would clip the ring along with the content. */
+.md-typeset :is(.md-typeset__scrollwrap, .mermaid)[data-scroll]:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: -2px;
+  mask-image: none;
+}
+
+@media print {
+  .md-typeset :is(.md-typeset__scrollwrap, .mermaid)[data-scroll] {
+    mask-image: none;
+  }
+}
+
+/* ---------- Diagrams ---------- */
+
+/* layout.js gives a diagram a minimum width when fitting it to the column
+   would shrink its text below a legible size, so a wide one scrolls here
+   instead. */
+.md-typeset .mermaid {
+  overflow-x: auto;
+}
+
+/* ---------- Keyboard focus ---------- */
+
+/* Header and tab bar. Material draws these rings in the accent colour, which
+   on the light scheme is a dark brown on the indigo bar (1.3:1) and cannot be
+   seen. The bar's own text colour is 8:1 on it in both schemes. */
+.md-header :is(.md-header__button, .md-source, .md-tabs__link):focus-visible {
+  outline: 2px solid var(--md-primary-bg-color);
+  outline-offset: 2px;
+}
+
+/* Colour-scheme switch. Focus is on a zero-size radio input, and Material
+   rings the label that follows that input in the markup -- which is the hidden
+   one whenever the other scheme is showing. Ring the label that is visible. */
+.md-header__option:has(.md-option:focus-visible) > label:not([hidden]) {
+  outline: 2px solid var(--md-primary-bg-color);
+  outline-offset: -2px;
+}
+
+/* Content tabs. Focus is on a zero-size radio input here too; Material only
+   recolours the label, which the selected tab already is. The focused input
+   is always the selected one, so ring the label in the same position. */
+.md-typeset .tabbed-set:has(> input:nth-child(1):focus-visible) > .tabbed-labels > :nth-child(1),
+.md-typeset .tabbed-set:has(> input:nth-child(2):focus-visible) > .tabbed-labels > :nth-child(2),
+.md-typeset .tabbed-set:has(> input:nth-child(3):focus-visible) > .tabbed-labels > :nth-child(3),
+.md-typeset .tabbed-set:has(> input:nth-child(4):focus-visible) > .tabbed-labels > :nth-child(4),
+.md-typeset .tabbed-set:has(> input:nth-child(5):focus-visible) > .tabbed-labels > :nth-child(5),
+.md-typeset .tabbed-set:has(> input:nth-child(6):focus-visible) > .tabbed-labels > :nth-child(6),
+.md-typeset .tabbed-set:has(> input:nth-child(7):focus-visible) > .tabbed-labels > :nth-child(7),
+.md-typeset .tabbed-set:has(> input:nth-child(8):focus-visible) > .tabbed-labels > :nth-child(8) {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: -2px;
+}
+
+/* ---------- Code blocks ---------- */
+
+/* The select and copy buttons float over the top-right corner of the block.
+   Reserve that corner: a line short enough not to scroll now ends before the
+   buttons, and a long one clears them once scrolled to its end. */
+.md-typeset .highlight pre > code {
+  padding-right: 3.8rem;
+}
+
+/* Material paints the buttons in its faintest foreground on a translucent
+   chip: near-invisible on the light scheme, and code showed through. An
+   opaque chip in the block's own background, icons in an AAA text colour. */
+.md-typeset .md-code__nav,
+.md-typeset :hover > .md-code__nav {
+  background-color: var(--md-code-bg-color);
+}
+
+.md-typeset .md-code__button,
+.md-typeset :hover > * > .md-code__button {
+  color: var(--tool-muted);
+}
+
+.md-typeset .md-code__button:is(:hover, :focus-visible) {
+  color: var(--md-accent-fg-color);
+}
+
+/* ---------- Callouts ---------- */
+
+/* A callout written with only a quoted title and no body puts its whole
+   paragraph in the title bar, where every word is bold. Set in the regular
+   weight it reads as what it is: a callout with body text and no title. */
+.md-typeset .admonition > .admonition-title:only-child {
+  font-weight: 400;
+}
+
+/* ---------- Task lists ---------- */
+
+/* Material draws an unticked item as a ticked circle in its hairline colour
+   (1.2:1 on the light page) and a ticked one as the same circle in a fixed
+   bright green (1.6:1 on white): close to invisible, and told apart by colour
+   alone. Here an unticked item is an empty box and a ticked one a ticked box
+   (Material Design Icons checkbox-blank-outline and checkbox-marked), each in
+   a colour that is at least 3:1 on the page. */
+:root > * {
+  --md-tasklist-icon: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/></svg>');
+  --md-tasklist-icon--checked: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m10 17-5-5 1.41-1.42L10 14.17l7.59-7.59L19 8m0-5H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2"/></svg>');
+}
+
+.md-typeset .task-list-indicator::before {
+  background-color: var(--tool-control-border);
+}
+
+.md-typeset [type="checkbox"]:checked + .task-list-indicator::before {
+  background-color: var(--tool-ok-fg);
+}
+
+/* ---------- Announcement bar ---------- */
+
+/* On a phone the full announcement ran to four lines above every page. The
+   lead and the link stay; the sentence between them is on the page the link
+   opens. */
+@media screen and (max-width: 44.9844em) {
+  .md-banner .announce-detail {
+    display: none;
+  }
+}
+
+/* ================================================================== */
+/*  Shared by both tools                                               */
+/* ================================================================== */
+
+/* One visible keyboard focus ring for every control in the two tools. */
+#etype-calculator :is(button, input):focus-visible,
+#event-decoder :is(button, textarea):focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
+}
+
+/* The results region takes focus after Decode so screen readers land on
+   it; a ring around the whole region adds nothing for pointer users. */
+.evdec-results:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Text for assistive technology only. */
+.evdec-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Section headings inside the tools are real <h2>s (they follow the page
+   <h1>), styled as small labels rather than as document sections. */
+.md-typeset :is(.etype-bits, .etype-values) h2,
+.md-typeset .evdec-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tool-muted);
+}
+
+.md-typeset .etype-values h2:not(:first-child) {
+  margin-top: 1rem;
+}
+
+/* Hide the back-to-top button on the two tool pages.  CSS :has() for modern
+   browsers; the body class is the fallback, set by each script's init. */
+body:has(#etype-calculator) .md-top,
+body.etype-calculator-page .md-top,
+body:has(#event-decoder) .md-top,
+body.event-decoder-page .md-top {
+  display: none !important;
+}
+
+/* ================================================================== */
+/*  Etype calculator                                                   */
+/* ================================================================== */
 
 /* Tab bar */
 .etype-tabs {
   display: flex;
   gap: 0;
-  /* Use inset box-shadow instead of border-bottom for the divider line.
-     overflow-x:auto forces overflow-y:auto (CSS spec), which clips the
-     margin-bottom:-2px trick that made tab borders overlap the container
-     border.  An inset shadow renders inside the padding box and is not
-     affected by overflow clipping. */
-  box-shadow: inset 0 -2px 0 0 var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
+  /* Inset shadow, not border-bottom, so the active tab's own border can sit
+     on top of the divider line. */
+  box-shadow: inset 0 -2px 0 0 var(--tool-neutral-border);
   margin-bottom: 1rem;
-  overflow-x: auto;
+  /* Wrap rather than scroll: three long setting names do not fit a phone
+     screen, and a scrolling tab bar hides the third one. */
+  flex-wrap: wrap;
 }
 
 .etype-tab {
   padding: 0.6rem 1rem;
   border: none;
   background: none;
-  color: var(--md-typeset-color, var(--md-typeset-color));
+  color: var(--md-default-fg-color);
   font-family: var(--md-text-font-family, inherit);
   font-size: 0.8rem;
   cursor: pointer;
-  white-space: nowrap;
+  text-align: left;
+  overflow-wrap: anywhere;
   border-bottom: 2px solid transparent;
   transition: color 0.15s, border-color 0.15s;
 }
 
 .etype-tab:hover {
-  color: var(--md-accent-fg-color, var(--md-accent-fg-color));
+  color: var(--md-accent-fg-color);
 }
 
+/* The selected setting: accent colour plus a thicker underline and weight,
+   so the state does not depend on colour alone. */
 .etype-tab--active {
-  color: var(--md-accent-fg-color, var(--md-accent-fg-color));
-  border-bottom-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
+  color: var(--md-accent-fg-color);
+  font-weight: 700;
+  border-bottom-color: var(--md-accent-fg-color);
 }
 
-/* Setting description */
 .etype-setting-desc {
   font-size: 0.85rem;
-  opacity: 0.8;
+  color: var(--tool-muted);
   margin: 0 0 1rem;
 }
 
@@ -80,95 +359,59 @@
 .etype-status {
   display: inline-block;
   padding: 0.25rem 0.75rem;
+  border: 1px solid var(--tool-neutral-border);
   border-radius: 1rem;
   font-size: 0.8rem;
   font-weight: 600;
   margin-bottom: 1rem;
+  background: var(--tool-neutral-bg);
+  color: var(--tool-neutral-fg);
 }
 
 .etype-status--secure {
-  background: #1a3a2a;
-  color: #4ade80;
-  border: 1px solid #22633a;
+  background: var(--tool-ok-bg);
+  color: var(--tool-ok-fg);
+  border-color: var(--tool-ok-border);
 }
 
 .etype-status--transitional {
-  background: #3a3520;
-  color: #fbbf24;
-  border: 1px solid #6b5c1f;
+  background: var(--tool-warn-bg);
+  color: var(--tool-warn-fg);
+  border-color: var(--tool-warn-border);
 }
 
 .etype-status--insecure {
-  background: #3a1a1a;
-  color: #f87171;
-  border: 1px solid #7f1d1d;
+  background: var(--tool-bad-bg);
+  color: var(--tool-bad-fg);
+  border-color: var(--tool-bad-border);
 }
 
-.etype-status--notset {
-  background: var(--md-default-bg-color--lightest);
-  color: #94a3b8;
-  border: 1px solid #2a4a6b;
-}
-
-/* Light mode status badges */
-[data-md-color-scheme="default"] .etype-status--secure {
-  background: #dcfce7;
-  color: #166534;
-  border-color: #86efac;
-}
-
-[data-md-color-scheme="default"] .etype-status--transitional {
-  background: #fef9c3;
-  color: #854d0e;
-  border-color: #fde047;
-}
-
-[data-md-color-scheme="default"] .etype-status--insecure {
-  background: #fee2e2;
-  color: #991b1b;
-  border-color: #fca5a5;
-}
-
-[data-md-color-scheme="default"] .etype-status--notset {
-  background: #f1f5f9;
-  color: #475569;
-  border-color: #cbd5e1;
-}
-
-/* Two-column layout */
+/* Two-column layout.  minmax(0, 1fr), not 1fr: a bare 1fr track cannot
+   shrink below the widest unbreakable content (the PowerShell <pre>), which
+   pushed the whole page sideways on phones. */
 .etype-calc-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: 2rem;
   margin-bottom: 1.5rem;
 }
 
 @media screen and (max-width: 60em) {
   .etype-calc-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 /* Bit checkbox rows */
-.etype-bits h3,
-.etype-values h3 {
-  margin-top: 0;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.7;
-  border: none;
-}
-
 .etype-bit-row {
   padding: 0.4rem 0.5rem;
+  border-left: 3px solid transparent;
   border-radius: 4px;
   margin-bottom: 2px;
-  transition: background 0.1s;
 }
 
 .etype-bit-row:hover {
-  background: var(--md-default-bg-color--lighter, var(--md-default-bg-color--lighter));
+  background: var(--md-code-bg-color);
 }
 
 .etype-bit-row label {
@@ -177,20 +420,21 @@
   gap: 0.5rem;
   cursor: pointer;
   font-size: 0.85rem;
+  color: var(--md-default-fg-color);
 }
 
 .etype-bit-row input[type="checkbox"] {
   flex-shrink: 0;
   width: 1rem;
   height: 1rem;
-  accent-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
+  accent-color: var(--md-accent-fg-color);
 }
 
 .etype-bit-info {
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.75rem;
-  min-width: 7rem;
-  opacity: 0.7;
+  min-width: 5.5rem;
+  color: var(--tool-muted);
 }
 
 .etype-bit-name {
@@ -200,7 +444,7 @@
 .etype-bit-etype {
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.7rem;
-  opacity: 0.5;
+  color: var(--tool-muted);
   min-width: 5rem;
   text-align: right;
 }
@@ -214,77 +458,52 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   white-space: nowrap;
+  background: var(--tool-neutral-bg);
+  color: var(--tool-neutral-fg);
 }
 
 .etype-bit-badge--removed {
-  background: #3a1a1a;
-  color: #f87171;
+  background: var(--tool-bad-bg);
+  color: var(--tool-bad-fg);
 }
 
 .etype-bit-badge--deprecated {
-  background: #3a3520;
-  color: #fbbf24;
+  background: var(--tool-warn-bg);
+  color: var(--tool-warn-fg);
 }
 
 .etype-bit-badge--recommended {
-  background: #1a3a2a;
-  color: #4ade80;
+  background: var(--tool-ok-bg);
+  color: var(--tool-ok-fg);
 }
 
 .etype-bit-badge--special {
-  background: #1a2a3a;
-  color: #60a5fa;
+  background: var(--tool-info-bg);
+  color: var(--tool-info-fg);
 }
 
 .etype-bit-badge--feature {
-  background: #1a2a3a;
-  color: #a78bfa;
+  background: var(--tool-feature-bg);
+  color: var(--tool-feature-fg);
 }
 
-.etype-bit-badge--neutral {
-  background: var(--md-default-bg-color--lightest);
-  color: #94a3b8;
-}
-
-/* Light mode badges */
-[data-md-color-scheme="default"] .etype-bit-badge--removed {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-[data-md-color-scheme="default"] .etype-bit-badge--deprecated {
-  background: #fef9c3;
-  color: #854d0e;
-}
-
-[data-md-color-scheme="default"] .etype-bit-badge--recommended {
-  background: #dcfce7;
-  color: #166534;
-}
-
-[data-md-color-scheme="default"] .etype-bit-badge--special {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-[data-md-color-scheme="default"] .etype-bit-badge--feature {
-  background: #ede9fe;
-  color: #5b21b6;
-}
-
-[data-md-color-scheme="default"] .etype-bit-badge--neutral {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-/* Ignored bit styling */
+/* A bit this setting ignores.  Marked with a dashed rule, an italic name and
+   the note below it -- not by fading the text, which made it unreadable. */
 .etype-bit--ignored {
-  opacity: 0.45;
+  border-left: 3px dashed var(--tool-neutral-border);
+}
+
+.etype-bit--ignored .etype-bit-name {
+  font-style: italic;
+}
+
+.etype-bit--ignored label:has(input:disabled) {
+  cursor: default;
 }
 
 .etype-bit-ignored-note {
   font-size: 0.7rem;
-  color: #60a5fa;
+  color: var(--tool-note);
   margin-left: 2rem;
   display: block;
 }
@@ -294,12 +513,12 @@
   margin-bottom: 0.75rem;
 }
 
-.etype-field>label {
+.etype-field > label {
   display: block;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  opacity: 0.6;
+  color: var(--tool-muted);
   margin-bottom: 0.25rem;
 }
 
@@ -310,27 +529,71 @@
 
 .etype-input-row input {
   flex: 1;
+  min-width: 0;
   padding: 0.5rem 0.75rem;
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.9rem;
-  background: var(--md-code-bg-color, var(--md-code-bg-color));
-  color: var(--md-code-fg-color, var(--md-typeset-color));
-  border: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
+  background: var(--md-code-bg-color);
+  color: var(--md-code-fg-color);
+  border: 1px solid var(--tool-control-border);
   border-radius: 4px;
-  outline: none;
 }
 
 .etype-input-row input:focus {
-  border-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
+  border-color: var(--md-accent-fg-color);
 }
 
+/* Invalid input: thicker border in the alert colour plus the message below
+   (aria-invalid is set by the script). */
 .etype-input-row input.etype-input--invalid {
-  border-color: #f87171;
-  background: #3a1a1a;
+  border: 2px solid var(--tool-alert);
 }
 
-.etype-input-row input[readonly] {
-  cursor: default;
+/* Flag Names is an <output> that wraps (it was a one-line read-only <input>
+   that cut the list off).  Same box as the Decimal and Hexadecimal inputs. */
+.etype-input-row output {
+  flex: 1;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  background: var(--md-code-bg-color);
+  color: var(--md-code-fg-color);
+  border: 1px solid var(--tool-control-border);
+  border-radius: 4px;
+}
+
+/* Keep its Copy button at the height of one line beside a multi-line value
+   (the buttons beside the two inputs still stretch to match them). */
+.etype-input-row output + .etype-copy-btn {
+  align-self: flex-start;
+  min-height: 2.25rem;
+}
+
+.etype-input-msg {
+  margin: -0.4rem 0 0.6rem;
+  font-size: 0.75rem;
+  color: var(--tool-alert);
+}
+
+.etype-input-msg:empty {
+  display: none;
+}
+
+.etype-link-row {
+  margin: 0 0 1rem;
+}
+
+.etype-link-row:has(> [hidden]) {
+  display: none;
+}
+
+.etype-derived {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--tool-muted);
 }
 
 /* Copy buttons */
@@ -338,9 +601,9 @@
   padding: 0.4rem 0.75rem;
   font-size: 0.75rem;
   font-family: var(--md-text-font-family, inherit);
-  background: var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
-  color: var(--md-typeset-color, var(--md-typeset-color));
-  border: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
+  background: var(--md-code-bg-color);
+  color: var(--md-default-fg-color);
+  border: 1px solid var(--tool-control-border);
   border-radius: 4px;
   cursor: pointer;
   white-space: nowrap;
@@ -348,20 +611,23 @@
 }
 
 .etype-copy-btn:hover {
-  background: var(--md-accent-fg-color, var(--md-accent-fg-color));
-  color: #000;
+  background: var(--md-accent-fg-color);
+  border-color: var(--md-accent-fg-color);
+  color: var(--md-accent-bg-color);
 }
 
-.etype-copy-btn--copied {
-  background: #1a3a2a;
-  color: #4ade80;
-  border-color: #22633a;
+.etype-copy-btn--copied,
+.etype-copy-btn--copied:hover {
+  background: var(--tool-solid-ok-bg);
+  border-color: var(--tool-solid-ok-bg);
+  color: var(--tool-solid-fg);
 }
 
-.etype-copy-btn--failed {
-  background: #3a1a1a;
-  color: #f87171;
-  border-color: #7f1d1d;
+.etype-copy-btn--failed,
+.etype-copy-btn--failed:hover {
+  background: var(--tool-solid-bad-bg);
+  border-color: var(--tool-solid-bad-bg);
+  color: var(--tool-solid-fg);
 }
 
 /* Preset buttons */
@@ -376,120 +642,100 @@
   padding: 0.35rem 0.7rem;
   font-size: 0.75rem;
   font-family: var(--md-code-font-family, monospace);
-  background: var(--md-default-bg-color--lighter, var(--md-default-bg-color--lighter));
-  color: var(--md-typeset-color, var(--md-typeset-color));
-  border: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
+  background: var(--md-code-bg-color);
+  color: var(--md-default-fg-color);
+  border: 1px solid var(--tool-control-border);
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: border-color 0.15s;
 }
 
 .etype-preset-btn:hover {
-  border-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
+  border-color: var(--md-accent-fg-color);
 }
 
-/* Active preset — matches the current value */
+/* Active preset — matches the current value.  The script also prefixes the
+   label with a check mark and sets aria-pressed. */
 .etype-preset-btn--active {
-  border-color: var(--md-accent-fg-color, var(--md-accent-fg-color));
-  background: var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
+  border: 2px solid var(--md-accent-fg-color);
+  font-weight: 700;
 }
 
 /* Warnings */
 .etype-warnings {
-  border-left: 3px solid #fbbf24;
+  border-left: 3px solid var(--tool-caution-border);
   padding: 0.5rem 0.75rem;
   margin-bottom: 1rem;
-  background: var(--md-default-bg-color--lighter, var(--md-default-bg-color--lighter));
+  background: var(--tool-caution-bg);
   border-radius: 0 4px 4px 0;
 }
 
 .etype-warning-item {
   font-size: 0.8rem;
   padding: 0.25rem 0;
-  color: #fbbf24;
+  color: var(--tool-caution);
 }
 
-.etype-warning-item+.etype-warning-item {
-  border-top: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
+.etype-warning-item + .etype-warning-item {
+  border-top: 1px solid var(--tool-neutral-border);
 }
 
 .etype-no-warnings {
   font-size: 0.8rem;
-  opacity: 0.5;
+  color: var(--tool-muted);
   margin: 0 0 1rem;
 }
 
-[data-md-color-scheme="default"] .etype-warnings {
-  background: #fffbeb;
-  border-left-color: #d97706;
-}
-
-[data-md-color-scheme="default"] .etype-warning-item {
-  color: #92400e;
-}
-
-[data-md-color-scheme="default"] .etype-preset-btn--active {
-  border-color: #f57f17;
-  background: #fff8e1;
-}
-
-[data-md-color-scheme="default"] .etype-copy-btn--failed {
-  background: #fee2e2;
-  color: #991b1b;
-  border-color: #fca5a5;
-}
-
-[data-md-color-scheme="default"] .etype-input-row input.etype-input--invalid {
-  border-color: #f87171;
-  background: #fee2e2;
-}
-
 /* PowerShell block */
+/* The copy button sits above the block, not on top of it: the command
+   lines are not wrapped, and a floating button hid the end of the first. */
 .etype-ps-block {
-  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: 0.4rem;
 }
 
-.etype-ps-block pre {
+/* A bare <pre> (no <code> child): Material adds its own copy button to every
+   "pre > code", and this block already has one. */
+.md-typeset .etype-ps {
   margin: 0;
+  align-self: stretch;
   padding: 0.75rem;
-  background: var(--md-code-bg-color, var(--md-code-bg-color));
-  border: 1px solid var(--md-default-bg-color--lightest, var(--md-default-bg-color--lightest));
+  font-family: var(--md-code-font-family, monospace);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre;
+  background: var(--md-code-bg-color);
+  color: var(--md-code-fg-color);
+  border: 1px solid var(--tool-neutral-border);
   border-radius: 4px;
   overflow-x: auto;
 }
 
-.etype-ps-block code {
-  font-size: 0.8rem;
-  white-space: pre;
+.etype-ps:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
 }
 
-.etype-ps-block .etype-copy-btn {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-}
+@media screen and (max-width: 30em) {
+  .etype-bit-row label {
+    flex-wrap: wrap;
+  }
 
-/* Hide back-to-top button on the calculator page.
-   CSS :has() for modern browsers; body class fallback set by JS init. */
-body:has(#etype-calculator) .md-top,
-body.etype-calculator-page .md-top {
-  display: none !important;
-}
+  .etype-bit-etype {
+    min-width: 0;
+    text-align: left;
+  }
 
-/* Disabled checkboxes in ignored rows */
-.etype-bit--ignored label {
-  cursor: default;
+  .etype-input-row {
+    flex-wrap: wrap;
+  }
 }
 
 /* ================================================================== */
 /*  Event Decoder                                                      */
 /* ================================================================== */
-
-/* Hide back-to-top on the decoder page */
-body:has(#event-decoder) .md-top,
-body.event-decoder-page .md-top {
-  display: none !important;
-}
 
 /* --- Input section --- */
 
@@ -507,7 +753,7 @@ body.event-decoder-page .md-top {
   font-size: 0.8rem;
   line-height: 1.45;
   padding: 0.75rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
+  border: 1px solid var(--tool-control-border);
   border-radius: 0.3rem;
   background: var(--md-code-bg-color);
   color: var(--md-code-fg-color);
@@ -516,14 +762,12 @@ body.event-decoder-page .md-top {
 }
 
 .evdec-textarea:focus {
-  outline: none;
   border-color: var(--md-accent-fg-color);
-  box-shadow: 0 0 0 2px rgba(var(--md-accent-fg-color--rgb, 255 183 77), 0.25);
 }
 
 .evdec-textarea::placeholder {
-  color: var(--md-default-fg-color--lighter);
-  opacity: 0.7;
+  color: var(--tool-muted);
+  opacity: 1;
 }
 
 .evdec-actions {
@@ -536,8 +780,14 @@ body.event-decoder-page .md-top {
 
 .evdec-hint {
   font-size: 0.75rem;
-  color: var(--md-default-fg-color--lighter);
+  color: var(--tool-muted);
   margin-left: auto;
+}
+
+.evdec-privacy-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--tool-muted);
 }
 
 /* --- Buttons --- */
@@ -546,14 +796,14 @@ body.event-decoder-page .md-top {
   display: inline-flex;
   align-items: center;
   padding: 0.4rem 0.9rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
+  border: 1px solid var(--tool-control-border);
   border-radius: 0.25rem;
   background: var(--md-code-bg-color);
-  color: var(--md-default-fg-color--light);
+  color: var(--md-default-fg-color);
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.8rem;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: border-color 0.15s;
 }
 
 .evdec-btn:hover {
@@ -561,22 +811,30 @@ body.event-decoder-page .md-top {
   color: var(--md-accent-fg-color);
 }
 
-.evdec-btn--primary {
+.evdec-btn--primary,
+.evdec-btn--primary:hover {
   background: var(--md-accent-fg-color);
-  color: var(--md-accent-bg-color, #000);
+  color: var(--md-accent-bg-color);
   border-color: var(--md-accent-fg-color);
   font-weight: 600;
 }
 
 .evdec-btn--primary:hover {
-  filter: brightness(1.1);
-  color: var(--md-accent-bg-color, #000);
+  text-decoration: underline;
 }
 
-.evdec-btn--copied {
-  background: #2e7d32 !important;
-  border-color: #2e7d32 !important;
-  color: #fff !important;
+.evdec-btn--copied,
+.evdec-btn--copied:hover {
+  background: var(--tool-solid-ok-bg);
+  border-color: var(--tool-solid-ok-bg);
+  color: var(--tool-solid-fg);
+}
+
+.evdec-btn--failed,
+.evdec-btn--failed:hover {
+  background: var(--tool-solid-bad-bg);
+  border-color: var(--tool-solid-bad-bg);
+  color: var(--tool-solid-fg);
 }
 
 /* --- Example buttons --- */
@@ -591,7 +849,7 @@ body.event-decoder-page .md-top {
 
 .evdec-examples-label {
   font-size: 0.8rem;
-  color: var(--md-default-fg-color--lighter);
+  color: var(--tool-muted);
   margin-right: 0.2rem;
 }
 
@@ -599,10 +857,10 @@ body.event-decoder-page .md-top {
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.6rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
+  border: 1px solid var(--tool-control-border);
   border-radius: 0.2rem;
   background: transparent;
-  color: var(--md-default-fg-color--light);
+  color: var(--md-default-fg-color);
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.75rem;
   cursor: pointer;
@@ -619,10 +877,11 @@ body.event-decoder-page .md-top {
 .evdec-error {
   margin-top: 1rem;
   padding: 0.6rem 0.8rem;
-  border-left: 4px solid #e53935;
-  background: rgba(229, 57, 53, 0.08);
+  border: 1px solid var(--tool-bad-border);
+  border-left-width: 4px;
+  background: var(--tool-bad-bg);
   border-radius: 0 0.3rem 0.3rem 0;
-  color: var(--md-default-fg-color);
+  color: var(--tool-bad-fg);
   font-size: 0.85rem;
 }
 
@@ -630,6 +889,16 @@ body.event-decoder-page .md-top {
 
 .evdec-results {
   margin-top: 1.25rem;
+  /* Decode moves focus here, and the browser scrolls a focused element to the
+     very top of the window -- under the sticky header (2.4rem, and another
+     2.4rem of tab bar on wide screens). Stop short of it. */
+  scroll-margin-top: 3.2rem;
+}
+
+@media screen and (min-width: 76.25em) {
+  .evdec-results {
+    scroll-margin-top: 5.6rem;
+  }
 }
 
 /* --- Header --- */
@@ -652,7 +921,7 @@ body.event-decoder-page .md-top {
   min-width: 3rem;
   padding: 0.3rem 0.6rem;
   background: var(--md-accent-fg-color);
-  color: var(--md-accent-bg-color, #000);
+  color: var(--md-accent-bg-color);
   font-family: var(--md-code-font-family, monospace);
   font-size: 1.1rem;
   font-weight: 700;
@@ -673,30 +942,33 @@ body.event-decoder-page .md-top {
 
 .evdec-event-desc {
   font-size: 0.8rem;
-  color: var(--md-default-fg-color--light);
+  color: var(--tool-muted);
 }
 
 .evdec-status {
   display: inline-flex;
   align-items: center;
   padding: 0.2rem 0.7rem;
+  border: 1px solid var(--tool-warn-border);
   border-radius: 1rem;
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.8rem;
   font-weight: 600;
   margin-left: auto;
+  background: var(--tool-warn-bg);
+  color: var(--tool-warn-fg);
 }
 
 .evdec-status--success {
-  background: rgba(46, 125, 50, 0.15);
-  color: #2e7d32;
-  border: 1px solid rgba(46, 125, 50, 0.3);
+  background: var(--tool-ok-bg);
+  color: var(--tool-ok-fg);
+  border-color: var(--tool-ok-border);
 }
 
 .evdec-status--failure {
-  background: rgba(229, 57, 53, 0.12);
-  color: #e53935;
-  border: 1px solid rgba(229, 57, 53, 0.3);
+  background: var(--tool-bad-bg);
+  color: var(--tool-bad-fg);
+  border-color: var(--tool-bad-border);
 }
 
 .evdec-header-meta {
@@ -708,7 +980,7 @@ body.event-decoder-page .md-top {
 
 .evdec-meta-item {
   font-size: 0.78rem;
-  color: var(--md-default-fg-color--lighter);
+  color: var(--tool-muted);
   font-family: var(--md-code-font-family, monospace);
 }
 
@@ -726,8 +998,8 @@ body.event-decoder-page .md-top {
 .evdec-warnings {
   margin-bottom: 1rem;
   padding: 0.6rem 0.8rem;
-  border-left: 4px solid var(--md-accent-fg-color);
-  background: rgba(255, 183, 77, 0.08);
+  border-left: 4px solid var(--tool-caution-border);
+  background: var(--tool-caution-bg);
   border-radius: 0 0.3rem 0.3rem 0;
 }
 
@@ -742,8 +1014,8 @@ body.event-decoder-page .md-top {
   content: "\26a0\fe0f ";
 }
 
-.evdec-warning-item+.evdec-warning-item {
-  border-top: 1px solid var(--md-default-fg-color--lightest);
+.evdec-warning-item + .evdec-warning-item {
+  border-top: 1px solid var(--tool-neutral-border);
 }
 
 /* --- Fields table --- */
@@ -755,51 +1027,53 @@ body.event-decoder-page .md-top {
   table-layout: fixed;
 }
 
-.evdec-table th {
+.evdec-table thead th {
   text-align: left;
   padding: 0.5rem 0.6rem;
-  border-bottom: 2px solid var(--md-default-fg-color--lightest);
+  border-bottom: 2px solid var(--tool-neutral-border);
   font-weight: 600;
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--md-default-fg-color--light);
+  color: var(--tool-muted);
 }
 
-.evdec-table th:nth-child(1) {
+.evdec-table thead th:nth-child(1) {
   width: 22%;
 }
 
-.evdec-table th:nth-child(2) {
+.evdec-table thead th:nth-child(2) {
   width: 28%;
 }
 
-.evdec-table th:nth-child(3) {
+.evdec-table thead th:nth-child(3) {
   width: 50%;
 }
 
-.evdec-table td {
+.evdec-table td,
+.evdec-table tbody th {
   padding: 0.45rem 0.6rem;
-  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  border-bottom: 1px solid var(--tool-neutral-border);
   vertical-align: top;
   line-height: 1.45;
   word-break: break-word;
 }
 
 .evdec-table tbody tr:hover {
-  background: rgba(var(--md-accent-fg-color--rgb, 255 183 77), 0.06);
+  background: var(--md-code-bg-color);
 }
 
 .evdec-field-name {
   font-weight: 600;
+  text-align: left;
   color: var(--md-default-fg-color);
-  white-space: nowrap;
 }
 
-.evdec-field-raw code {
+.md-typeset .evdec-field-raw code {
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.82rem;
   background: var(--md-code-bg-color);
+  color: var(--md-code-fg-color);
   padding: 0.1rem 0.3rem;
   border-radius: 0.2rem;
   word-break: break-all;
@@ -812,7 +1086,7 @@ body.event-decoder-page .md-top {
 .evdec-causes {
   margin-top: 0.25rem;
   font-size: 0.78rem;
-  color: var(--md-default-fg-color--light);
+  color: var(--tool-muted);
   font-style: italic;
 }
 
@@ -821,13 +1095,13 @@ body.event-decoder-page .md-top {
   padding-top: 0.25rem;
   font-size: 0.73rem;
   line-height: 1.35;
-  color: var(--md-default-fg-color--lighter);
-  border-top: 1px dashed var(--md-default-fg-color--lightest);
+  color: var(--tool-muted);
+  border-top: 1px dashed var(--tool-neutral-border);
 }
 
 .evdec-note {
   font-size: 0.78rem;
-  color: var(--md-default-fg-color--lighter);
+  color: var(--tool-muted);
 }
 
 /* --- Badges (encryption type security assessment) --- */
@@ -841,44 +1115,30 @@ body.event-decoder-page .md-top {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   vertical-align: middle;
+  background: var(--tool-neutral-bg);
+  color: var(--tool-neutral-fg);
 }
 
-.evdec-badge--removed {
-  background: rgba(229, 57, 53, 0.12);
-  color: #e53935;
+.evdec-badge--removed,
+.evdec-badge--error {
+  background: var(--tool-bad-bg);
+  color: var(--tool-bad-fg);
 }
 
 .evdec-badge--deprecated {
-  background: rgba(255, 152, 0, 0.12);
-  color: #ef6c00;
+  background: var(--tool-warn-bg);
+  color: var(--tool-warn-fg);
 }
 
 .evdec-badge--recommended {
-  background: rgba(46, 125, 50, 0.12);
-  color: #2e7d32;
+  background: var(--tool-ok-bg);
+  color: var(--tool-ok-fg);
 }
 
-.evdec-badge--error {
-  background: rgba(229, 57, 53, 0.12);
-  color: #e53935;
-}
-
-.evdec-badge--neutral {
-  background: rgba(120, 120, 120, 0.12);
-  color: var(--md-default-fg-color--light);
-}
-
-/* --- Ticket Options breakdown --- */
+/* --- KDC options breakdown --- */
 
 .evdec-ticket-options {
   margin-top: 1.25rem;
-}
-
-.evdec-section-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  margin: 0 0 0.5rem 0;
-  color: var(--md-default-fg-color);
 }
 
 .evdec-flag-list {
@@ -897,10 +1157,15 @@ body.event-decoder-page .md-top {
   border-left: 3px solid var(--md-accent-fg-color);
 }
 
+/* A set bit that is not a KDC option at all: shown, but visibly secondary. */
+.evdec-flag-item--unused {
+  border-left: 3px dashed var(--tool-control-border);
+}
+
 .evdec-flag-bit {
   font-family: var(--md-code-font-family, monospace);
   font-size: 0.75rem;
-  color: var(--md-default-fg-color--lighter);
+  color: var(--tool-muted);
   min-width: 3rem;
   flex-shrink: 0;
 }
@@ -915,14 +1180,21 @@ body.event-decoder-page .md-top {
 
 .evdec-flag-desc {
   font-size: 0.78rem;
-  color: var(--md-default-fg-color--light);
+  color: var(--tool-muted);
   line-height: 1.35;
 }
 
-/* --- Etype negotiation pipeline --- */
+/* --- Etype selection summary --- */
 
 .evdec-pipeline {
   margin-bottom: 1.25rem;
+}
+
+.evdec-pipe-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  align-items: start;
 }
 
 .evdec-pipe {
@@ -930,24 +1202,30 @@ body.event-decoder-page .md-top {
   flex-direction: column;
   align-items: center;
   gap: 0;
+  min-width: 0;
+}
+
+.evdec-pipe-title {
+  align-self: flex-start;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  color: var(--md-default-fg-color);
 }
 
 .evdec-pipe-stage {
   width: 100%;
   max-width: 32rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--md-default-fg-color--lightest);
+  border: 1px solid var(--tool-neutral-border);
+  border-left: 3px solid var(--md-accent-fg-color);
   border-radius: 0.3rem;
   background: var(--md-code-bg-color);
 }
 
-.evdec-pipe-stage--input {
-  border-left: 3px solid var(--md-accent-fg-color);
-}
-
+/* An input the event does not record (the KDC filter). */
 .evdec-pipe-stage--fallback {
-  border-left: 3px solid var(--md-default-fg-color--lighter);
-  opacity: 0.8;
+  border-left: 3px dashed var(--tool-control-border);
 }
 
 .evdec-pipe-label {
@@ -955,7 +1233,7 @@ body.event-decoder-page .md-top {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--md-default-fg-color--light);
+  color: var(--tool-muted);
   margin-bottom: 0.15rem;
 }
 
@@ -968,31 +1246,15 @@ body.event-decoder-page .md-top {
 
 .evdec-pipe-source {
   font-size: 0.7rem;
-  color: var(--md-default-fg-color--lighter);
+  color: var(--tool-muted);
   margin-top: 0.15rem;
 }
 
 .evdec-pipe-arrow {
   font-size: 1rem;
-  color: var(--md-default-fg-color--lighter);
+  color: var(--tool-muted);
   line-height: 1;
   padding: 0.15rem 0;
-}
-
-.evdec-pipe-arrow-result {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.4rem 0;
-  color: var(--md-accent-fg-color);
-  font-size: 1rem;
-}
-
-.evdec-pipe-arrow-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .evdec-pipe-result {
@@ -1001,7 +1263,6 @@ body.event-decoder-page .md-top {
   padding: 0.5rem 0.75rem;
   border: 2px solid var(--md-accent-fg-color);
   border-radius: 0.3rem;
-  background: rgba(var(--md-accent-fg-color--rgb, 255 183 77), 0.06);
 }
 
 .evdec-pipe-result-item {
@@ -1011,7 +1272,7 @@ body.event-decoder-page .md-top {
 
 .evdec-pipe-result-label {
   font-weight: 600;
-  color: var(--md-default-fg-color--light);
+  color: var(--tool-muted);
 }
 
 .evdec-pipe-result-value {
@@ -1019,18 +1280,21 @@ body.event-decoder-page .md-top {
   color: var(--md-default-fg-color);
 }
 
+.evdec-pipe-rule {
+  margin-top: 0.3rem;
+  font-size: 0.73rem;
+  line-height: 1.35;
+  color: var(--tool-muted);
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 50em) {
 
-  .evdec-table th:nth-child(1),
-  .evdec-table th:nth-child(2),
-  .evdec-table th:nth-child(3) {
+  .evdec-table thead th:nth-child(1),
+  .evdec-table thead th:nth-child(2),
+  .evdec-table thead th:nth-child(3) {
     width: auto;
-  }
-
-  .evdec-field-name {
-    white-space: normal;
   }
 
   .evdec-flag-item {
@@ -1038,10 +1302,67 @@ body.event-decoder-page .md-top {
   }
 
   .evdec-flag-name {
-    min-width: auto;
+    min-width: 0;
   }
 
   .evdec-status {
     margin-left: 0;
+  }
+}
+
+/* On a phone three columns are 114px each and one event runs to a dozen
+   screens. Each field becomes a block instead: its name, then the raw value,
+   then the decoded value, each on its own full-width line. The column
+   headings stay in the accessibility tree; the two value lines are labelled
+   in their place. */
+@media (max-width: 30em) {
+
+  .evdec-table,
+  .evdec-table tbody,
+  .evdec-table tr,
+  .evdec-table :is(th, td) {
+    display: block;
+  }
+
+  .evdec-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .evdec-table tbody tr {
+    padding: 0.55rem 0;
+    border-bottom: 1px solid var(--tool-neutral-border);
+  }
+
+  .evdec-table td,
+  .evdec-table tbody th {
+    padding: 0.1rem 0;
+    border-bottom: 0;
+  }
+
+  .evdec-table td::before {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--tool-muted);
+  }
+
+  .evdec-table .evdec-field-raw::before {
+    content: "Raw value";
+  }
+
+  .evdec-table .evdec-field-decoded::before {
+    content: "Decoded";
+  }
+
+  .evdec-table td:empty {
+    display: none;
   }
 }

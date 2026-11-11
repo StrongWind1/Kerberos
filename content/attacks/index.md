@@ -2,6 +2,8 @@
 
 This section covers the most common attacks against Kerberos authentication in Active Directory. Each page assumes familiarity with the [Protocol](../protocol/index.md) section (particularly the [AS](../protocol/as-exchange.md), [TGS](../protocol/tgs-exchange.md), and [AP](../protocol/ap-exchange.md) exchanges) and the [Security](../security/index.md) section (encryption types, key derivation, and hardening options).
 
+--8<-- "includes/authorized-use.md"
+
 !!! warning "Scope: key-based (symmetric) authentication only"
     Every attack in this section targets the password-derived secret keys (DES, RC4, AES) used in
     standard Kerberos exchanges -- the symmetric pre-authentication flow, the encrypted ticket
@@ -58,8 +60,8 @@ Kerberos delegation allows services to act on behalf of users. Misconfigured del
 | Attack | Delegation Type | Prerequisite |
 |--------|----------------|--------------|
 | [Delegation Attacks](delegation/delegation-attacks.md) | Unconstrained / Constrained / RBCD | Access to delegating account or write access to `msDS-AllowedToActOnBehalfOfOtherIdentity` |
-| [S4U2Self Abuse](delegation/s4u2self-abuse.md) | S4U2Self | Compromise of account with SPN |
-| [SPN-jacking](delegation/spn-jacking.md) | SPN manipulation | Write access to `servicePrincipalName` on target account |
+| [S4U2Self Abuse](delegation/s4u2self-abuse.md) | S4U2Self | Code execution as the computer account or a virtual account that authenticates as it |
+| [SPN-jacking](delegation/spn-jacking.md) | SPN manipulation | Control of an account with constrained delegation, plus write access to `servicePrincipalName` on the account that will receive the SPN |
 
 ---
 
@@ -105,7 +107,7 @@ Every attack page follows the same five-part format:
 | [Sapphire Ticket](forgery/sapphire-ticket.md) | Modified TGT | `krbtgt` hash | N/A | N/A |
 | [Delegation Attacks](delegation/delegation-attacks.md) | TGS-REQ (S4U) | Delegating account | N/A | N/A |
 | [S4U2Self Abuse](delegation/s4u2self-abuse.md) | TGS-REQ (S4U2Self) | Account with SPN | N/A | N/A |
-| [SPN-jacking](delegation/spn-jacking.md) | TGS-REQ | Write access to SPN | N/A | N/A |
+| [SPN-jacking](delegation/spn-jacking.md) | TGS-REQ | Constrained-delegation account + write access to SPN | N/A | N/A |
 
 ---
 
@@ -154,19 +156,19 @@ flowchart LR
     DelegAbuse -. "S4U ext." .-> KDC
     SPNjack -. "tamper SPN" .-> KDC
 
-    style ASREQ_Roast fill:#c62828,color:#fff
-    style ASREP_Roast fill:#c62828,color:#fff
-    style Kerberoast fill:#c62828,color:#fff
-    style UserEnum fill:#e65100,color:#fff
-    style PwSpray fill:#e65100,color:#fff
-    style PassKey fill:#e65100,color:#fff
-    style PassTkt fill:#e65100,color:#fff
+    style ASREQ_Roast fill:#a31515,color:#fff
+    style ASREP_Roast fill:#a31515,color:#fff
+    style Kerberoast fill:#a31515,color:#fff
+    style UserEnum fill:#f57c00,color:#000
+    style PwSpray fill:#f57c00,color:#000
+    style PassKey fill:#f57c00,color:#000
+    style PassTkt fill:#f57c00,color:#000
     style GoldenTkt fill:#4a148c,color:#fff
     style SilverTkt fill:#4a148c,color:#fff
     style DiamondTkt fill:#4a148c,color:#fff
     style SapphireTkt fill:#4a148c,color:#fff
-    style DelegAbuse fill:#1565c0,color:#fff
-    style SPNjack fill:#1565c0,color:#fff
+    style DelegAbuse fill:#0d47a1,color:#fff
+    style SPNjack fill:#0d47a1,color:#fff
 ```
 
 !!! info "Color Legend"

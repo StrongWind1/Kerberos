@@ -1,7 +1,17 @@
+---
+description: Prioritized Kerberos hardening for Active Directory - gMSA, AES on service accounts, Protected Users, SPN hygiene, delegation lockdown, krbtgt rotation, and trust encryption types.
+---
+
 # Mitigations
 
 Best practices for securing Kerberos in Active Directory, organized by impact and
 priority.  Start at the top and work down.
+
+!!! info "As of 2026-11-10"
+    Domain controllers with the April 2026 update or later already treat unconfigured
+    accounts as AES-only (see [RC4 Deprecation](rc4-deprecation.md)).  The priorities below
+    assume that state: they are about removing the RC4 that is still *explicitly*
+    configured, and about the defenses that have nothing to do with encryption types.
 
 ---
 
@@ -11,29 +21,36 @@ gMSA is the single most effective defense against Kerberoasting.
 
 ### What gMSA Provides
 
-- **Auto-generated 240-character passwords** that are cryptographically random.
+- **Auto-generated passwords**: 240 bytes, randomly generated
+  ([Microsoft](https://learn.microsoft.com/en-us/entra/architecture/service-accounts-group-managed)).
 - **Automatic rotation** every 30 days (configurable) without any manual intervention.
-- **AES by default**: `msDS-SupportedEncryptionTypes` defaults to `0x1C` (RC4 + AES128 +
-  AES256).  Set it explicitly to `0x18` (AES-only) to eliminate RC4 traffic, or `0x3C`
-  (RC4 + AES + AES256-SK) if RC4 fallback is needed.  The password complexity makes RC4
-  cracking infeasible regardless, but removing RC4 eliminates the attack surface entirely.
+- **AES-capable from creation**: create the account with
+  `-KerberosEncryptionType AES128, AES256` (as below) so its
+  `msDS-SupportedEncryptionTypes` is `0x18`, and check existing gMSAs for a value that
+  still lists RC4 (defaults by account type are in
+  [msDS-SupportedEncryptionTypes](msds-supported.md)).  The random password makes cracking
+  infeasible either way; removing RC4 from the declared set keeps the account consistent
+  with the rest of the domain.
 - **No human knows the password**: it is managed entirely by AD and retrieved only by
   authorized computer accounts.
 
 ### Why It Defeats Kerberoasting
 
-Even if an attacker obtains an RC4-encrypted service ticket for a gMSA, cracking a
-240-character random password is computationally impossible.  A brute-force search space of
-`95^240` characters is beyond the reach of any current or foreseeable technology.
+Even if an attacker obtains an RC4-encrypted service ticket for a gMSA, the key behind it
+comes from a 240-byte random password.  There is no dictionary to try, and a brute-force
+search of that space is beyond any current or foreseeable technology.
 
 ### How to Deploy
 
 ```powershell title="Create KDS root key, security group, gMSA, then install on hosts"
 # One-time: create the KDS root key.
-# -EffectiveImmediately backdates the effective time by 10 hours; it does NOT
-# bypass the 10-hour DC replication wait. Safe for single-DC labs only.
-# In production, omit -EffectiveImmediately and wait 10+ hours before creating gMSAs.
+# DCs wait up to 10 hours after creation before they hand out gMSA passwords, so
+# that the key can replicate everywhere.  -EffectiveImmediately does not remove
+# that wait: create the key, then wait 10 hours before creating gMSAs.
 Add-KdsRootKey -EffectiveImmediately
+
+# Single-DC test lab only: backdate the key so it is usable at once.
+# Add-KdsRootKey -EffectiveTime ((Get-Date).AddHours(-10))
 
 # Create a security group for servers that will use the gMSA
 New-ADGroup -Name "gMSA_SQL_Hosts" -GroupScope DomainLocal -GroupCategory Security
@@ -41,9 +58,9 @@ Add-ADGroupMember -Identity "gMSA_SQL_Hosts" -Members "SQL01$", "SQL02$"
 
 # Create the gMSA
 New-ADServiceAccount -Name "gMSA_SQL" `
-  -DNSHostName "gMSA_SQL.corp.local" `
-  -PrincipalsAllowedToRetrieveManagedPassword "gMSA_SQL_Hosts" `
-  -KerberosEncryptionType AES128, AES256
+    -DNSHostName "gMSA_SQL.corp.local" `
+    -PrincipalsAllowedToRetrieveManagedPassword "gMSA_SQL_Hosts" `
+    -KerberosEncryptionType AES128, AES256
 
 # On each host: install and test
 Install-ADServiceAccount gMSA_SQL
@@ -60,12 +77,18 @@ Test-ADServiceAccount gMSA_SQL
 ## Priority 2: AES Enforcement on Manually-Managed SPN-Bearing Accounts
 
 For all SPN-bearing accounts that are manually managed (user service accounts, gMSA, MSA,
-and dMSA), enforce AES encryption.  Computer accounts are handled by GPO (Priority 4 below).
+and dMSA), declare AES explicitly.  On an enforcing DC an unset account already gets AES,
+so the remaining work is the accounts that still **list RC4**, and the accounts that have
+**no AES keys**.  Windows computer accounts maintain their own value.
 
 ### Steps
 
-1. **Reset the password** ([twice for pre-2008 accounts](algorithms.md#the-double-reset-problem)) to generate AES keys.
+1. **Confirm the account has AES keys.**  If its password predates the domain's move to
+   functional level 2008, reset the password once and verify the keys
+   (see [Auditing Kerberos Keys](account-key-audit.md)).  A reset raises the key version
+   number, so regenerate any keytab exported for the account.
 2. **Set `msDS-SupportedEncryptionTypes = 0x18`** (AES128 + AES256) on the account.
+   Doing this on an account without AES keys makes every request for it fail.
 3. **Verify** that service tickets are issued with AES:
 
 ```powershell
@@ -79,10 +102,16 @@ Look for `KerbTicket Encryption Type: AES-256-CTS-HMAC-SHA1-96`.
 
 ### Bulk Enforcement
 
+!!! warning "Review before you run"
+    Bulk changes must leave `krbtgt` and your documented RC4 exceptions alone, and must not
+    set AES-only on an account that has no AES keys.  Run the scripts below in their
+    dry-run mode first and read the plan.  The
+    [Standardization Guide](aes-standardization.md) walks through them step by step.
+
 !!! tip "Cross-type overview"
     Before running the per-type blocks below, use the
     [overview query](msds-supported.md#all-spn-bearing-accounts-overview-all-5-types)
-    in `msds-supported.md` to see the full distribution across all five account types.
+    on the msDS-SupportedEncryptionTypes page to see the full distribution across all five account types.
 
 **User service accounts** (objectCategory=person with SPNs):
 
@@ -134,6 +163,9 @@ The **Protected Users** security group provides additional hardening for privile
 | No long-term credential caching | Long-term credentials are not cached (DPAPI itself is not disabled). |
 | No delegation | The account cannot be delegated (constrained or unconstrained). |
 
+The domain-controller side of these protections requires the domain functional level to be
+Windows Server 2012 R2 or higher.
+
 ### What It Does NOT Protect Against
 
 !!! warning "Protected Users does not prevent Kerberoasting"
@@ -154,25 +186,44 @@ The **Protected Users** security group provides additional hardening for privile
 - Administrative user accounts (help desk, PAM, etc.)
 - Any account with Tier 0 access
 
+Test before adding a whole privileged group.  Microsoft's
+[Protected Users guidance](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group)
+says not to add accounts that are already members of highly privileged groups "until you
+can guarantee that adding them won't have negative consequences", because "it's possible
+to accidentally lock out their accounts".  Members can only authenticate with Kerberos
+using AES, so each account needs AES keys first.
+
 ### Who NOT to Add
 
-- User service accounts that run on servers (they cannot authenticate because delegation and
-  credential caching are disabled)
+- User service accounts that run on servers.  Microsoft: "Never add accounts for services
+  and computers to the Protected Users group. For those accounts, membership doesn't
+  provide local protections because the password and certificate is always available on
+  the host."
 - Accounts that need NTLM authentication (legacy apps)
 - Computer accounts (use computer-specific hardening instead)
+- Every privileged account at once: keep at least one tightly controlled break-glass
+  administrator outside the group, in case an AES or Kerberos problem locks the others out
 
 ```powershell
 # Add an account to Protected Users
 Add-ADGroupMember -Identity "Protected Users" -Members "admin_jdoe"
 ```
 
-!!! note "PAC staleness and TGS-time revalidation"
-    On Server 2022+ with KB5008380+, the KDC re-validates PAC contents during TGS exchanges,
-    reducing the effective staleness window. The TGT itself still carries the old PAC, but
-    **service tickets derived from it get updated group membership**. This means adding a user
-    to Protected Users takes effect on new service tickets even before the user's TGT expires,
-    though the TGT-level protections (4-hour lifetime, AES-only pre-auth) still require a fresh
-    TGT.
+!!! note "PAC hardening and group membership"
+    KB5008380 (CVE-2021-42287) added `PAC_REQUESTOR_SID` and `PAC_ATTRIBUTES_INFO` to TGTs.
+    During the TGS exchange the KDC verifies that the TGT's client name still resolves to
+    the requestor SID and returns `KDC_ERR_TGT_REVOKED` if not.  It applies to all supported
+    Windows Server versions.  Per MS-KILE §3.3.5.7 this check does not refresh group
+    membership: the KDC copies the PAC fields from the TGT and adds only the domain-local
+    groups of the service's domain, so a group change takes effect when the user gets a
+    new TGT.  One lab run on Server 2022 build 20348.3207 concluded the opposite, that a
+    service ticket requested with an old TGT carried a newly added group.  That run read
+    the PAC through a fresh S4U2Self request, not from a ticket issued on the old TGT, so
+    it does not settle the question.  Until it is retested, assume a new TGT is needed.
+
+??? info "PAC hardening timeline"
+
+    --8<-- "includes/pac-hardening-timeline.md"
 
 !!! note "Protected Users + RC4 edge case"
     Protected Users group membership overrides per-account `msDS-SupportedEncryptionTypes` for
@@ -206,11 +257,12 @@ Every Service Principal Name (SPN) on a user account is a potential Kerberoastin
 ```powershell title="Find all user accounts with SPNs and their admin group memberships"
 # Find all user accounts with SPNs
 Get-ADUser -Filter 'servicePrincipalName -like "*"' `
-  -Properties servicePrincipalName, MemberOf |
-  Select-Object sAMAccountName, servicePrincipalName,
-    @{N='AdminGroup'; E={
-      ($_.MemberOf | ForEach-Object { (Get-ADGroup $_).Name }) -join ', '
-    }}
+    -Properties servicePrincipalName, MemberOf |
+    Select-Object sAMAccountName, servicePrincipalName,
+    @{N='AdminGroup'; E= {
+            ($_.MemberOf | ForEach-Object { (Get-ADGroup $_).Name }) -join ', '
+        }
+    }
 ```
 
 ### Forest-Wide SPN Search
@@ -231,7 +283,7 @@ setspn -F -Q */*
 
 ```powershell
 # Remove an SPN from a user account
-Set-ADUser -Identity svc_old -ServicePrincipalNames @{Remove="HTTP/old.corp.local"}
+Set-ADUser -Identity svc_old -ServicePrincipalNames @{Remove = "HTTP/old.corp.local" }
 ```
 
 ---
@@ -246,13 +298,15 @@ Accounts with **TRUSTED_FOR_DELEGATION** can impersonate any user to any service
 domain controllers should have this flag.
 
 ```powershell title="Find non-DC accounts and users with unconstrained delegation"
-# Find all non-DC accounts with unconstrained delegation
-Get-ADComputer -Filter 'TrustedForDelegation -eq $true' -Properties TrustedForDelegation |
-  Where-Object { $_.DistinguishedName -notlike "*Domain Controllers*" } |
-  Select-Object Name, DistinguishedName
+# Computers with unconstrained delegation, excluding DCs (primary group 516)
+# and RODCs (521).  Matching on the DN would miss a DC moved out of its OU and
+# hide any computer whose path happens to contain "Domain Controllers".
+Get-ADComputer -Properties primaryGroupID -LDAPFilter `
+    '(&(userAccountControl:1.2.840.113556.1.4.803:=524288)(!(primaryGroupID=516))(!(primaryGroupID=521)))' |
+    Select-Object Name, DistinguishedName
 
 Get-ADUser -Filter 'TrustedForDelegation -eq $true' -Properties TrustedForDelegation |
-  Select-Object Name, DistinguishedName
+    Select-Object Name, DistinguishedName
 ```
 
 **Fix**: Remove unconstrained delegation and replace with constrained delegation or RBCD.
@@ -265,9 +319,13 @@ request tickets on behalf of any user to the services listed in the attribute.
 Audit these accounts and limit the target services to the absolute minimum:
 
 ```powershell title="Audit constrained delegation accounts with protocol transition"
-Get-ADObject -Filter 'msDS-AllowedToDelegateTo -like "*"' `
-  -Properties msDS-AllowedToDelegateTo, TrustedToAuthForDelegation |
-  Select-Object Name, ObjectClass, msDS-AllowedToDelegateTo, TrustedToAuthForDelegation
+# TRUSTED_TO_AUTH_FOR_DELEGATION is bit 0x1000000 of userAccountControl.
+# (TrustedToAuthForDelegation is not an LDAP attribute, so Get-ADObject cannot return it.)
+Get-ADObject -LDAPFilter '(msDS-AllowedToDelegateTo=*)' `
+    -Properties msDS-AllowedToDelegateTo, userAccountControl |
+    Select-Object Name, ObjectClass,
+    @{N = 'ProtocolTransition'; E = { [bool]($_.userAccountControl -band 0x1000000) } },
+    @{N = 'AllowedToDelegateTo'; E = { $_.'msDS-AllowedToDelegateTo' -join '; ' } }
 ```
 
 ### Resource-Based Constrained Delegation (RBCD)
@@ -280,8 +338,8 @@ Monitor changes to this attribute:
 
 ```powershell title="Find computers with RBCD configured"
 Get-ADComputer -Filter 'msDS-AllowedToActOnBehalfOfOtherIdentity -like "*"' `
-  -Properties msDS-AllowedToActOnBehalfOfOtherIdentity |
-  Select-Object Name, msDS-AllowedToActOnBehalfOfOtherIdentity
+    -Properties msDS-AllowedToActOnBehalfOfOtherIdentity |
+    Select-Object Name, msDS-AllowedToActOnBehalfOfOtherIdentity
 ```
 
 ---
@@ -295,8 +353,8 @@ without verifying the client's identity, and the attacker can crack it offline.
 ```powershell title="Find accounts with DONT_REQUIRE_PREAUTH and re-enable pre-auth"
 # Find accounts with pre-auth disabled
 Get-ADUser -Filter 'DoesNotRequirePreAuth -eq $true' `
-  -Properties DoesNotRequirePreAuth |
-  Select-Object sAMAccountName, Enabled, DoesNotRequirePreAuth
+    -Properties DoesNotRequirePreAuth |
+    Select-Object sAMAccountName, Enabled, DoesNotRequirePreAuth
 
 # Fix: re-enable pre-auth
 Set-ADAccountControl -Identity vulnerable_user -DoesNotRequirePreAuth $false
@@ -314,35 +372,63 @@ Create decoy user service accounts that exist solely to detect Kerberoasting rec
 
 1. Create a user account with an enticing name (e.g., `svc_backup`, `svc_admin`).
 2. Set an SPN on it:
-   ```powershell
-   Set-ADUser -Identity svc_honeypot -ServicePrincipalNames @{
-     Add = "MSSQLSvc/honeypot.corp.local:1433"
-   }
-   ```
+
+    ```powershell
+    Set-ADUser -Identity svc_honeypot -ServicePrincipalNames @{
+        Add = "MSSQLSvc/honeypot.corp.local:1433"
+    }
+    ```
+
 3. Set `msDS-SupportedEncryptionTypes = 0x18` (AES-only).
 4. Set a 50+ character random password.
 5. **Do not use this account for any real service.**
 
 ### Detection
 
-Any Event ID 4769 for this account's SPN is a Kerberoasting indicator:
+Any Event ID 4769 for this account's SPN is a Kerberoasting indicator.  The request can
+land on any DC, and each DC only logs its own, so the query has to ask every DC.  It also
+needs Success **and** Failure auditing for *Kerberos Service Ticket Operations*: in the lab
+(Server 2022 build 20348.5020) a request the KDC refused was logged with the SPN string in
+`ServiceName` instead of the account name, so the filter matches both.
 
-```powershell title="Query Event 4769 for honeypot SPN requests"
-Get-WinEvent -FilterHashtable @{
-  LogName = 'Security'
-  Id      = 4769
-} | Where-Object {
-  $_.Properties[2].Value -eq 'svc_honeypot'
-} | Select-Object TimeCreated, @{
-  N = 'Client'
-  E = { $_.Properties[0].Value }
-}, @{
-  N = 'IP'
-  E = { $_.Properties[6].Value }
+```powershell title="Query Event 4769 for honeypot requests on every DC (last 24 hours)"
+$since = (Get-Date).AddDays(-1).ToUniversalTime().ToString('o')
+$xpath = "*[System[EventID=4769 and TimeCreated[@SystemTime>='$since']] and EventData[" +
+"Data[@Name='ServiceName']='svc_honeypot' or " +
+"Data[@Name='ServiceName']='MSSQLSvc/honeypot.corp.local:1433']]"
+$dcs = (Get-ADDomainController -Filter *).HostName
+
+$hits = foreach ($dc in $dcs) {
+    try {
+        Get-WinEvent -ComputerName $dc -LogName Security -FilterXPath $xpath -ErrorAction Stop |
+            ForEach-Object {
+                $d = @{}
+                ([xml]$_.ToXml()).Event.EventData.Data | ForEach-Object { $d[$_.Name] = $_.'#text' }
+                [PSCustomObject]@{
+                    DC      = $dc
+                    Time    = $_.TimeCreated
+                    Client  = $d['TargetUserName']
+                    IP      = $d['IpAddress']
+                    Service = $d['ServiceName']
+                    EType   = $d['TicketEncryptionType']
+                    Status  = $d['Status']
+                }
+            }
+    }
+    catch {
+        if ($_.FullyQualifiedErrorId -like 'NoMatchingEventsFound*') {
+            Write-Information "${dc}: no honeypot requests since $since" -InformationAction Continue
+        }
+        else {
+            Write-Warning "${dc}: NOT CHECKED - $($_.Exception.Message)"
+        }
+    }
 }
+$hits | Sort-Object Time -Descending | Format-Table -AutoSize
 ```
 
-Configure your SIEM to alert on any 4769 event targeting this account.
+A DC that prints `NOT CHECKED` has told you nothing.  Configure your SIEM to alert on any
+4769 event targeting this account, collected from every DC.
 
 ---
 
@@ -353,38 +439,54 @@ Golden Tickets.
 
 ### Rotation Schedule
 
-- **Routine**: at least every 180 days (quarterly is better).
-- **After compromise**: immediately, **twice**, with replication time between rotations.
+- **Routine**: at least every 180 days.
+- **After compromise**: immediately, **twice**, with replication and a full ticket lifetime
+  between the two resets.
+- **If the KDC logs System event 42** ("The Kerberos Key Distribution Center lacks strong
+  keys for account: krbtgt"): the account has no AES keys.  Rotate it.
 
 ### Why Twice
 
-AD retains the current and previous KRBTGT key.  After one rotation, TGTs encrypted with the
-old key are still valid (using the previous key).  The second rotation invalidates the
-original key entirely.
+AD retains the current and the previous KRBTGT key.  After one rotation, TGTs issued under
+the old key are still accepted, because that key is now the "previous" one.  The second
+rotation pushes the original key out of the history, which is what invalidates a stolen
+key or forged tickets.  It is also why the second reset must not follow the first
+immediately: every TGT still in use would become invalid at once.
 
 ### Safe Rotation Process
 
 1. Verify replication health: `repadmin /replsummary`
-2. Reset the KRBTGT password using Microsoft's
-   [`New-KrbtgtKeys.ps1`](https://github.com/microsoft/New-KrbtgtKeys.ps1) script.
+2. Reset the KRBTGT password.  Microsoft's `New-KrbtgtKeys.ps1` is an interactive,
+   menu-driven script whose repository is
+   [archived](https://github.com/microsoftarchive/New-KrbtgtKeys.ps1); its README points
+   to the maintained successor,
+   [`Reset-KrbTgt-Password-For-RWDCs-And-RODCs.ps1`](https://github.com/zjorz/Public-AD-Scripts).
+   Both offer informational and simulation modes; run those first.
 3. Force replication and verify it completes on **every** DC:
-   ```powershell
-   repadmin /syncall /e /d /A /P
-   repadmin /replsummary
-   ```
-4. **Wait at least 10-12 hours** (2x the default TGT lifetime of 10 hours) before the
-   second rotation.  This ensures all outstanding TGTs encrypted with the now-previous
-   key have expired.
+
+    ```powershell
+    repadmin /syncall /e /d /A /P
+    repadmin /replsummary
+    ```
+
+4. **Wait at least the maximum TGT lifetime** before the second rotation: 10 hours by
+   default, longer if your Kerberos policy sets a longer *Maximum lifetime for user
+   ticket*.  Many teams wait 24 hours.  Outstanding TGTs issued under the old key expire
+   in that time, so the second reset does not cut anyone off.
 5. Reset the KRBTGT password a second time.
 6. Wait for replication again and verify:
-   ```powershell
-   repadmin /syncall /e /d /A /P
-   ```
+
+    ```powershell
+    repadmin /syncall /e /d /A /P
+    ```
+
 7. Validate the new key version and last password set time:
-   ```powershell
-   Get-ADUser krbtgt -Properties msDS-KeyVersionNumber, PasswordLastSet |
-     Select-Object Name, msDS-KeyVersionNumber, PasswordLastSet
-   ```
+
+    ```powershell
+    Get-ADUser krbtgt -Properties msDS-KeyVersionNumber, PasswordLastSet |
+        Select-Object Name, msDS-KeyVersionNumber, PasswordLastSet
+    ```
+
 8. Monitor for authentication failures (users may need to re-authenticate).
 
 !!! note "AzureADKerberos (Entra Cloud Kerberos Trust)"
@@ -394,98 +496,161 @@ original key entirely.
     assessments.
 
     The `AzureADKerberos` object has its own `krbtgt_AzureAD` account whose keys are
-    **not** rotated by the standard KRBTGT rotation process.  Rotate it separately:
+    **not** rotated by the standard KRBTGT rotation process.  Rotate it separately, with
+    the cmdlet from Microsoft's `AzureADHybridAuthenticationManagement` module.  It needs a
+    cloud credential and a domain credential as well as the domain name:
 
     ```powershell
-    Set-AzureADKerberosServer -Domain "corp.local" -RotateServerKey
+    $domain = 'corp.local'
+    $cloudCred = Get-Credential -Message 'A Microsoft Entra ID Hybrid Identity Administrator'
+    $domainCred = Get-Credential -Message 'A Domain Admins member who is also an Enterprise Admin'
+
+    Set-AzureADKerberosServer -Domain $domain -CloudCredential $cloudCred `
+        -DomainCredential $domainCred -RotateServerKey
     ```
 
-    Similarly, each **Read-Only Domain Controller** has its own `krbtgt_XXXXX` account
-    (where `XXXXX` is the RODC's connection ID).  These must be rotated independently of
-    the primary KRBTGT — the `New-KrbtgtKeys.ps1` script handles RODCs when run with the
-    `-RODC` parameter.
+    The other sign-in forms (`-UserPrincipalName` for modern authentication, or omitting
+    `-DomainCredential` on a domain-joined machine) are in
+    [Microsoft's how-to](https://learn.microsoft.com/en-us/entra/identity/authentication/howto-authentication-passwordless-security-key-on-premises#rotate-the-microsoft-entra-kerberos-server-key).
+    Microsoft warns that other krbtgt tools must not be used for this key, so that it is
+    updated in both Active Directory and Microsoft Entra ID.
+
+!!! note "Read-only domain controllers"
+    Each RODC has its own `krbtgt_<number>` account, linked from the RODC's computer
+    object through `msDS-KrbTgtLink`.  These are rotated independently of the main
+    KRBTGT account.  The reset script has no `-RODC` switch: you choose the RODC scope
+    (one, a list, or all) from its interactive prompts.
 
 !!! note "Linux keytab impact"
-    Password rotation on any service account — including KRBTGT — **invalidates existing
-    Kerberos keytab files** that contain the old key.  This affects any Linux or Unix
-    service authenticating via AD Kerberos: Apache (`mod_auth_gssapi`), SSSD, Samba,
-    PostgreSQL, and others.
+    Resetting a **service account's** password invalidates every keytab that holds its old
+    key.  This affects any Linux or Unix service authenticating via AD Kerberos: Apache
+    (`mod_auth_gssapi`), SSSD, Samba, PostgreSQL, and others.  Rotating KRBTGT does not
+    touch service keytabs; this note is about the Priority 2 password resets.
 
-    After rotating a service account password, regenerate the keytab on each host:
+    After resetting a service account password, export a new keytab on a Windows host and
+    copy it to the service:
 
-    ```bash
-    # Windows: generate keytab
-    ktpass -out /etc/krb5.keytab -princ HTTP/web.corp.local@CORP.LOCAL \
-      -mapUser corp\svc_web -mapOp set -pass <password> \
-      -ptype KRB5_NT_PRINCIPAL -crypto AES256-SHA1
-
-    # Linux: verify the keytab works
-    kinit -kt /etc/krb5.keytab HTTP/web.corp.local@CORP.LOCAL
+    ```bat
+    ktpass /out service.keytab /princ HTTP/web.corp.local@CORP.LOCAL ^
+      /mapuser CORP\svc_web /mapop set /pass * ^
+      /ptype KRB5_NT_PRINCIPAL /crypto AES256-SHA1
     ```
 
-    For KRBTGT specifically, this is less of an operational concern (services do not hold
-    KRBTGT keytabs), but the principle applies to any Priority 2 password reset.
+    `ktpass /pass` itself **sets the account's password** to the value you enter (unless
+    you add `-setpass`), so run it as the password change, not after one.
+
+    ```bash
+    # On the Linux host: check the key types, then test the keytab
+    klist -ke /etc/krb5.keytab
+    kinit -kt /etc/krb5.keytab HTTP/web.corp.local@CORP.LOCAL
+    ```
 
 ---
 
 ## Priority 10: DefaultDomainSupportedEncTypes
 
-Set [`DefaultDomainSupportedEncTypes`](registry.md#defaultdomainsupportedenctypes) `= 0x18`
-on **every** domain controller to enforce AES as the default for accounts without explicit
-`msDS-SupportedEncryptionTypes`.  This eliminates the most common Kerberoasting vector:
-SPN-bearing accounts with no explicit etype configuration falling back to RC4.  See
-[Registry Settings](registry.md#defaultdomainsupportedenctypes) for the commands and the
+[`DefaultDomainSupportedEncTypes`](registry.md#defaultdomainsupportedenctypes) decides what
+the KDC assumes for accounts with no `msDS-SupportedEncryptionTypes`.  With the April 2026
+update or later, a DC that has no value already assumes AES-only, so this is no longer
+something you must set.  It is something you must **keep consistent and watch**:
+
+- **Target state**: absent, or `0x18`, and identical on every DC.  Absent is only a safe
+  target once every DC has the April 2026 update or later.
+- **Pin it to `0x18`** on every DC if patch levels are mixed.  A DC that has not received
+  the April 2026 update still assumes an RC4 default when the value is absent (`0x27` per
+  KB5021131; seen in the lab on Server 2022 build 20348.4893).
+- **Alert on drift**: a DC whose value differs from the others; any value that includes
+  RC4 or DES; and Kdcsvc event 205, which the KDC logs at start-up when the value includes
+  a non-AES cipher.
+- **Remove emergency values.**  A value such as `0x1C` or `0x24`, set to get through an
+  outage, re-enables RC4 for every unconfigured account until someone removes it.
+- **Clear out leftover `RC4DefaultDisablementPhase` values, by build.**  Per Microsoft they
+  are no longer read after the July 2026 update (Server 2022 build 20348.5386, Server 2025
+  build 26100.33158, or higher); on those DCs delete them, because they mislead audits.
+  On a DC that has only an April-June 2026 update, a `0` or `1` is still the rollback
+  switch: deleting it turns enforcement on at the next KDC restart, so follow
+  [the removal steps in the triage runbook](enforcement-triage.md#removing-exceptions-afterwards).
+
+See [Registry Settings](registry.md#defaultdomainsupportedenctypes) for the commands and the
 [Standardization Guide](aes-standardization.md#step-5-set-defaultdomainsupportedenctypes-on-every-dc)
-for the full per-DC verification workflow.
+for the per-DC verification workflow.
 
 ---
 
 ## Priority 11: Trust Encryption Types
 
 Cross-domain and cross-forest trusts have their own `msDS-SupportedEncryptionTypes` value
-on the Trusted Domain Object (TDO).  After the November 2022 update (KB5021131 /
-CVE-2022-37966), trusts with `msDS-SupportedEncryptionTypes = 0` default to **AES** — a
-change from the previous RC4 default.  This means most trusts created or updated after
-November 2022 already use AES with no action required.
+on the Trusted Domain Object (TDO).  It governs the **referral ticket** a client receives
+when it crosses the trust; the service ticket in the other domain is still chosen from the
+target service account by that domain's own DCs.
 
-However, trusts that have an **explicit** value containing DES or RC4 bits will continue
-using those weaker algorithms regardless of the new default behavior.
+- A trust with an **explicit** value that contains RC4 or DES bits keeps using those
+  algorithms for referral tickets.
+- For a trust whose value is **unset**, third-party testing reports that DCs with the
+  November 2022 update (KB5021131) issue AES referral tickets where they previously used
+  RC4.  That behavior is not stated in the KB and has not been verified in this site's
+  lab; confirm it on your own trusts with a cross-trust `klist`.  Microsoft's two
+  descriptions differ: the
+  [Event 4769 reference](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4769)
+  says "For Domain Controllers, Read-Only Domain Controllers, and Trusts, AES is
+  supported-by-default unless the account's msds-SET has been manually changed", while the
+  ["Unsupported etype" troubleshooting article](https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain)
+  says "By default, the trust supports RC4 encryption but not AES128 or AES256
+  encryption".
+- Per KB5073381, the 2026 RC4 change "only impacts Windows domain controllers" and the
+  "trust and referral flow ... is unaffected".
 
 ### Find Trusts with Explicit RC4 or DES
 
 ```powershell title="Find trust objects with explicit RC4 or DES encryption types"
 Get-ADObject -Filter 'objectClass -eq "trustedDomain"' `
-  -Properties msDS-SupportedEncryptionTypes, trustDirection, trustType, flatName |
-  Where-Object {
-    $set = [int]$_.'msDS-SupportedEncryptionTypes'
-    # Bit 0x4 = RC4, bits 0x1/0x2 = DES
-    $set -gt 0 -and ($set -band 0x7)
-  } |
-  Select-Object flatName, trustDirection, trustType,
-    @{N='msDS-SET (dec)'; E={[int]$_.'msDS-SupportedEncryptionTypes'}},
-    @{N='msDS-SET (hex)'; E={'0x{0:X}' -f [int]$_.'msDS-SupportedEncryptionTypes'}} |
-  Format-Table -AutoSize
+    -Properties msDS-SupportedEncryptionTypes, trustDirection, trustType, flatName |
+    Where-Object {
+        $set = [int]$_.'msDS-SupportedEncryptionTypes'
+        # Bit 0x4 = RC4, bits 0x1/0x2 = DES
+        $set -gt 0 -and ($set -band 0x7)
+    } |
+    Select-Object flatName, trustDirection, trustType,
+    @{N = 'msDS-SET (dec)'; E = { [int]$_.'msDS-SupportedEncryptionTypes' } },
+    @{N = 'msDS-SET (hex)'; E = { '0x{0:X}' -f [int]$_.'msDS-SupportedEncryptionTypes' } } |
+    Format-Table -AutoSize
 ```
 
 ### Remediation
 
 For trusts that show RC4 or DES in the output above, either:
 
-1. **Clear the attribute** to let it default to AES (recommended for post-November 2022
-   DCs):
-   ```powershell
-   Set-ADObject -Identity "CN=PARTNER,CN=System,DC=corp,DC=local" `
-     -Clear 'msDS-SupportedEncryptionTypes'
-   ```
+1. **Clear the attribute** to let it fall back to the trust default.  This relies on that
+   default being AES, which Microsoft's two descriptions above do not agree on, so check
+   the referral ticket afterwards:
+
+    ```powershell
+    Set-ADObject -Identity "CN=PARTNER,CN=System,DC=corp,DC=local" `
+        -Clear 'msDS-SupportedEncryptionTypes'
+    ```
 
 2. **Set it explicitly to AES-only** (`0x18`):
-   ```powershell
-   Set-ADObject -Identity "CN=PARTNER,CN=System,DC=corp,DC=local" `
-     -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
-   ```
 
-After changing trust encryption, reset the trust password from both sides (`netdom trust
-/resetOnTrust`) and verify cross-domain authentication still works.
+    ```powershell
+    Set-ADObject -Identity "CN=PARTNER,CN=System,DC=corp,DC=local" `
+        -Replace @{ 'msDS-SupportedEncryptionTypes' = 24 }
+    ```
+
+A TDO exists on **both** sides of a trust.  Make the same change in the other domain or
+forest, or its DCs keep issuing referral tickets as before.  The setting is the same one
+shown in *Active Directory Domains and Trusts* as **The other domain supports Kerberos AES
+Encryption**
+([Microsoft](https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/unsupported-etype-error-accessing-trusted-domain)).
+
+Changing the attribute does not require resetting the trust password.  Afterwards, verify
+the secure channel and test real cross-domain access:
+
+```batch
+netdom trust corp.local /domain:partner.local /verify
+```
+
+Then request a ticket for a service in the other domain and check the referral ticket
+(`krbtgt/PARTNER.LOCAL`) with `klist`.
 
 ---
 
@@ -494,7 +659,7 @@ After changing trust encryption, reset the trust password from both sides (`netd
 | Priority | Action | Protects Against |
 |---|---|---|
 | 1 | Deploy gMSA for all eligible services | Kerberoasting |
-| 2 | Set `msDS-SupportedEncryptionTypes = 0x18` on all manually-managed SPN-bearing accounts (user service accounts, gMSA, MSA, dMSA) | Kerberoasting + RC4 traffic |
+| 2 | Set `msDS-SupportedEncryptionTypes = 0x18` on all manually-managed SPN-bearing accounts that have AES keys (user service accounts, gMSA, MSA, dMSA) | Fast (RC4) Kerberoasting |
 | 3 | Enforce 25+ char passwords on user service accounts | Kerberoasting |
 | 4 | Add privileged accounts to Protected Users | Credential theft, NTLM relay |
 | 5 | Remove SPNs from admin and unused accounts | Kerberoasting of high-value targets |
@@ -502,5 +667,5 @@ After changing trust encryption, reset the trust password from both sides (`netd
 | 7 | Disable `DONT_REQUIRE_PREAUTH` everywhere | AS-REP roasting |
 | 8 | Deploy honeypot SPN accounts | Kerberoast detection |
 | 9 | Rotate KRBTGT password regularly | Golden Ticket |
-| 10 | Set `DefaultDomainSupportedEncTypes = 0x18` on all DCs | Kerberoasting (domain-wide default) |
+| 10 | Keep `DefaultDomainSupportedEncTypes` absent or `0x18` on every DC; alert on drift and event 205 | RC4 returning as the domain-wide default |
 | 11 | Audit and remediate trust encryption types | RC4/DES on cross-domain trusts |

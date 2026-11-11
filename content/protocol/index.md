@@ -1,3 +1,7 @@
+---
+description: How Kerberos authentication works in Active Directory -- the three-party model, the history, the authentication methods, and a reading order for the protocol pages.
+---
+
 # How Kerberos Works
 
 This section explains the Kerberos authentication protocol as implemented in Microsoft Active Directory. By the end, you will understand how clients prove their identity, how tickets move through the system, and why passwords never cross the network.
@@ -52,12 +56,12 @@ The Kerberos protocol was born out of a practical need: how do you let thousands
 |------|-------|
 | 1983 | MIT launches **Project Athena** to build a campus-wide distributed computing environment. The project needs a network authentication system. |
 | 1989 | **Kerberos V4** is publicly released. It works but relies exclusively on DES encryption and has limited extensibility. |
-| 1993 | **Kerberos V5** is published as [RFC 1510]. It adds support for multiple encryption types, cross-realm authentication, and extensible message formats. |
-| 2000 | **Microsoft adopts Kerberos V5** as the default authentication protocol in Windows 2000 and Active Directory, replacing NTLM. Microsoft adds extensions defined in [MS-KILE], including the Privilege Attribute Certificate (PAC) for carrying authorization data. |
-| 2005 | [RFC 4120] supersedes RFC 1510, clarifying and tightening the v5 specification. This is the current authoritative standard. |
+| 1993 | **Kerberos V5** is published as [RFC 1510](https://datatracker.ietf.org/doc/html/rfc1510). It adds support for multiple encryption types, cross-realm authentication, and extensible message formats. |
+| 2000 | **Microsoft adopts Kerberos V5** as the default authentication protocol in Windows 2000 and Active Directory, replacing NTLM. Microsoft adds extensions defined in [MS-KILE](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2a32282e-dd48-4ad9-a542-609804b02cc9), including the Privilege Attribute Certificate (PAC) for carrying authorization data. |
+| 2005 | [RFC 4120](https://datatracker.ietf.org/doc/html/rfc4120) supersedes RFC 1510, clarifying and tightening the v5 specification. This is the current authoritative standard. |
 
 !!! tip "NTLM is still around"
-    Although Kerberos replaced NTLM as the default, Windows still falls back to NTLM when Kerberos is unavailable -- for example, when a client cannot reach a Domain Controller, when accessing a resource by IP address instead of hostname, or when communicating with systems that do not support Kerberos.
+    Although Kerberos replaced NTLM as the default, Windows still falls back to NTLM when Kerberos is unavailable -- for example, when a client cannot reach a Domain Controller, when accessing a resource by IP address instead of hostname (Kerberos for IP-address targets is opt-in, see [Protocol Overview](overview.md#infrastructure-dependencies)), or when communicating with systems that do not support Kerberos. Microsoft is retiring NTLM in stages: NTLMv1 is removed starting in Windows 11 24H2 and Windows Server 2025.
 
 ---
 
@@ -82,11 +86,11 @@ Time-limited credentials
 
 ## Authentication Methods
 
-Kerberos supports three fundamentally different ways for a client to prove its identity during pre-authentication. Understanding which method is in use matters because each has different attack surfaces, key material, and detection characteristics.
+Kerberos gives a client two fundamentally different ways to prove its identity during pre-authentication: a **symmetric key** derived from a password, or a **public key** via the PKINIT extension. PKINIT in turn has several deployment models in Active Directory. Understanding which method is in use matters because each has different attack surfaces, key material, and detection characteristics.
 
 ### 1. Key-Based (Symmetric)
 
-The standard Kerberos authentication method, in use since Windows 2000. The client derives a secret key from the user's password using a key derivation function specific to the encryption type. Both the client and the KDC share this key (the KDC stores a copy derived from the password hash in Active Directory).
+The standard Kerberos authentication method, in use since Windows 2000. The client derives a secret key from the user's password using a key derivation function specific to the encryption type. Both the client and the KDC share this key (Active Directory stores the per-etype keys that were computed when the password was last set).
 
 During pre-authentication, the client encrypts the current timestamp with the shared key (`PA-ENC-TIMESTAMP`) and sends it in the AS-REQ. The KDC decrypts the timestamp with its copy of the key -- if the timestamp is valid, the client has proven knowledge of the password.
 
@@ -94,37 +98,34 @@ Supported encryption types (in order of strength):
 
 | Encryption Type | Key Derivation | Status |
 |----------------|---------------|--------|
-| DES-CBC-MD5 | Direct from password | Disabled by default since Windows 7 / Server 2008 R2 |
-| RC4-HMAC | MD4 hash of the password (identical to the NT hash) | Supported but deprecated; targeted by Overpass-the-Hash |
-| AES128-CTS-HMAC-SHA1-96 | PBKDF2 with per-user salt from the KDC | Supported |
-| AES256-CTS-HMAC-SHA1-96 | PBKDF2 with per-user salt from the KDC | Preferred; default on modern DCs |
+| DES-CBC-MD5 | DES string-to-key over password + salt | Disabled by default since Windows 7 / Server 2008 R2; removed from Windows 11 24H2 and Windows Server 2025 |
+| RC4-HMAC | MD4 hash of the password (identical to the NT hash), no salt | Deprecated. On DCs with the April 2026 cumulative update or later it is used only where an account or an explicit `DefaultDomainSupportedEncTypes` lists it, or where the temporary rollback offered by the April-June 2026 updates was applied. Targeted by Overpass-the-Hash |
+| AES128-CTS-HMAC-SHA1-96 | PBKDF2 then DK, with the per-account salt supplied by the KDC | Supported |
+| AES256-CTS-HMAC-SHA1-96 | PBKDF2 then DK, with the per-account salt supplied by the KDC | Preferred; default on modern DCs |
 
-### 2. Certificate from a Certificate Authority (PKINIT)
+See [Encryption Types](encryption.md) for how each key is derived and for the current RC4 status.
 
-X.509 certificates issued by Active Directory Certificate Services (AD CS) or another trusted CA can be used for Kerberos pre-authentication via the PKINIT extension ([RFC 4556]). Instead of encrypting a timestamp with a symmetric key, the client sends a `PA-PK-AS-REQ` containing the certificate and a timestamp signed with the corresponding private key. The KDC validates the certificate chain and the signature.
+### 2. Public Key (PKINIT)
 
-PKINIT is used for:
+PKINIT ([RFC 4556](https://datatracker.ietf.org/doc/html/rfc4556), with Microsoft's profile in [MS-PKCA](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pkca/d0cf1763-3541-4008-a75f-a577fa5e8c5b)) replaces the encrypted timestamp with a public-key proof. The client sends a `PA-PK-AS-REQ` containing a certificate and a signed authenticator; the KDC verifies the signature and maps the public key to an account. What differs between deployments is **how the KDC decides to trust the client's public key**:
 
-- **Smart card logon** -- the private key lives on a physical smart card or hardware token
-- **Windows Hello for Business (certificate trust)** -- the private key is stored in a TPM and bound to a certificate issued by AD CS
+Certificate trust (smart card logon, Windows Hello for Business certificate trust)
+:   The client presents an X.509 certificate issued by Active Directory Certificate Services (AD CS) or another CA the KDC trusts. The KDC validates the chain and maps the certificate to an account. The private key lives on a smart card, a hardware token, or in a TPM.
 
-### 3. Certificate from KeyCredentialLink (WHfB Key Trust / Shadow Credentials)
+Key trust (Windows Hello for Business key trust, and the Shadow Credentials attack)
+:   The client presents a self-signed certificate, and the KDC matches its public key against the values stored in the account's `msDS-KeyCredentialLink` attribute. No certificate needs to be issued to the *user*, but this is still PKINIT, and the domain controllers still need a KDC certificate from a CA so that the client can authenticate the KDC. An attacker who can write to an account's `msDS-KeyCredentialLink` can add their own public key and then authenticate as that account -- the Shadow Credentials attack.
 
-The `msDS-KeyCredentialLink` attribute on an AD user or computer account stores a public key. During pre-authentication, the client proves possession of the matching private key. This mechanism does not require a certificate authority -- the public key is written directly to the AD attribute.
-
-This is used by:
-
-- **Windows Hello for Business (key trust deployment)** -- the device writes its public key to the user's `msDS-KeyCredentialLink` during enrollment
-- **Shadow Credentials** -- an attacker with write access to an account's `msDS-KeyCredentialLink` can add their own public key, then authenticate as that account using the matching private key
+Cloud Kerberos trust (Windows Hello for Business)
+:   Microsoft Entra ID issues a partial TGT that an on-premises domain controller exchanges for a full one. It is not covered on this site.
 
 !!! note "Scope of this site"
-    This site focuses on **key-based (symmetric) authentication** -- the password-derived secret keys (DES, RC4, AES) and the attacks that target them: password spraying, AS-REP roasting, Kerberoasting, overpass-the-hash, pass-the-key, Golden Tickets, and Silver Tickets. Certificate-based authentication (PKINIT, KeyCredentialLink) and the attacks that target it -- shadow credentials, pass-the-certificate, UnPAC the Hash, AD CS exploitation -- will be covered in a separate guide.
+    This site focuses on **key-based (symmetric) authentication** -- the password-derived secret keys (DES, RC4, AES) and the attacks that target them: password spraying, AS-REP roasting, Kerberoasting, overpass-the-hash, pass-the-key, Golden Tickets, and Silver Tickets. Public-key authentication (PKINIT in any of its trust models) and the attacks that target it -- shadow credentials, pass-the-certificate, UnPAC the Hash, AD CS exploitation -- are not covered here beyond the short description in [Pre-Authentication](preauth.md#pkinit-certificate-based-pre-authentication).
 
 ---
 
 ## Reading Order
 
-This section walks through the protocol from the ground up. Each page builds on the one before it:
+This section walks through the protocol from the ground up. The pages follow the navigation order, and each one ends with a link to the next:
 
 1. **[Active Directory Components](active-directory.md)** -- Domains, forests, Domain Controllers, and how the KDC fits into AD.
 2. **[Principals and Realms](principals.md)** -- How users, computers, and services are named and identified.
@@ -132,8 +133,26 @@ This section walks through the protocol from the ground up. Each page builds on 
 4. **[AS Exchange](as-exchange.md)** -- Step-by-step: how a client proves its identity and obtains a TGT.
 5. **[TGS Exchange](tgs-exchange.md)** -- Step-by-step: how a client trades a TGT for a service ticket.
 6. **[AP Exchange](ap-exchange.md)** -- How the client presents a service ticket to the target service.
+7. **[Ticket Structure](tickets.md)** -- What is inside a ticket: fields, flags, and the PAC with its signatures.
+8. **[Pre-Authentication](preauth.md)** -- `PA-ENC-TIMESTAMP`, `PA-ETYPE-INFO2`, PKINIT, and FAST.
+9. **[Encryption Types](encryption.md)** -- DES, RC4, and AES: key derivation, salts, and current status.
+10. **[S4U Extensions](s4u.md)** -- S4U2Self and S4U2Proxy, the building blocks of constrained delegation.
+11. **[Cross-Realm Authentication](cross-realm.md)** -- Referrals, inter-realm keys, and trusts.
+12. **[Delegation](delegation.md)** -- Unconstrained, constrained, and resource-based constrained delegation.
 
-Later pages cover [ticket structure](tickets.md), [pre-authentication](preauth.md), [encryption types](encryption.md), [cross-realm authentication](cross-realm.md), and [delegation](delegation.md).
+The exchange pages (4-6) use ticket fields, pre-authentication data, and encryption types before the pages that define them. If a term is unfamiliar, pages 7-9 are the reference for it. Likewise, [S4U Extensions](s4u.md) and [Delegation](delegation.md) describe the same feature from the protocol side and the configuration side; read them together.
 
 !!! info "Spec References"
-    Throughout this section, references like "[RFC 4120 &sect;3.1]" point to the authoritative Kerberos V5 specification. References like "[MS-KILE &sect;3.3.5]" point to Microsoft's Kerberos Protocol Extensions documentation.
+    Throughout this section, citations such as [RFC 4120 &sect;3.1](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1) link to the cited section of the Kerberos V5 specification, and citations such as [MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39) link to the cited section of Microsoft's Open Specifications. Microsoft revises those documents; where a page depends on the wording of a particular revision, it says so.
+
+---
+
+## Summary
+
+- Kerberos is an authentication protocol with three parties: the client, the service, and the KDC that both trust
+- In Active Directory the KDC runs on every Domain Controller and issues TGTs (AS exchange) and service tickets (TGS exchange)
+- Passwords never cross the network; keys derived from them encrypt and decrypt protocol messages
+- A client proves its identity either with a password-derived symmetric key or with a public key through PKINIT
+- Authorization is not part of Kerberos itself; in Active Directory it rides along in the PAC
+
+Next: [Active Directory Components](active-directory.md), the infrastructure Kerberos runs on.

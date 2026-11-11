@@ -23,7 +23,7 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/StrongWind1/Kerberos"
-Documentation = "https://strongwind1.github.io/Kerberos/"
+Documentation = "https://strongwind.dev/Kerberos/"
 Changelog = "https://github.com/StrongWind1/Kerberos/blob/main/CHANGELOG.md"
 Issues = "https://github.com/StrongWind1/Kerberos/issues"
 
@@ -32,6 +32,15 @@ package = false
 
 [dependency-groups]
 docs = ["mkdocs-material>=9.0", "mkdocs-git-revision-date-localized-plugin"]
+
+# The only Python in this repository is the MkDocs hook in hooks/. Without this
+# block the pre-commit ruff hooks ran on defaults and rejected that file.
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+extend-select = ["ARG", "B", "I", "RUF", "UP"]
 
 [tool.ty.environment]
 python-version = "3.11"

@@ -2,6 +2,8 @@
 
 Local privilege escalation through service-for-user-to-self.
 
+**MITRE ATT&CK:** [T1558](https://attack.mitre.org/techniques/T1558/) Steal or Forge Kerberos Tickets
+
 S4U2Self abuse exploits the fact that any computer account can request a service ticket to itself
 on behalf of any domain user -- including Domain Admins. The resulting ticket contains a
 **legitimate PAC** with the impersonated user's real group memberships. When the service reads
@@ -16,7 +18,12 @@ For the protocol mechanics of S4U2Self, see [S4U Extensions](../../protocol/s4u.
 
 ### The S4U2Self Primitive
 
-Per [MS-SFU &sect;2.2.1], any service with an SPN can use S4U2Self to request a service ticket
+Per [MS-SFU &sect;1.3.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/02636893-7a1f-4357-af9a-b672e3e3de13),
+S4U2Self "allows a service to obtain a service ticket to itself on behalf of a user", and the
+account needs a registered SPN to be the target of that ticket (without one the KDC returns
+`KDC_ERR_MUST_USE_USER2USER`,
+[MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39)).
+So any service with an SPN can use S4U2Self to request a service ticket
 to itself on behalf of another user. The KDC looks up the specified user in Active Directory,
 builds a PAC with that user's real group memberships, and returns a service ticket encrypted with
 the requesting service's key.
@@ -50,7 +57,7 @@ they can use S4U2Self to request a ticket as Domain Admin to the machine itself.
 
 ```mermaid
 sequenceDiagram
-    participant A as Attacker<br/>(running as NETWORK SERVICE<br/>on WEB01)
+    participant A as Attacker<br/>(NETWORK SERVICE on WEB01)
     participant K as KDC<br/>(dc1.corp.local)
     participant L as Local Service<br/>(CIFS/WEB01)
 
@@ -84,16 +91,30 @@ has a fabricated PAC with an invalid KDC signature.
 
 ### FORWARDABLE Flag and Delegation
 
-The S4U2Self ticket in this scenario is typically **not FORWARDABLE** because the machine
-account does not have `TRUSTED_TO_AUTH_FOR_DELEGATION` configured. This means the ticket
-**cannot** be used for S4U2Proxy (constrained delegation) without additional configuration.
-
-However, for **local privilege escalation**, FORWARDABLE is irrelevant -- the ticket is used
+For **local privilege escalation**, the FORWARDABLE flag is irrelevant -- the ticket is used
 locally, not forwarded to another service.
 
-If RBCD is configured on a target (where the computer account is allowed to delegate), the
-non-FORWARDABLE ticket **can** be used in S4U2Proxy because
-[RBCD does not check the FORWARDABLE flag](../../protocol/s4u.md#forwardable-flag).
+Whether the ticket can be passed on through S4U2Proxy depends on that flag. Per MS-SFU
+&sect;3.2.5.1.2 the KDC clears FORWARDABLE on an S4U2Self ticket when the requesting service has
+constrained delegation configured without protocol transition, or when the impersonated user
+is marked "sensitive and cannot be delegated" or is a member of Protected Users. Such a ticket
+is still valid to the requesting service itself, which is what this technique uses. Classic
+constrained delegation has always required a forwardable evidence ticket, so it cannot be
+passed on that way.
+
+For RBCD the specification does not give one answer. The KDC rules in
+[MS-SFU &sect;3.2.5.2.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/dd1b47f9-580c-4c4e-8f34-4485b9728331)
+say that when the evidence ticket "is not set to forwardable" the KDC MUST return
+`KRB-ERR-BADOPTION` with `STATUS_ACCOUNT_RESTRICTION`, a rule tied to the CVE-2020-16996 fix
+that Microsoft's guidance says is enforced by default from the March 9, 2021 updates. The
+client rules in
+[MS-SFU &sect;3.1.5.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ddb2cafd-1f01-4834-b52a-d4a5b34cd960)
+still list "a nonforwardable S4U2self-generated user's service ticket for a nonsensitive user"
+as evidence a service may send. The two sections agree that a non-forwardable ticket for a
+**sensitive** user (marked as not delegatable, which Protected Users membership implies) is
+not acceptable evidence; they differ about an ordinary user. This site has not tested which
+rule a current domain controller applies. See the box "RBCD and the forwardable flag" under
+[FORWARDABLE Flag](../../protocol/s4u.md#forwardable-flag).
 
 ### Service Name Substitution
 
@@ -108,21 +129,26 @@ different services on the same machine.
 
 ### Credential Guard
 
-Credential Guard prevents extraction of Kerberos tickets from LSASS memory. Even if the attacker
-has code execution as a virtual account, they cannot extract the computer account's TGT from
-LSASS to use in S4U2Self.
+Credential Guard protects TGTs held in LSASS: Microsoft lists "Kerberos TGT extraction" among
+the things that stop working when it is enabled, and says it "doesn't provide the TGT session
+key to applications". It does not protect service tickets. Do not treat it as closing this
+technique on its own.
 
-!!! info "Rubeus `tgtdeleg` does not require LSASS access"
+!!! info "Rubeus `tgtdeleg` does not read LSASS memory"
     The `tgtdeleg` trick obtains a usable TGT through the Kerberos API by requesting a service
-    ticket for a service with unconstrained delegation, which triggers the inclusion of a
-    forwarded TGT. Credential Guard does **not** block this technique. However, if no
-    unconstrained delegation targets exist in the domain, `tgtdeleg` fails.
+    ticket for a service with unconstrained delegation, which makes the client produce a
+    forwarded TGT. It therefore does not depend on dumping LSASS. Microsoft documents that when
+    Credential Guard is enabled "Kerberos doesn't allow unconstrained Kerberos delegation"
+    ([How Credential Guard works](https://learn.microsoft.com/en-us/windows/security/identity-protection/credential-guard/how-it-works));
+    whether that stops `tgtdeleg` for a computer account's own TGT has not been tested on this
+    site. If no unconstrained delegation targets exist in the domain, `tgtdeleg` fails.
 
 ### Restrict Running Account Privileges
 
 Minimize the number of services running as computer accounts or virtual accounts. Where possible,
-use dedicated user service accounts with limited group memberships rather than relying on the computer
-account identity.
+run them under a group Managed Service Account (gMSA) with limited group memberships rather than
+relying on the computer account identity. A gMSA keeps the service off the computer account
+without introducing a human-set password that can be [Kerberoasted](../roasting/kerberoasting.md).
 
 ### Protect High-Value Accounts
 
@@ -131,10 +157,17 @@ Add Domain Admins and other sensitive accounts to the **Protected Users** group 
 delegation scenarios, they also affect S4U2Self: the resulting ticket will not have the
 FORWARDABLE flag, limiting its use in delegation chains (though local access still works).
 
-### Patch for CVE-2022-26923 and Related Vulnerabilities
+### Keep Domain Controllers Patched { #patch-for-cve-2022-26923-and-related-vulnerabilities }
 
-Keep domain controllers patched. Several vulnerabilities in S4U processing have been discovered
-and patched. Ensure the `PAC_REQUESTOR` enforcement from CVE-2021-42287 is enabled.
+Keep domain controllers patched. The fixes that touch S4U processing are CVE-2020-17049
+([KB4598347](https://support.microsoft.com/en-us/topic/managing-deployment-of-kerberos-s4u-changes-for-cve-2020-17049-569d60b7-3267-e2b0-7d9b-e46d770332ab),
+the ticket signature, enforced from the July 13, 2021 updates), CVE-2020-16996 (non-forwardable
+tickets and RBCD, enforced by default from the March 9, 2021 updates), and CVE-2021-42287
+([KB5008380](https://support.microsoft.com/en-us/topic/kb5008380-authentication-updates-cve-2021-42287-9dafac11-e0d0-4cb8-959a-143bd0201041),
+the `PAC_REQUESTOR` check). There is nothing left to switch on for the last one: its enforcement
+has been mandatory since the October 11, 2022 updates, which no longer read the
+`PacRequestorEnforcement` registry value. None of these removes the technique on this page,
+because S4U2Self is working as designed.
 
 ---
 
@@ -142,18 +175,34 @@ and patched. Ensure the `PAC_REQUESTOR` enforcement from CVE-2021-42287 is enabl
 
 ### S4U2Self Activity for High-Privilege Users
 
-Monitor for S4U2Self requests that target high-privilege accounts from computer accounts that
-have no delegation configured. This is the most direct detection signal.
+The request to look for is a computer account asking for a service ticket to itself. Event 4769
+(service ticket request) does not label S4U2Self, and two fields that look useful are not:
 
-Event 4769 (service ticket request) with the `Transited Services` field populated indicates
-S4U activity:
+- `Transited Services` is documented as the "list of SPNs which were requested if constrained
+  Kerberos delegation was used". That is S4U2Proxy. This technique stops at S4U2Self and never
+  performs S4U2Proxy, so a filter on that field returns nothing for it.
+- `Account Name` is "the user name of the account that requested the ticket", which here is the
+  computer account. The documented fields include none for the user being impersonated, so a
+  filter on `administrator` does not match either.
+
+What the documented fields do show is the shape of the request: the requesting account and the
+service account are the same computer account.
 
 ```text
-index=security EventCode=4769
-| where isnotnull(TransitedServices) AND TransitedServices!=""
-| search TargetUserName IN ("administrator", "domain_admin_*")
-| stats count by ServiceName, TargetUserName, IpAddress
+index=security EventCode=4769 TargetUserName="*$@*"
+| eval requester=lower(mvindex(split(TargetUserName,"@"),0))
+| where requester=lower(ServiceName)
+| stats count, values(IpAddress) as sources by ServiceName
 ```
+
+This is a baseline query, not an alert. A service asking for a ticket to itself is also what
+legitimate protocol transition looks like, so establish which computers do it routinely and
+investigate the ones that start. Whether the impersonated user was privileged cannot be read
+from this event; look for it in the logon events on the host itself. The field behavior here is
+taken from Microsoft's event
+documentation and has not been captured in this site's lab. Event 4769 requires the **Audit
+Kerberos Service Ticket Operations** subcategory on domain controllers (see
+[Kerberos Auditing Policies](../../security/group-policy.md#kerberos-auditing-policies)).
 
 ### Unexpected Computer Account TGT Requests
 
@@ -172,7 +221,7 @@ index=security EventCode=4768 TargetUserName="*$"
 |---|---|
 | S4U2Self from non-delegating accounts | Computer accounts requesting tickets on behalf of Domain Admins when no delegation is configured |
 | Privilege escalation on the host | Sudden admin-level access from a service identity that previously had limited access |
-| Service ticket for local machine | Event 4769 where the service SPN matches the requesting machine's own hostname |
+| Service ticket for local machine | Event 4769 where the service SPN matches the requesting machine's own hostname (the query above; it needs a baseline of which machines do this normally) |
 
 ---
 
@@ -207,7 +256,7 @@ Rubeus.exe asktgt /user:WEB01$ /rc4:<nt_hash> /nowrap
 ```bash title="S4U2Self with sname substitution — impersonate administrator on local CIFS"
 export KRB5CCNAME=WEB01.ccache
 getST.py -self -impersonate administrator -altservice cifs/WEB01.corp.local \
-  -k -no-pass -dc-ip 10.0.0.1 CORP.LOCAL/WEB01$
+  -k -no-pass -dc-ip 192.0.2.10 CORP.LOCAL/WEB01$
 ```
 
 The `-self` flag triggers S4U2Self. The `-impersonate` flag specifies the user to impersonate.
@@ -217,7 +266,7 @@ The `-altservice` flag rewrites the `sname` in the resulting ticket.
 
 ```powershell
 Rubeus.exe s4u /self /nowrap /impersonateuser:administrator \
-  /altservice:cifs/WEB01.corp.local /ticket:<base64_tgt>
+/altservice:cifs/WEB01.corp.local /ticket:<base64_tgt>
 ```
 
 ### 3. Use the Ticket
@@ -236,7 +285,7 @@ smbclient //WEB01.corp.local/C$ -k --no-pass
 Rubeus.exe ptt /ticket:<base64_ticket>
 
 # Access local resources as administrator
-dir \\WEB01.corp.local\C$
+Get-ChildItem \\WEB01.corp.local\C$
 ```
 
 ---

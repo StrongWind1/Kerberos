@@ -31,9 +31,11 @@
   --md-accent-bg-color--light: #ffffffb3;
 }
 
-/* Accent ships one shade per scheme. Material's 16 named accents are tuned to stay
- * legible on both backgrounds; a hand-picked one is not, and every value here was
- * solved to clear WCAG AA (4.5:1) against the scheme it renders on.
+/* Accent ships one shade per scheme. Material's 16 named accents are tuned for
+ * AA at best; these are hand-picked, and every text colour in this file clears
+ * WCAG AAA (7:1) against each surface it renders on: the page and the code
+ * background of its scheme. tests/js/colour-contrast.test.js recomputes every
+ * pair listed here and fails if one drops below 7:1.
  *
  * --md-typeset-a-color is set explicitly because Material defaults it to
  * var(--md-primary-fg-color), which renders body links in the header colour. */
@@ -46,13 +48,206 @@
    * carry the site identity. */
   --md-hue: 225deg;
 
+  /* 11.5:1 on the page (#1e2129), 10.2:1 on code (#272a35). */
   --md-accent-fg-color: #ffd740;
   --md-accent-fg-color--transparent: #ffd7401a;
   --md-typeset-a-color: #ffd740;
+
+  /* Text drawn on accent-filled elements. The slate accent is a light yellow,
+   * so the white set for both schemes above is unreadable on it (1.4:1).
+   * Near-black gives 11.5:1. */
+  --md-accent-bg-color: #212121;
+  --md-accent-bg-color--light: #212121;
+
+  /* Material's foregrounds, restated as opaque colours at AAA contrast.
+   * Material ships them as one light tone at four alphas (0.82 / 0.56 / 0.32):
+   * the two dimmer ones are 4.9:1 and 2.4:1 on the page, and automated
+   * checkers cannot compute a ratio for a translucent text colour at all
+   * (pa11y reports "NaN:1" for every paragraph). Ratios: page / code. */
+  --md-default-fg-color: #e2e4e9;           /* 12.7 / 11.2 */
+  --md-default-fg-color--light: #c5c9d3;    /*  9.7 /  8.6 */
+  --md-default-fg-color--lighter: #b8bcc8;  /*  8.5 /  7.5 */
+  /* Hairlines and the search-hint strip; Material's is the same tone at alpha
+   * 0.12. Opaque so text drawn on it has a computable ratio (--light: 7.6:1). */
+  --md-default-fg-color--lightest: #363840;
+  --md-code-fg-color: #d5d8e2;              /*        10.0 */
+  --md-footer-bg-color: #17191f;
+
+  /* Syntax colours: Material's hues, lightened to 7.2:1 on the code background. */
+  --md-code-hl-number-color: #f0a69d;
+  --md-code-hl-special-color: #f69fbc;
+  --md-code-hl-function-color: #dca5e7;
+  --md-code-hl-constant-color: #bcb3ed;
+  --md-code-hl-keyword-color: #9eb9eb;
+  --md-code-hl-string-color: #4bcf8d;
+  --md-typeset-mark-color: #294069;
+
+  /* ---- Calculator / decoder palette (see extra.css) ---- */
+
+  /* Secondary text: hints, sources, labels. 9.7:1 page, 8.6:1 code. Use this,
+   * not --md-default-fg-color--light (4.9:1) or --lighter (2.4:1). */
+  --tool-muted: #c5c9d3;
+  /* Inline text colours on the page background. */
+  --tool-note: #93c5fd;
+  --tool-alert: #fca5a5;
+  --tool-caution: #fbbf24;
+  --tool-caution-bg: transparent;
+  --tool-caution-border: #fbbf24;
+  /* Filled chips: background / text / border. */
+  --tool-ok-bg: #1a3a2a;
+  --tool-ok-fg: #4ade80;
+  --tool-ok-border: #22633a;
+  --tool-warn-bg: #3a3520;
+  --tool-warn-fg: #fbbf24;
+  --tool-warn-border: #6b5c1f;
+  --tool-bad-bg: #3a1a1a;
+  --tool-bad-fg: #fca5a5;
+  --tool-bad-border: #7f1d1d;
+  --tool-info-bg: #1a2a3a;
+  --tool-info-fg: #93c5fd;
+  --tool-feature-bg: #1a2a3a;
+  --tool-feature-fg: #c4b5fd;
+  --tool-neutral-bg: #1e293b;
+  --tool-neutral-fg: #cbd5e1;
+  --tool-neutral-border: #475569;
+  /* Control outlines must be visible against the page (3:1 non-text). */
+  --tool-control-border: #8b93a7;
 }
 
 [data-md-color-scheme="default"] {
-  --md-accent-fg-color: #b85a08;
-  --md-accent-fg-color--transparent: #b85a081a;
-  --md-typeset-a-color: #b85a08;
+  /* 8.8:1 on white, 8.0:1 on code (#f5f5f5). The previous #b85a08 was 4.7:1. */
+  --md-accent-fg-color: #7a3800;
+  --md-accent-fg-color--transparent: #7a38001a;
+  --md-typeset-a-color: #7a3800;
+
+  /* Material's foregrounds as opaque AAA colours; see the slate block for why.
+   * Material's own values are black at alpha 0.87 / 0.54 / 0.32, i.e. 16:1,
+   * 4.6:1 and 2.3:1 on white. Ratios: page / code. */
+  --md-default-fg-color: #212121;           /* 16.1 / 14.8 */
+  --md-default-fg-color--light: #474747;    /*  9.3 /  8.5 */
+  --md-default-fg-color--lighter: #505050;  /*  8.1 /  7.4 */
+  /* Black at alpha 0.07 on white, opaque (--light on it: 7.9:1). */
+  --md-default-fg-color--lightest: #ededed;
+  --md-footer-bg-color: #212121;
+  --md-footer-bg-color--dark: #161616;
+
+  /* Syntax colours: Material's hues, darkened to 7.2:1 on the code background. */
+  --md-code-hl-number-color: #9e1f1f;
+  --md-code-hl-special-color: #a10f40;
+  --md-code-hl-function-color: #7b3387;
+  --md-code-hl-constant-color: #4c32d0;
+  --md-code-hl-keyword-color: #2b4f92;
+  --md-code-hl-string-color: #155c38;
+  --md-typeset-mark-color: #ffff80;
+
+  /* ---- Calculator / decoder palette (see extra.css) ---- */
+
+  /* 9.3:1 page, 8.5:1 code. Material's --light is 4.6:1, --lighter 2.3:1. */
+  --tool-muted: #474747;
+  --tool-note: #1e3a8a;
+  --tool-alert: #7f1d1d;
+  --tool-caution: #78350f;
+  --tool-caution-bg: #fffbeb;
+  --tool-caution-border: #b45309;
+  --tool-ok-bg: #dcfce7;
+  --tool-ok-fg: #14532d;
+  --tool-ok-border: #86efac;
+  --tool-warn-bg: #fef9c3;
+  --tool-warn-fg: #713f12;
+  --tool-warn-border: #fde047;
+  --tool-bad-bg: #fee2e2;
+  --tool-bad-fg: #7f1d1d;
+  --tool-bad-border: #fca5a5;
+  --tool-info-bg: #dbeafe;
+  --tool-info-fg: #1e3a8a;
+  --tool-feature-bg: #ede9fe;
+  --tool-feature-fg: #4c1d95;
+  --tool-neutral-bg: #f1f5f9;
+  --tool-neutral-fg: #334155;
+  --tool-neutral-border: #cbd5e1;
+  --tool-control-border: #6b7280;
+}
+
+/* Same in both schemes. */
+:root > * {
+  /* White text on a dark fill (9.1:1 and 10.0:1). */
+  --tool-solid-ok-bg: #14532d;
+  --tool-solid-bad-bg: #7f1d1d;
+  --tool-solid-fg: #ffffff;
+
+  /* Footer text, opaque. Material's are white at alpha 0.7 and 0.45; the
+   * second is 4.6:1. On the footer backgrounds of both schemes these are
+   * at least 8.2:1 and 7.4:1. */
+  --md-footer-fg-color--light: #b9b9b9;
+  --md-footer-fg-color--lighter: #b0b0b0;
+}
+
+/* The announcement bar is painted with the footer colours, dark in both
+ * schemes, so the light scheme's dark link colour is unreadable on it. Scope
+ * the link and inline-code colours to the bar instead: yellow link 11.5:1 on
+ * the bar and 8.5:1 on the code chip, white code text 12.0:1. */
+.md-banner {
+  --md-typeset-a-color: #ffd740;
+  --md-accent-fg-color: #ffffff;
+  --md-code-bg-color: #33363f;
+  --md-code-fg-color: #ffffff;
+}
+
+/* Admonition and <details> title bars. Material tints them with the type
+ * colour at alpha 0.1, and a translucent background leaves automated checkers
+ * unable to compute the contrast of the title text. These are the same tints
+ * flattened onto each scheme's page colour; title text on them is at least
+ * 13.6:1 (light) and 10.3:1 (dark). */
+.md-typeset :is(.admonition, details)[class] > :is(.admonition-title, summary) {
+  background-color: var(--admonition-title-bg, var(--md-code-bg-color));
+}
+
+
+[data-md-color-scheme="default"] .md-typeset .note { --admonition-title-bg: #ecf3ff; }
+[data-md-color-scheme="default"] .md-typeset .abstract { --admonition-title-bg: #e6f7ff; }
+[data-md-color-scheme="default"] .md-typeset .info { --admonition-title-bg: #e6f8fb; }
+[data-md-color-scheme="default"] .md-typeset .tip { --admonition-title-bg: #e6f9f6; }
+[data-md-color-scheme="default"] .md-typeset .success { --admonition-title-bg: #e6faee; }
+[data-md-color-scheme="default"] .md-typeset .question { --admonition-title-bg: #f0fce8; }
+[data-md-color-scheme="default"] .md-typeset .warning { --admonition-title-bg: #fff4e6; }
+[data-md-color-scheme="default"] .md-typeset .failure { --admonition-title-bg: #ffeeee; }
+[data-md-color-scheme="default"] .md-typeset .danger { --admonition-title-bg: #ffe8ec; }
+[data-md-color-scheme="default"] .md-typeset .bug { --admonition-title-bg: #fee6ee; }
+[data-md-color-scheme="default"] .md-typeset .example { --admonition-title-bg: #f2edff; }
+[data-md-color-scheme="default"] .md-typeset .quote { --admonition-title-bg: #f5f5f5; }
+
+[data-md-color-scheme="slate"] .md-typeset .note { --admonition-title-bg: #222c3e; }
+[data-md-color-scheme="slate"] .md-typeset .abstract { --admonition-title-bg: #1b2f3e; }
+[data-md-color-scheme="slate"] .md-typeset .info { --admonition-title-bg: #1b303a; }
+[data-md-color-scheme="slate"] .md-typeset .tip { --admonition-title-bg: #1b3135; }
+[data-md-color-scheme="slate"] .md-typeset .success { --admonition-title-bg: #1b322d; }
+[data-md-color-scheme="slate"] .md-typeset .question { --admonition-title-bg: #253427; }
+[data-md-color-scheme="slate"] .md-typeset .warning { --admonition-title-bg: #342c25; }
+[data-md-color-scheme="slate"] .md-typeset .failure { --admonition-title-bg: #34262d; }
+[data-md-color-scheme="slate"] .md-typeset .danger { --admonition-title-bg: #34202c; }
+[data-md-color-scheme="slate"] .md-typeset .bug { --admonition-title-bg: #341e2e; }
+[data-md-color-scheme="slate"] .md-typeset .example { --admonition-title-bg: #27253e; }
+[data-md-color-scheme="slate"] .md-typeset .quote { --admonition-title-bg: #2b2e35; }
+
+/* ---------- Dimming by opacity ----------
+ *
+ * Material dims a few pieces of header text with `opacity`, which lowers their
+ * real contrast below WCAG AAA (inactive tabs: 4.9:1; repository facts: 5.3:1)
+ * while staying invisible to automated checkers, which compare colours and do not
+ * see opacity. They are restored to full strength here and state is shown by
+ * something other than faintness: the current section and the hovered link are
+ * underlined. */
+
+.md-tabs__link,
+.md-source__facts,
+.md-source:hover {
+  opacity: 1;
+}
+
+.md-tabs__item--active .md-tabs__link,
+.md-tabs__link:is(:hover, :focus-visible),
+.md-source:is(:hover, :focus-visible) .md-source__repository {
+  text-decoration: underline;
+  text-decoration-thickness: 0.1rem;
+  text-underline-offset: 0.3em;
 }

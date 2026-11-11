@@ -1,18 +1,31 @@
 # Full Etype Matrix Lab Results (v2)
 
 Lab date: 2026-04-14 (v1), corrected 2026-04-14 (v2).
-DC: Server 2022 Build 20348 UBR 5020 (KB5078763). Domain: evil.corp, DFL Windows2016Domain.
+DC: Server 2022 Build 20348 UBR 5020 (KB5078763). Domain: corp.local, DFL Windows2016Domain.
 Tool: kw-roast. Hash prefix checked to determine the **actual etype returned**, not just whether a hash was obtained.
+
+> **Note added 2026-11-10 — build and KB labels.**  These notes call the enforcing update
+> "KB5078763" and a later retest build "KB5082137+".  Neither number resolves on Microsoft
+> Support.  Microsoft's Server 2022 update history lists 20348.4893 as KB5078766 (10 March
+> 2026, not enforcing) and 20348.5020 as **KB5082142 (14 April 2026)**, the update that
+> changes the default `DefaultDomainSupportedEncTypes`.  Trust the build numbers, not the KB
+> labels.  The reconciled table is `includes/lab-builds.md`.
+>
+> **Scope note added 2026-11-10.**  Matrix 2 (RC4-only filter) is consistent with the later
+> asymmetric-filter result in `lab-verify-2026-06-26.md` round 3 and is superseded by it as
+> the reference.  "The DC ignores the requested etype" below is about the **ticket** etype;
+> the request still fails when the client's list and the account's set share no etype for the
+> session key, which is what the BLOCKED cells show.
 
 ## Test accounts
 
 | Account | msDS-SupportedEncryptionTypes | SPN |
 |---------|-------------------------------|-----|
-| svc_apr_01 | blank (no attribute) | HTTP/svc-apr-01.evil.corp |
-| svc_apr_02 | 0 (explicit integer) | HTTP/svc-apr-02.evil.corp |
-| svc_apr_03 | 4 (RC4 only) | HTTP/svc-apr-03.evil.corp |
-| svc_apr_04 | 24 (AES only) | HTTP/svc-apr-04.evil.corp |
-| svc_apr_05 | 28 (RC4+AES) | HTTP/svc-apr-05.evil.corp |
+| svc_matrix_01 | blank (no attribute) | HTTP/app-01.corp.local |
+| svc_matrix_02 | 0 (explicit integer) | HTTP/app-02.corp.local |
+| svc_matrix_03 | 4 (RC4 only) | HTTP/app-03.corp.local |
+| svc_matrix_04 | 24 (AES only) | HTTP/app-04.corp.local |
+| svc_matrix_05 | 28 (RC4+AES) | HTTP/app-05.corp.local |
 
 All accounts have both RC4 and AES keys in ntds.dit (passwords set post DFL 2008).
 
@@ -51,7 +64,7 @@ issued:
 | 28 (RC4+AES) | AES256 (!≠req) | AES256 |
 
 **blank/0**: RC4 blocked entirely by enforcement.  AES256 works.
-**msDS=4**: RC4 only — no AES key or declared support.  AES blocked.
+**msDS=4**: RC4 only — no declared AES support (the account does have AES keys; see the test-accounts note above).  AES blocked.
 **msDS=24**: AES-only — RC4 blocked by enforcement.
 **msDS=28**: DC picks AES256 (strongest in set) regardless of whether RC4 or AES256 was requested.
 

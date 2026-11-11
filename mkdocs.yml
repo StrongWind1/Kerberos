@@ -90,6 +90,14 @@ plugins:
 # published; the hook keeps them resolving. See the module docstring.
 hooks:
   - hooks/html_aliases.py
+  # Corrects markup from Python-Markdown and the theme that the Nu HTML Checker
+  # rejects (void-element slashes, a few disallowed attributes). See the module
+  # docstring; CI runs vnu over the built site.
+  - hooks/html_validity.py
+  # Corrects the theme's script bundle so Mermaid is loaded from this build rather
+  # than from the production URL, and so javascripts/layout.js can reach the
+  # diagrams the theme draws. See the module docstring.
+  - hooks/mermaid_bundle.py
 
 markdown_extensions:
   - admonition
@@ -100,7 +108,8 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
-      anchor_linenums: true
+      # No anchor_linenums: it emits <a name="...">, which is obsolete HTML and
+      # fails vnu, and no page on this site links to a code line.
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
@@ -127,6 +136,9 @@ markdown_extensions:
         - .
       auto_append:
         - includes/abbreviations.md
+        # Link reference definitions: turns a bare [RFC 4120] or [MS-KILE] on
+        # any page into a link to the specification.
+        - includes/references.md
 
 nav:
   - Home:
@@ -158,6 +170,7 @@ nav:
           - Registry Audit: security/registry-audit.md
           - Group Policy: security/group-policy.md
       - Hardening:
+          - "RC4 Enforcement: Am I Affected?": security/enforcement-triage.md
           - RC4 Deprecation: security/rc4-deprecation.md
           - Auditing Kerberos Keys: security/account-key-audit.md
           - AES Standardization Guide: security/aes-standardization.md
@@ -209,6 +222,9 @@ extra_css:
 extra_javascript:
   - javascripts/etype-calculator.js
   - javascripts/event-decoder.js
+  # Wide tables and diagrams: break points in long identifiers, column floors,
+  # keyboard-reachable sideways scrolling, and diagram colour corrections.
+  - javascripts/layout.js
 
 strict: true
 

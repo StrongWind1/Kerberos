@@ -1,6 +1,7 @@
 name: CodeQL
 
-# GitHub CodeQL static analysis -- GitHub Actions workflow files only.
+# GitHub CodeQL static analysis -- workflow files, the browser tools in
+# content/javascripts/, and the MkDocs hook in hooks/.
 
 run-name: CodeQL -- ${{ github.event.head_commit.message || github.ref_name }}
 
@@ -32,6 +33,10 @@ jobs:
       matrix:
         include:
           - language: actions
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
             build-mode: none
 
     steps:
