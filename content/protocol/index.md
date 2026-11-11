@@ -1,5 +1,5 @@
 ---
-description: How Kerberos authentication works in Active Directory -- the three-party model, the history, the authentication methods, and a reading order for the protocol pages.
+description: How Kerberos authentication works in Active Directory - the three-party model, the history, the authentication methods, and a reading order for the protocol pages.
 ---
 
 # How Kerberos Works
@@ -12,7 +12,7 @@ This section explains the Kerberos authentication protocol as implemented in Mic
 
 Kerberos is an **authentication** protocol. It answers one question: *"Are you really who you claim to be?"*
 
-It does **not** handle authorization -- the separate question of *"What are you allowed to do?"* A Kerberos ticket proves your identity the same way a passport proves your citizenship. The passport does not decide whether you can enter a building; a guard with an access list does that. In Active Directory, authorization happens after authentication, using security groups, access control lists (ACLs), and the Privilege Attribute Certificate (PAC) embedded in tickets.
+It does **not** handle authorization - the separate question of *"What are you allowed to do?"* A Kerberos ticket proves your identity the same way a passport proves your citizenship. The passport does not decide whether you can enter a building; a guard with an access list does that. In Active Directory, authorization happens after authentication, using security groups, access control lists (ACLs), and the Privilege Attribute Certificate (PAC) embedded in tickets.
 
 !!! info "Authentication vs. Authorization"
     **Authentication** = proving identity ("I am Alice").
@@ -29,13 +29,13 @@ Client
 :   The user or computer that wants to access a service. For example, a workstation where Alice types her password.
 
 Service (Application Server)
-:   The resource the client wants to reach -- a file share, a web application, a database, a print server.
+:   The resource the client wants to reach - a file share, a web application, a database, a print server.
 
 Key Distribution Center (KDC)
 :   The trusted third party that vouches for identities. In Active Directory, the KDC runs on every Domain Controller and consists of two logical services:
 
-    - **Authentication Service (AS)** -- verifies the client's identity and issues a Ticket-Granting Ticket (TGT).
-    - **Ticket-Granting Service (TGS)** -- accepts a TGT and issues service tickets for specific services.
+    - **Authentication Service (AS)** - verifies the client's identity and issues a Ticket-Granting Ticket (TGT).
+    - **Ticket-Granting Service (TGS)** - accepts a TGT and issues service tickets for specific services.
 
 The core idea is simple: the client never sends a password to any service. Instead, the KDC acts as a mutually trusted intermediary. Both the client and the service trust the KDC, so when the KDC issues a ticket, both sides accept it as proof of identity.
 
@@ -61,20 +61,20 @@ The Kerberos protocol was born out of a practical need: how do you let thousands
 | 2005 | [RFC 4120](https://datatracker.ietf.org/doc/html/rfc4120) supersedes RFC 1510, clarifying and tightening the v5 specification. This is the current authoritative standard. |
 
 !!! tip "NTLM is still around"
-    Although Kerberos replaced NTLM as the default, Windows still falls back to NTLM when Kerberos is unavailable -- for example, when a client cannot reach a Domain Controller, when accessing a resource by IP address instead of hostname (Kerberos for IP-address targets is opt-in, see [Protocol Overview](overview.md#infrastructure-dependencies)), or when communicating with systems that do not support Kerberos. Microsoft is retiring NTLM in stages: NTLMv1 is removed starting in Windows 11 24H2 and Windows Server 2025.
+    Although Kerberos replaced NTLM as the default, Windows still falls back to NTLM when Kerberos is unavailable - for example, when a client cannot reach a Domain Controller, when accessing a resource by IP address instead of hostname (Kerberos for IP-address targets is opt-in, see [Protocol Overview](overview.md#infrastructure-dependencies)), or when communicating with systems that do not support Kerberos. Microsoft is retiring NTLM in stages: NTLMv1 is removed starting in Windows 11 24H2 and Windows Server 2025.
 
 ---
 
 ## Why Kerberos Matters
 
 Passwords never cross the network
-:   The user's password is converted into a cryptographic key on the local machine. Only encrypted data derived from that key is ever transmitted. Even the KDC never receives the password -- it stores a copy of the derived key and uses it to verify encrypted timestamps.
+:   The user's password is converted into a cryptographic key on the local machine. Only encrypted data derived from that key is ever transmitted. Even the KDC never receives the password - it stores a copy of the derived key and uses it to verify encrypted timestamps.
 
 Mutual authentication
 :   Not only does the server verify the client, but the client can also verify the server. This prevents an attacker from impersonating a legitimate service.
 
 Single Sign-On (SSO)
-:   A user types a password once at login. From that point forward, the workstation uses cached tickets to authenticate to file shares, printers, email, web apps, and any other Kerberos-enabled service -- all without prompting for credentials again.
+:   A user types a password once at login. From that point forward, the workstation uses cached tickets to authenticate to file shares, printers, email, web apps, and any other Kerberos-enabled service - all without prompting for credentials again.
 
 Delegation
 :   A front-end service can act on behalf of a user when talking to a back-end service. For example, a web application can request data from a SQL server using the logged-in user's identity, not a shared account identity.
@@ -92,7 +92,7 @@ Kerberos gives a client two fundamentally different ways to prove its identity d
 
 The standard Kerberos authentication method, in use since Windows 2000. The client derives a secret key from the user's password using a key derivation function specific to the encryption type. Both the client and the KDC share this key (Active Directory stores the per-etype keys that were computed when the password was last set).
 
-During pre-authentication, the client encrypts the current timestamp with the shared key (`PA-ENC-TIMESTAMP`) and sends it in the AS-REQ. The KDC decrypts the timestamp with its copy of the key -- if the timestamp is valid, the client has proven knowledge of the password.
+During pre-authentication, the client encrypts the current timestamp with the shared key (`PA-ENC-TIMESTAMP`) and sends it in the AS-REQ. The KDC decrypts the timestamp with its copy of the key - if the timestamp is valid, the client has proven knowledge of the password.
 
 Supported encryption types (in order of strength):
 
@@ -113,13 +113,13 @@ Certificate trust (smart card logon, Windows Hello for Business certificate trus
 :   The client presents an X.509 certificate issued by Active Directory Certificate Services (AD CS) or another CA the KDC trusts. The KDC validates the chain and maps the certificate to an account. The private key lives on a smart card, a hardware token, or in a TPM.
 
 Key trust (Windows Hello for Business key trust, and the Shadow Credentials attack)
-:   The client presents a self-signed certificate, and the KDC matches its public key against the values stored in the account's `msDS-KeyCredentialLink` attribute. No certificate needs to be issued to the *user*, but this is still PKINIT, and the domain controllers still need a KDC certificate from a CA so that the client can authenticate the KDC. An attacker who can write to an account's `msDS-KeyCredentialLink` can add their own public key and then authenticate as that account -- the Shadow Credentials attack.
+:   The client presents a self-signed certificate, and the KDC matches its public key against the values stored in the account's `msDS-KeyCredentialLink` attribute. No certificate needs to be issued to the *user*, but this is still PKINIT, and the domain controllers still need a KDC certificate from a CA so that the client can authenticate the KDC. An attacker who can write to an account's `msDS-KeyCredentialLink` can add their own public key and then authenticate as that account - the Shadow Credentials attack.
 
 Cloud Kerberos trust (Windows Hello for Business)
 :   Microsoft Entra ID issues a partial TGT that an on-premises domain controller exchanges for a full one. It is not covered on this site.
 
 !!! note "Scope of this site"
-    This site focuses on **key-based (symmetric) authentication** -- the password-derived secret keys (DES, RC4, AES) and the attacks that target them: password spraying, AS-REP roasting, Kerberoasting, overpass-the-hash, pass-the-key, Golden Tickets, and Silver Tickets. Public-key authentication (PKINIT in any of its trust models) and the attacks that target it -- shadow credentials, pass-the-certificate, UnPAC the Hash, AD CS exploitation -- are not covered here beyond the short description in [Pre-Authentication](preauth.md#pkinit-certificate-based-pre-authentication).
+    This site focuses on **key-based (symmetric) authentication** - the password-derived secret keys (DES, RC4, AES) and the attacks that target them: password spraying, AS-REP roasting, Kerberoasting, overpass-the-hash, pass-the-key, Golden Tickets, and Silver Tickets. Public-key authentication (PKINIT in any of its trust models) and the attacks that target it - shadow credentials, pass-the-certificate, UnPAC the Hash, AD CS exploitation - are not covered here beyond the short description in [Pre-Authentication](preauth.md#pkinit-certificate-based-pre-authentication).
 
 ---
 
@@ -127,18 +127,18 @@ Cloud Kerberos trust (Windows Hello for Business)
 
 This section walks through the protocol from the ground up. The pages follow the navigation order, and each one ends with a link to the next:
 
-1. **[Active Directory Components](active-directory.md)** -- Domains, forests, Domain Controllers, and how the KDC fits into AD.
-2. **[Principals and Realms](principals.md)** -- How users, computers, and services are named and identified.
-3. **[Protocol Overview](overview.md)** -- The three exchanges (AS, TGS, AP), key types, timestamps, and dependencies.
-4. **[AS Exchange](as-exchange.md)** -- Step-by-step: how a client proves its identity and obtains a TGT.
-5. **[TGS Exchange](tgs-exchange.md)** -- Step-by-step: how a client trades a TGT for a service ticket.
-6. **[AP Exchange](ap-exchange.md)** -- How the client presents a service ticket to the target service.
-7. **[Ticket Structure](tickets.md)** -- What is inside a ticket: fields, flags, and the PAC with its signatures.
-8. **[Pre-Authentication](preauth.md)** -- `PA-ENC-TIMESTAMP`, `PA-ETYPE-INFO2`, PKINIT, and FAST.
-9. **[Encryption Types](encryption.md)** -- DES, RC4, and AES: key derivation, salts, and current status.
-10. **[S4U Extensions](s4u.md)** -- S4U2Self and S4U2Proxy, the building blocks of constrained delegation.
-11. **[Cross-Realm Authentication](cross-realm.md)** -- Referrals, inter-realm keys, and trusts.
-12. **[Delegation](delegation.md)** -- Unconstrained, constrained, and resource-based constrained delegation.
+1. **[Active Directory Components](active-directory.md)** - Domains, forests, Domain Controllers, and how the KDC fits into AD.
+2. **[Principals and Realms](principals.md)** - How users, computers, and services are named and identified.
+3. **[Protocol Overview](overview.md)** - The three exchanges (AS, TGS, AP), key types, timestamps, and dependencies.
+4. **[AS Exchange](as-exchange.md)** - Step-by-step: how a client proves its identity and obtains a TGT.
+5. **[TGS Exchange](tgs-exchange.md)** - Step-by-step: how a client trades a TGT for a service ticket.
+6. **[AP Exchange](ap-exchange.md)** - How the client presents a service ticket to the target service.
+7. **[Ticket Structure](tickets.md)** - What is inside a ticket: fields, flags, and the PAC with its signatures.
+8. **[Pre-Authentication](preauth.md)** - `PA-ENC-TIMESTAMP`, `PA-ETYPE-INFO2`, PKINIT, and FAST.
+9. **[Encryption Types](encryption.md)** - DES, RC4, and AES: key derivation, salts, and current status.
+10. **[S4U Extensions](s4u.md)** - S4U2Self and S4U2Proxy, the building blocks of constrained delegation.
+11. **[Cross-Realm Authentication](cross-realm.md)** - Referrals, inter-realm keys, and trusts.
+12. **[Delegation](delegation.md)** - Unconstrained, constrained, and resource-based constrained delegation.
 
 The exchange pages (4-6) use ticket fields, pre-authentication data, and encryption types before the pages that define them. If a term is unfamiliar, pages 7-9 are the reference for it. Likewise, [S4U Extensions](s4u.md) and [Delegation](delegation.md) describe the same feature from the protocol side and the configuration side; read them together.
 

@@ -1,16 +1,16 @@
 ---
-description: The Active Directory building blocks Kerberos depends on -- domains, forests, Domain Controllers, the KDC, trusts, DNS SRV records, and the Global Catalog.
+description: The Active Directory building blocks Kerberos depends on - domains, forests, Domain Controllers, the KDC, trusts, DNS SRV records, and the Global Catalog.
 ---
 
 # Active Directory Components
 
-Before diving into the Kerberos protocol itself, you need to understand the Active Directory infrastructure it runs on. Kerberos in Windows does not exist in isolation -- it is deeply integrated into Active Directory Domain Services (AD DS). This page covers the AD building blocks that matter for Kerberos authentication.
+Before diving into the Kerberos protocol itself, you need to understand the Active Directory infrastructure it runs on. Kerberos in Windows does not exist in isolation - it is deeply integrated into Active Directory Domain Services (AD DS). This page covers the AD building blocks that matter for Kerberos authentication.
 
 ---
 
 ## Domains
 
-A **domain** is a logical grouping of objects -- users, computers, groups, and other resources -- that share a common directory database and security policies.
+A **domain** is a logical grouping of objects - users, computers, groups, and other resources - that share a common directory database and security policies.
 
 Every domain has two names:
 
@@ -37,7 +37,7 @@ contoso.com              (tree root domain)
 └── sales.contoso.com         (child domain)
 ```
 
-Each domain in the tree has its own AD database and its own set of Domain Controllers. Parent-child domains are connected by an **automatic, bidirectional, transitive trust** -- meaning `engineering.contoso.com` trusts `sales.contoso.com` through the parent `contoso.com`, without any manual configuration.
+Each domain in the tree has its own AD database and its own set of Domain Controllers. Parent-child domains are connected by an **automatic, bidirectional, transitive trust** - meaning `engineering.contoso.com` trusts `sales.contoso.com` through the parent `contoso.com`, without any manual configuration.
 
 ---
 
@@ -63,7 +63,7 @@ fabrikam.com             (second tree root)
 In this example, `contoso.com` and `fabrikam.com` are two separate trees within the same forest. They have different DNS namespaces but share the same schema and Global Catalog.
 
 !!! warning "Forest = Trust Boundary"
-    The forest, not the domain, is the ultimate security boundary in Active Directory. Administrators in the forest root domain have the ability to take control of any domain in the forest. When you see "cross-realm authentication" in Kerberos, it is often crossing domain boundaries within a single forest -- which works automatically because of transitive trusts.
+    The forest, not the domain, is the ultimate security boundary in Active Directory. Administrators in the forest root domain have the ability to take control of any domain in the forest. When you see "cross-realm authentication" in Kerberos, it is often crossing domain boundaries within a single forest - which works automatically because of transitive trusts.
 
 ---
 
@@ -83,7 +83,7 @@ Key responsibilities of a Domain Controller:
 
 ## Key Distribution Center (KDC)
 
-The **KDC** is the Kerberos authentication engine. In Active Directory, the KDC is not a separate server -- it is **integrated into every Domain Controller**. The KDC service (`Kdcsvc.dll`) starts automatically when a DC boots and runs as part of the Local Security Authority Subsystem (LSASS).
+The **KDC** is the Kerberos authentication engine. In Active Directory, the KDC is not a separate server - it is **integrated into every Domain Controller**. The KDC service (`Kdcsvc.dll`) starts automatically when a DC boots and runs as part of the Local Security Authority Subsystem (LSASS).
 
 The KDC contains two logical services:
 
@@ -93,7 +93,7 @@ Authentication Service (AS)
 Ticket-Granting Service (TGS)
 :   Accepts a valid TGT and issues **service tickets** for specific target services. Per [RFC 4120 &sect;3.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.3), this is the TGS exchange.
 
-The KDC reads account information -- passwords, group memberships, account flags -- directly from the AD database. This is why Active Directory is a prerequisite for Kerberos in Windows: without AD, there is no account database for the KDC to query.
+The KDC reads account information - passwords, group memberships, account flags - directly from the AD database. This is why Active Directory is a prerequisite for Kerberos in Windows: without AD, there is no account database for the KDC to query.
 
 ```mermaid
 graph TB
@@ -106,7 +106,7 @@ graph TB
 ```
 
 !!! tip "Every DC is a KDC"
-    Because the KDC runs on every Domain Controller, there is no single point of failure for authentication -- as long as the client can reach at least one DC in its domain. RODCs also run a KDC, but they can only issue tickets for accounts whose secrets they are allowed to cache and they refer everything else to a writable DC. RODC behavior is not covered further in this section.
+    Because the KDC runs on every Domain Controller, there is no single point of failure for authentication - as long as the client can reach at least one DC in its domain. RODCs also run a KDC, but they can only issue tickets for accounts whose secrets they are allowed to cache and they refer everything else to a writable DC. RODC behavior is not covered further in this section.
 
 ---
 
@@ -148,7 +148,7 @@ For example, in the domain `corp.local`, a Windows client locates a KDC by query
 _kerberos._tcp.dc._msdcs.corp.local
 ```
 
-The DNS server returns a list of DCs. The client sends an LDAP ping to each, and the first DC to respond -- preferably one in the same AD site -- is used for authentication. Microsoft documents the process in [Locating Active Directory domain controllers](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/dc-locator).
+The DNS server returns a list of DCs. The client sends an LDAP ping to each, and the first DC to respond - preferably one in the same AD site - is used for authentication. Microsoft documents the process in [Locating Active Directory domain controllers](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/dc-locator).
 
 !!! warning "DNS failures break Kerberos"
     If DNS is unavailable or misconfigured, clients cannot locate a KDC, and Kerberos authentication fails entirely. The system falls back to NTLM (if permitted) or the user cannot log in. A healthy DNS infrastructure is a hard prerequisite for Kerberos.
@@ -157,7 +157,7 @@ The DNS server returns a list of DCs. The client sends an LDAP ping to each, and
 
 ## Global Catalog
 
-The **Global Catalog (GC)** is a distributed index that contains a partial, read-only copy of every object in every domain in the forest. It stores a subset of each object's attributes -- enough to locate the object and determine which domain holds the full record.
+The **Global Catalog (GC)** is a distributed index that contains a partial, read-only copy of every object in every domain in the forest. It stores a subset of each object's attributes - enough to locate the object and determine which domain holds the full record.
 
 | Port | Protocol | Description |
 |------|----------|-------------|
@@ -170,7 +170,7 @@ The Global Catalog is important for Kerberos in several scenarios (the first two
 - **Universal group membership**: The PAC in a Kerberos ticket includes the user's group SIDs. Universal group memberships are resolved through the Global Catalog because these groups can span multiple domains.
 - **Cross-domain SPN lookup**: If a Service Principal Name (SPN) is not found in the local domain, the KDC may consult the Global Catalog.
 
-Every forest has at least one Global Catalog server -- the first DC in the forest is one by default. A domain does not strictly need its own, but in most deployments every DC holds the Global Catalog role, which avoids cross-site lookups at logon.
+Every forest has at least one Global Catalog server - the first DC in the forest is one by default. A domain does not strictly need its own, but in most deployments every DC holds the Global Catalog role, which avoids cross-site lookups at logon.
 
 ---
 

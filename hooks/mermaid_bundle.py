@@ -6,7 +6,7 @@ and places the SVG in a shadow tree. Two details of that are wrong for this site
 neither has a configuration switch, so the built bundle is corrected here.
 
 1. **Where the library is loaded from.** The ``privacy`` plugin downloads Mermaid at
-   build time and rewrites the bundle to point at the copy -- as an absolute URL made
+   build time and rewrites the bundle to point at the copy - as an absolute URL made
    from ``site_url``. Every build that is not served from the production host (a local
    preview, a pull-request preview, a fork) therefore fetches the library from the live
    site, cross-origin. The URL is rewritten to resolve against ``__md_scope``, the
@@ -19,7 +19,7 @@ neither has a configuration switch, so the built bundle is corrected here.
    ``open``; ``content/javascripts/layout.js`` does the rest.
 
 Each correction must match exactly once. If the theme or the plugin changes the text,
-the hook logs a warning -- which fails a ``--strict`` build -- rather than silently
+the hook logs a warning - which fails a ``--strict`` build - rather than silently
 shipping an uncorrected bundle.
 """
 

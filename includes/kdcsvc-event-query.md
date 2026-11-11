@@ -27,7 +27,7 @@ $kdcEvents | Sort-Object TimeCreated -Descending |
     Select-Object -First 50 DC, TimeCreated, Id, Message | Format-List
 ```
 
-A DC that prints `NOT CHECKED` has told you nothing — "no output" only counts as clean
+A DC that prints `NOT CHECKED` has told you nothing - "no output" only counts as clean
 for DCs that explicitly report no matching events.  201, 202, 206 and 207 are audit
 events (the request was still served); 203, 204, 208 and 209 mean a request was refused.
 

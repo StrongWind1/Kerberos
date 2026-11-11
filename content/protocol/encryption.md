@@ -1,5 +1,5 @@
 ---
-description: The Kerberos encryption types Active Directory supports -- DES, RC4-HMAC, and AES -- with key derivation, salt construction, and the current status of each.
+description: The Kerberos encryption types Active Directory supports - DES, RC4-HMAC, and AES - with key derivation, salt construction, and the current status of each.
 ---
 
 # Encryption Types
@@ -27,13 +27,13 @@ current standard. Two further AES types exist in the specification but are disab
 
 | Etype | Number | Key Size | Cipher | Integrity | Salt | Status |
 |---|---|---|---|---|---|---|
-| DES-CBC-CRC | 1 | 56-bit | DES-CBC | CRC-32 | Yes | **Removed** -- disabled by default since Windows 7 / Server 2008 R2; removed from Windows 11 24H2 and Windows Server 2025 |
-| DES-CBC-MD5 | 3 | 56-bit | DES-CBC | MD5 | Yes | **Removed** -- same timeline as DES-CBC-CRC |
-| RC4-HMAC | 23 (0x17) | 128-bit | RC4 | HMAC-MD5 | **No** | **Deprecated** -- on DCs with the April 2026 cumulative update or later, used only where an account or an explicit `DefaultDomainSupportedEncTypes` lists it, or where the April-June 2026 rollback described [below](#rc4-hmac-etype-23) was applied |
-| AES128-CTS-HMAC-SHA1-96 | 17 (0x11) | 128-bit | AES-128-CTS | HMAC-SHA1-96 | Yes | **Supported** -- since Server 2008 / Vista |
-| AES256-CTS-HMAC-SHA1-96 | 18 (0x12) | 256-bit | AES-256-CTS | HMAC-SHA1-96 | Yes | **Preferred** -- strongest type in default use |
-| AES128-CTS-HMAC-SHA256-128 | 19 (0x13) | 128-bit | AES-128-CTS | HMAC-SHA256-128 | Yes | **Disabled by default** -- [RFC 8009](https://datatracker.ietf.org/doc/html/rfc8009); per [MS-KILE &sect;2.2.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/6cfc7b50-11ed-4b4d-846d-6f08f0812919), supported in Windows 11 24H2 and Windows Server 2025 and later |
-| AES256-CTS-HMAC-SHA384-192 | 20 (0x14) | 256-bit | AES-256-CTS | HMAC-SHA384-192 | Yes | **Disabled by default** -- same as etype 19 |
+| DES-CBC-CRC | 1 | 56-bit | DES-CBC | CRC-32 | Yes | **Removed** - disabled by default since Windows 7 / Server 2008 R2; removed from Windows 11 24H2 and Windows Server 2025 |
+| DES-CBC-MD5 | 3 | 56-bit | DES-CBC | MD5 | Yes | **Removed** - same timeline as DES-CBC-CRC |
+| RC4-HMAC | 23 (0x17) | 128-bit | RC4 | HMAC-MD5 | **No** | **Deprecated** - on DCs with the April 2026 cumulative update or later, used only where an account or an explicit `DefaultDomainSupportedEncTypes` lists it, or where the April-June 2026 rollback described [below](#rc4-hmac-etype-23) was applied |
+| AES128-CTS-HMAC-SHA1-96 | 17 (0x11) | 128-bit | AES-128-CTS | HMAC-SHA1-96 | Yes | **Supported** - since Server 2008 / Vista |
+| AES256-CTS-HMAC-SHA1-96 | 18 (0x12) | 256-bit | AES-256-CTS | HMAC-SHA1-96 | Yes | **Preferred** - strongest type in default use |
+| AES128-CTS-HMAC-SHA256-128 | 19 (0x13) | 128-bit | AES-128-CTS | HMAC-SHA256-128 | Yes | **Disabled by default** - [RFC 8009](https://datatracker.ietf.org/doc/html/rfc8009); per [MS-KILE &sect;2.2.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/6cfc7b50-11ed-4b4d-846d-6f08f0812919), supported in Windows 11 24H2 and Windows Server 2025 and later |
+| AES256-CTS-HMAC-SHA384-192 | 20 (0x14) | 256-bit | AES-256-CTS | HMAC-SHA384-192 | Yes | **Disabled by default** - same as etype 19 |
 
 The rest of this page covers etypes 1, 3, 17, 18, and 23. The two SHA-2 types are listed for
 completeness: this site has not tested them, and nothing here depends on them.
@@ -45,7 +45,7 @@ completeness: this site has not tested them, and nothing here depends on them.
 These are the original Kerberos encryption types from the 1990s. Both use 56-bit DES encryption,
 which has been trivially breakable for decades.
 
-- **DES-CBC-CRC**: Uses a CRC-32 checksum for integrity. CRC-32 is not cryptographic -- it
+- **DES-CBC-CRC**: Uses a CRC-32 checksum for integrity. CRC-32 is not cryptographic - it
   detects accidental corruption but not intentional tampering.
 - **DES-CBC-MD5**: Uses an MD5 hash for integrity. Better than CRC-32, but the underlying 56-bit
   DES encryption is the real weakness.
@@ -98,7 +98,7 @@ That is it. The key is the **NT hash** of the password. No salt, no iterations, 
 **Fast to crack**
 :   RC4-HMAC keys are dramatically faster to brute-force than AES keys because MD4 is a single
     pass with no iterations, while AES key derivation uses PBKDF2 with 4,096 iterations.
-    See [Algorithms — Cracking Speed](../security/algorithms.md#cracking-speed-comparison) for
+    See [Algorithms - Cracking Speed](../security/algorithms.md#cracking-speed-comparison) for
     benchmarks.
 
 **Stream cipher weaknesses**
@@ -211,9 +211,9 @@ the real value as described below instead of assuming it.
 
 The client includes a list of supported etypes in AS-REQ and TGS-REQ messages, but that list is
 not the whole story.  The etype of a **ticket** is chosen from what the *target* account supports
-and has keys for -- the client cannot decrypt the ticket and its preference does not pick it.
+and has keys for - the client cannot decrypt the ticket and its preference does not pick it.
 The etype of the **session key** has to be one the client listed as well, because the client
-uses that key.  So different parts of a single exchange can use different etypes -- the ticket,
+uses that key.  So different parts of a single exchange can use different etypes - the ticket,
 the session key, and the reply each have independently selected etypes.  The [Encryption Type Negotiation](../security/etype-negotiation.md) page in the
 Security section covers the full negotiation rules, and the
 [Etype Decision Guide](../security/etype-decision-guide.md) maps every input that affects the
@@ -221,7 +221,7 @@ outcome.
 
 !!! tip "Different etypes in the same ticket"
     Always check both the `KerbTicket Encryption Type` and the `Session Key Type` in `klist`
-    output -- they can differ.
+    output - they can differ.
 
     The best-known example is historical.  On DCs patched between November 2022
     (CVE-2022-37966) and the April 2026 cumulative update, a service account with no explicit
@@ -245,7 +245,7 @@ Encryption type selection in Active Directory is controlled by the per-account
 [`msDS-SupportedEncryptionTypes`](../security/msds-supported.md) attribute,
 [registry keys](../security/registry.md) on domain controllers, and
 [Group Policy](../security/group-policy.md).  Getting these aligned is the single most important
-step in securing Kerberos -- see the [Security section](../security/index.md) for the full
+step in securing Kerberos - see the [Security section](../security/index.md) for the full
 treatment.
 
 ---
@@ -254,7 +254,7 @@ treatment.
 
 - An encryption type bundles a cipher, integrity check, and key derivation method under a single
   etype number
-- DES (etypes 1 and 3) is dead -- removed from Windows 11 24H2 and Windows Server 2025
+- DES (etypes 1 and 3) is dead - removed from Windows 11 24H2 and Windows Server 2025
 - RC4-HMAC (etype 23) is dangerous: no salt, key equals the NT hash, fast to crack. On DCs with
   the April 2026 cumulative update or later it is used only where explicitly configured, or
   where the temporary rollback offered by the April-June 2026 updates was applied
@@ -264,10 +264,10 @@ treatment.
 - For a deep comparison of each algorithm's key derivation, cracking speed, and status, see
   [Algorithms](../security/algorithms.md)
 - The KDC picks the ticket etype from what the target account supports and the session-key
-  etype from what the client also supports, within what the domain policy allows -- see
+  etype from what the client also supports, within what the domain policy allows - see
   [Encryption Type Negotiation](../security/etype-negotiation.md) for the full rules
 - Removing the remaining RC4 use requires verifying all accounts have AES keys and updating
-  policies -- see the [RC4 Deprecation](../security/rc4-deprecation.md) timeline and the
+  policies - see the [RC4 Deprecation](../security/rc4-deprecation.md) timeline and the
   [Standardization Guide](../security/aes-standardization.md) for the operational playbook
 
 Next: [S4U Extensions](s4u.md), how a service obtains tickets on behalf of a user.

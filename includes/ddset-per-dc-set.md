@@ -117,7 +117,7 @@ What the script does:
 - **Refuses a value with a DES or RC4 bit, and refuses to remove the value,** unless
   `$AllowLegacy` is set, which exists only for the rollback below.
 
-The KDC reads the value immediately — no restart — so the change is live on a DC the moment
+The KDC reads the value immediately - no restart - so the change is live on a DC the moment
 its row says `Set`.  Work in this order:
 
 1. Run it as it is against **one canary DC** and read the plan.

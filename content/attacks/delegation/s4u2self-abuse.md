@@ -5,7 +5,7 @@ Local privilege escalation through service-for-user-to-self.
 **MITRE ATT&CK:** [T1558](https://attack.mitre.org/techniques/T1558/) Steal or Forge Kerberos Tickets
 
 S4U2Self abuse exploits the fact that any computer account can request a service ticket to itself
-on behalf of any domain user -- including Domain Admins. The resulting ticket contains a
+on behalf of any domain user - including Domain Admins. The resulting ticket contains a
 **legitimate PAC** with the impersonated user's real group memberships. When the service reads
 this PAC and builds a Windows access token, the token has the impersonated user's privileges.
 This enables local privilege escalation without any delegation configuration.
@@ -28,7 +28,7 @@ to itself on behalf of another user. The KDC looks up the specified user in Acti
 builds a PAC with that user's real group memberships, and returns a service ticket encrypted with
 the requesting service's key.
 
-This is a **normal, intended feature** of Kerberos. S4U2Self exists for protocol transition --
+This is a **normal, intended feature** of Kerberos. S4U2Self exists for protocol transition -
 when a user authenticates via NTLM, forms-based auth, or certificates, and the service needs a
 Kerberos ticket to make authorization decisions or delegate the user's identity.
 
@@ -72,14 +72,14 @@ sequenceDiagram
     Note over L: Read PAC -> Domain Admin<br/>Build access token with admin privileges
 ```
 
-1. **Obtain a TGT for the computer account** -- if running as a virtual account, use Rubeus
+1. **Obtain a TGT for the computer account** - if running as a virtual account, use Rubeus
    `tgtdeleg` to obtain the machine's TGT from the existing Kerberos session. Alternatively,
    if the computer account's credentials are known, request the TGT directly.
 
-2. **S4U2Self** -- request a service ticket to the machine itself on behalf of a high-privilege
+2. **S4U2Self** - request a service ticket to the machine itself on behalf of a high-privilege
    user (e.g., `administrator`). The KDC returns a ticket with the administrator's real PAC.
 
-3. **Use the ticket locally** -- present the ticket to local services. The local service reads
+3. **Use the ticket locally** - present the ticket to local services. The local service reads
    the PAC and grants access based on the administrator's group memberships.
 
 ### What the Ticket Looks Like
@@ -91,7 +91,7 @@ has a fabricated PAC with an invalid KDC signature.
 
 ### FORWARDABLE Flag and Delegation
 
-For **local privilege escalation**, the FORWARDABLE flag is irrelevant -- the ticket is used
+For **local privilege escalation**, the FORWARDABLE flag is irrelevant - the ticket is used
 locally, not forwarded to another service.
 
 Whether the ticket can be passed on through S4U2Proxy depends on that flag. Per MS-SFU
@@ -253,7 +253,7 @@ Rubeus.exe asktgt /user:WEB01$ /rc4:<nt_hash> /nowrap
 
 **With impacket (`getST.py -self`):**
 
-```bash title="S4U2Self with sname substitution — impersonate administrator on local CIFS"
+```bash title="S4U2Self with sname substitution - impersonate administrator on local CIFS"
 export KRB5CCNAME=WEB01.ccache
 getST.py -self -impersonate administrator -altservice cifs/WEB01.corp.local \
   -k -no-pass -dc-ip 192.0.2.10 CORP.LOCAL/WEB01$

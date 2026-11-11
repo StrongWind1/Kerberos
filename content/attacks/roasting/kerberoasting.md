@@ -1,12 +1,12 @@
 # Kerberoasting (TGS-REP Roasting)
 
-Kerberoasting is an offline password-cracking attack that targets **user service accounts** — user objects (objectCategory=person) with manually registered SPNs and human-set passwords. Any authenticated domain user can request a service ticket for any Service Principal Name (SPN), and the encrypted portion of that ticket can be cracked offline to recover the user service account's password.
+Kerberoasting is an offline password-cracking attack that targets **user service accounts** - user objects (objectCategory=person) with manually registered SPNs and human-set passwords. Any authenticated domain user can request a service ticket for any Service Principal Name (SPN), and the encrypted portion of that ticket can be cracked offline to recover the user service account's password.
 
 **MITRE ATT&CK:** [T1558.003](https://attack.mitre.org/techniques/T1558/003/) Steal or Forge Kerberos Tickets: Kerberoasting
 
 ## How It Works
 
-The attack exploits a fundamental property of the TGS exchange: the `enc-part` of a service ticket is encrypted with the long-term key of the service account that owns the SPN. The KDC does not check whether the requesting user has permission to access the service -- it simply issues the ticket. Per [RFC 4120 &sect;5.3](https://datatracker.ietf.org/doc/html/rfc4120#section-5.3), the ticket's `enc-part` is encrypted with the server principal's secret key, and per [MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39), the encryption type is determined by `msDS-SupportedEncryptionTypes` on the target account.
+The attack exploits a fundamental property of the TGS exchange: the `enc-part` of a service ticket is encrypted with the long-term key of the service account that owns the SPN. The KDC does not check whether the requesting user has permission to access the service - it simply issues the ticket. Per [RFC 4120 &sect;5.3](https://datatracker.ietf.org/doc/html/rfc4120#section-5.3), the ticket's `enc-part` is encrypted with the server principal's secret key, and per [MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39), the encryption type is determined by `msDS-SupportedEncryptionTypes` on the target account.
 
 The attack flow:
 
@@ -15,7 +15,7 @@ The attack flow:
 3. The KDC returns the **TGS-REP** containing the service ticket. The requesting user receives the full ticket, including the encrypted portion.
 4. The attacker extracts the cipher bytes from the ticket's `enc-part` and attempts to crack them offline.
 
-The critical factor is encryption type. When the target account uses **RC4-HMAC** (etype 23), the encryption key is simply the MD4 hash of the password -- no salt, no key stretching. This makes RC4 tickets roughly **800 times faster to crack** than AES-256 tickets, which derive the key through 4096 iterations of PBKDF2 with a realm+principal salt.
+The critical factor is encryption type. When the target account uses **RC4-HMAC** (etype 23), the encryption key is simply the MD4 hash of the password - no salt, no key stretching. This makes RC4 tickets roughly **800 times faster to crack** than AES-256 tickets, which derive the key through 4096 iterations of PBKDF2 with a realm+principal salt.
 
 ```mermaid
 sequenceDiagram
@@ -34,13 +34,13 @@ sequenceDiagram
 
 Computer account passwords are 120 random UTF-16 characters (240 bytes), automatically rotated every 30 days.  gMSA passwords are 240 bytes of cryptographically random data, also auto-rotated.  MSA and dMSA passwords follow the same auto-rotation model.  None of these are crackable.
 
-Kerberoasting is only practical against **user service accounts** — accounts whose passwords are set by humans and therefore subject to dictionary and brute-force attacks.
+Kerberoasting is only practical against **user service accounts** - accounts whose passwords are set by humans and therefore subject to dictionary and brute-force attacks.
 
 That said, `msDS-SupportedEncryptionTypes = 0x18` should be set on all SPN-bearing account types.  Even though managed service account passwords are uncrackable, an account with no value takes whatever default the answering domain controller applies: `0x18` (AES only) on a DC enforcing the April 2026 default, RC4-encrypted tickets on a DC that predates that update or has an explicit `DefaultDomainSupportedEncTypes` that includes RC4.  An explicit value removes that dependence and keeps audit baselines simple.
 
 ### No-Preauth Variant
 
-If the attacker knows an account with `DONT_REQUIRE_PREAUTH` set (UAC bit `0x400000`), they can Kerberoast without any domain credentials. The attacker sends an AS-REQ for the no-preauth account, receives a TGT, and uses it to request service tickets -- all without knowing any password. kerbwolf implements this via `kw-roast --no-preauth`.
+If the attacker knows an account with `DONT_REQUIRE_PREAUTH` set (UAC bit `0x400000`), they can Kerberoast without any domain credentials. The attacker sends an AS-REQ for the no-preauth account, receives a TGT, and uses it to request service tickets - all without knowing any password. kerbwolf implements this via `kw-roast --no-preauth`.
 
 ### LDAP Discovery
 

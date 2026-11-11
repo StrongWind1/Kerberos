@@ -253,7 +253,7 @@ begin {
 
     # ======================== SECURITY POLICY (edit me) ========================
     # Defines what the audit treats as secure vs. insecure. Change a property here
-    # and every value is re-classified accordingly -- no other code needs editing.
+    # and every value is re-classified accordingly - no other code needs editing.
     $SecurityPolicy = [PSCustomObject]@{
         # Etype bits that are Insecure wherever they are honored. 0x1 = DES-CBC-CRC,
         # 0x2 = DES-CBC-MD5.
@@ -266,7 +266,7 @@ begin {
 
         # Etype bits treated as strong. Only the SHA-1 AES types count: 0x08 = AES128-CTS-HMAC-
         # SHA1-96, 0x10 = AES256-CTS-HMAC-SHA1-96. The RFC 8009 AES-SHA2 bits (0x40/0x80) are
-        # deliberately NOT here -- they are defined in the bitmask but are not active in
+        # deliberately NOT here - they are defined in the bitmask but are not active in
         # etype negotiation, and a DDSET carrying only unsupported bits yields
         # KDC_ERR_ETYPE_NOSUPP (lab-verified 2026-06-26). Add them when negotiation activates.
         StrongEtypeBits        = (0x08 -bor 0x10)
@@ -278,7 +278,7 @@ begin {
         # KDC etype filter path. Server 2022 (20348) honors both SupportedEncryptionTypes paths
         # with Policies taking precedence (lab 2x2, 20348.5020). On OS major builds at or above
         # LsaOnlyFilterFromBuild the lab saw the KDC read the Lsa path ONLY and ignore the
-        # Policies (GPO) path -- one build, 26100.32522 (March 2026 update KB5078740).
+        # Policies (GPO) path - one build, 26100.32522 (March 2026 update KB5078740).
         LsaOnlyFilterFromBuild = 26100
 
         # Microsoft's release note for the April 2026 update of Windows Server 2025 (KB5082063,
@@ -406,8 +406,8 @@ begin {
     }
 
     # Integral .NET types a registry read can hand back (REG_DWORD -> Int32, REG_QWORD -> Int64).
-    # Matched by full type name because Windows PowerShell 5.1 -- the shell on every domain
-    # controller -- has no [short]/[ushort] type accelerators, so an -is test against them throws.
+    # Matched by full type name because Windows PowerShell 5.1 - the shell on every domain
+    # controller - has no [short]/[ushort] type accelerators, so an -is test against them throws.
     $script:NumericTypeNames = @(
         'System.Int32', 'System.UInt32', 'System.Int64', 'System.UInt64',
         'System.Int16', 'System.UInt16', 'System.Byte', 'System.SByte'
@@ -513,7 +513,7 @@ begin {
         .SYNOPSIS
             Render an integer as 0x-prefixed uppercase hex with an even number of digits.
         .DESCRIPTION
-            Every hex figure in this report is written the same way -- 0x plus whole bytes -- so
+            Every hex figure in this report is written the same way - 0x plus whole bytes - so
             0x18, 0x0110 and 0xFFFFFFFF line up and a single byte is always exactly 0x??.
         #>
         [CmdletBinding()]
@@ -826,7 +826,7 @@ begin {
             if (($value -band $entry.Mask) -eq 0) { continue }
 
             # A bit that is set but that this setting does not act on is still reported by name,
-            # with the reason it does nothing -- silently dropping it hides a real misconfiguration.
+            # with the reason it does nothing - silently dropping it hides a real misconfiguration.
             $label = if (($entry.Mask -band $settingProfile.HonoredMask) -ne 0) {
                 $entry.Name
             }
@@ -1000,7 +1000,7 @@ begin {
                 return (ConvertTo-KerberosEtypeName -Mask $number -Variant $Variant)
             }
             'Etype' {
-                # DefaultEncryptionType stores a single Kerberos etype NUMBER, not a bitmask -- which
+                # DefaultEncryptionType stores a single Kerberos etype NUMBER, not a bitmask - which
                 # is exactly why operators who set it expecting mask semantics see nothing happen.
                 # The range guard must come first: -and short-circuits, so a value like 0xFFFFFFFF
                 # never reaches the [int] cast, which would throw an overflow instead of reporting.
@@ -1219,15 +1219,15 @@ begin {
             $ddsetHex = Format-HexValue -Value $Ddset.Numeric
             if ($tier.Status -eq 'Secure') {
                 $enforcementCode = 'Enforcing'
-                $enforcement = 'ACTIVE -- explicit DefaultDomainSupportedEncTypes {0} is AES-only' -f $ddsetHex
+                $enforcement = 'ACTIVE - explicit DefaultDomainSupportedEncTypes {0} is AES-only' -f $ddsetHex
             }
             else {
                 $enforcementCode = 'Overridden'
                 $enforcement = if ($buildEnforces) {
-                    'OVERRIDDEN -- the build enforces AES by default, but explicit DefaultDomainSupportedEncTypes {0} takes precedence' -f $ddsetHex
+                    'OVERRIDDEN - the build enforces AES by default, but explicit DefaultDomainSupportedEncTypes {0} takes precedence' -f $ddsetHex
                 }
                 else {
-                    'NOT active -- explicit DefaultDomainSupportedEncTypes {0} still permits RC4 or DES' -f $ddsetHex
+                    'NOT active - explicit DefaultDomainSupportedEncTypes {0} still permits RC4 or DES' -f $ddsetHex
                 }
             }
         }
@@ -1238,10 +1238,10 @@ begin {
             $fallbackReason = 'Cannot tell from this build whether unset accounts still get RC4: {0}. Request a ticket for an msDS-SET=0 account, or set DefaultDomainSupportedEncTypes explicitly.' -f $BuildInfo.Detail
             $enforcementCode = 'Unknown'
             $enforcement = if ($class -eq 'Indeterminate') {
-                'INDETERMINATE -- {0}; verify with a live msDS-SET=0 ticket' -f $BuildInfo.Detail
+                'INDETERMINATE - {0}; verify with a live msDS-SET=0 ticket' -f $BuildInfo.Detail
             }
             else {
-                'UNKNOWN -- {0}; verify with a live msDS-SET=0 ticket' -f $BuildInfo.Detail
+                'UNKNOWN - {0}; verify with a live msDS-SET=0 ticket' -f $BuildInfo.Detail
             }
         }
         elseif ($class -eq 'Permanent') {
@@ -1253,12 +1253,12 @@ begin {
                 $fallbackOwnedByRow = $true
                 $fallbackReason = 'RC4DefaultDisablementPhase={0} is still present. KB5073381 says updates from July 2026 no longer read it, but that has not been lab-verified.' -f $Phase.Numeric
                 $enforcementCode = 'Unknown'
-                $enforcement = 'EXPECTED ACTIVE -- build is at the July 2026 update or later ({0}), but a leftover RC4DefaultDisablementPhase={1} is present; verify with a live msDS-SET=0 ticket and delete the value' -f $evidenceNote, $Phase.Numeric
+                $enforcement = 'EXPECTED ACTIVE - build is at the July 2026 update or later ({0}), but a leftover RC4DefaultDisablementPhase={1} is present; verify with a live msDS-SET=0 ticket and delete the value' -f $evidenceNote, $Phase.Numeric
             }
             else {
                 $fallbackStatus = 'Secure'
                 $enforcementCode = 'Enforcing'
-                $enforcement = 'ACTIVE -- July 2026 update or later; unset accounts default to 0x18 ({0})' -f $evidenceNote
+                $enforcement = 'ACTIVE - July 2026 update or later; unset accounts default to 0x18 ({0})' -f $evidenceNote
             }
         }
         elseif ($class -eq 'Enforcing') {
@@ -1269,14 +1269,14 @@ begin {
                 $fallbackSource = 'RC4DefaultDisablementPhase={0} (rollback)' -f $Phase.Numeric
                 $fallbackReason = 'The build enforces AES by default, but RC4DefaultDisablementPhase={0} rolls unset accounts back to RC4.' -f $Phase.Numeric
                 $enforcementCode = 'Overridden'
-                $enforcement = 'OVERRIDDEN -- the build enforces AES by default, but RC4DefaultDisablementPhase={0} rolls it back (takes effect after a KDC restart)' -f $Phase.Numeric
+                $enforcement = 'OVERRIDDEN - the build enforces AES by default, but RC4DefaultDisablementPhase={0} rolls it back (takes effect after a KDC restart)' -f $Phase.Numeric
             }
             else {
                 $fallbackMask = 0x18L
                 $fallbackStatus = 'Secure'
                 $fallbackSource = 'build default (April 2026 update or later)'
                 $enforcementCode = 'Enforcing'
-                $enforcement = 'ACTIVE -- April 2026 update or later; unset accounts default to 0x18 ({0})' -f $evidenceNote
+                $enforcement = 'ACTIVE - April 2026 update or later; unset accounts default to 0x18 ({0})' -f $evidenceNote
             }
         }
         elseif ($class -eq 'Audit') {
@@ -1285,7 +1285,7 @@ begin {
                 $fallbackStatus = 'Secure'
                 $fallbackSource = 'RC4DefaultDisablementPhase=2 (manual enforcement)'
                 $enforcementCode = 'Enforcing'
-                $enforcement = 'ACTIVE -- RC4DefaultDisablementPhase=2 on a January-March 2026 build (takes effect after a KDC restart; {0})' -f $evidenceNote
+                $enforcement = 'ACTIVE - RC4DefaultDisablementPhase=2 on a January-March 2026 build (takes effect after a KDC restart; {0})' -f $evidenceNote
             }
             else {
                 $fallbackMask = $legacyDefault
@@ -1294,7 +1294,7 @@ begin {
                 $fallbackSource = 'build default (before the April 2026 update)'
                 $fallbackReason = 'This build predates the April 2026 update: accounts with no msDS-SupportedEncryptionTypes still get RC4 by default.'
                 $enforcementCode = 'NotEnforcing'
-                $enforcement = 'NOT active -- January-March 2026 update (audit only); unset accounts still get RC4 by default ({0})' -f $evidenceNote
+                $enforcement = 'NOT active - January-March 2026 update (audit only); unset accounts still get RC4 by default ({0})' -f $evidenceNote
             }
         }
         else {
@@ -1304,7 +1304,7 @@ begin {
             $fallbackSource = 'build default (before the January 2026 update)'
             $fallbackReason = 'This build predates the January 2026 update: accounts with no msDS-SupportedEncryptionTypes get RC4 by default and RC4DefaultDisablementPhase is not read.'
             $enforcementCode = 'NotEnforcing'
-            $enforcement = 'NOT active -- build predates the January 2026 update; unset accounts get RC4 by default ({0})' -f $evidenceNote
+            $enforcement = 'NOT active - build predates the January 2026 update; unset accounts get RC4 by default ({0})' -f $evidenceNote
         }
 
         # ---- Effective KDC etype filter ----
@@ -1326,7 +1326,7 @@ begin {
         }
         $filterModel = switch ($filterMode) {
             'LsaOnly' { 'Lsa path only (lab: 26100.32522 ignored the Policies path)' }
-            'Uncertain' { 'UNCERTAIN -- lab saw the Policies path ignored on 26100.32522; the April 2026 release note (KB5082063) says policy settings are read as expected; not retested' }
+            'Uncertain' { 'UNCERTAIN - lab saw the Policies path ignored on 26100.32522; the April 2026 release note (KB5082063) says policy settings are read as expected; not retested' }
             default {
                 if ($BuildInfo.Major -eq 20348) { 'Policies path, then Lsa (lab-verified on 20348.5020)' } else { 'Policies path, then Lsa (assumed; not lab-tested on this OS)' }
             }
@@ -1385,18 +1385,18 @@ begin {
         if ($filterMode -eq 'LsaOnly' -and $PolicyFilter.Found -and -not $LsaFilter.Found) {
             $filterStatus = 'Invalid'
             $filterReason = 'SupportedEncryptionTypes is set at the Policies (GPO) path only. In lab testing the KDC on Server 2025 build 26100.32522 read the filter from the Lsa path only, so this GPO does not filter KDC etypes here. Install the April 2026 update or later (its release note says the policy is read as expected; not retested) or set the same value at the Lsa path.'
-            $filterText = 'NOT EFFECTIVE -- set at the Policies path only, which the KDC ignored in lab testing on this build line'
+            $filterText = 'NOT EFFECTIVE - set at the Policies path only, which the KDC ignored in lab testing on this build line'
         }
         elseif ($filterAmbiguous) {
             $filterMask = $null
             $filterStatus = 'Unknown'
             if ($PolicyFilter.Found -and $LsaFilter.Found) {
                 $filterReason = 'SupportedEncryptionTypes differs between the Policies and Lsa paths, and which one the KDC reads on this build is not established (lab: Lsa only on 26100.32522; April 2026 release note: policy read as expected; not retested). Set both paths to the same value, or verify with a live ticket.'
-                $filterText = 'UNCERTAIN -- Policies and Lsa hold different values and the path this build reads is not established'
+                $filterText = 'UNCERTAIN - Policies and Lsa hold different values and the path this build reads is not established'
             }
             else {
                 $filterReason = 'SupportedEncryptionTypes is set at the Policies (GPO) path only. The lab saw that path ignored on 26100.32522; the April 2026 release note (KB5082063) says policy settings are read as expected, but that has not been retested. Verify with a live ticket, or set the same value at the Lsa path.'
-                $filterText = 'UNCERTAIN -- set at the Policies path only; whether this build reads it has not been retested'
+                $filterText = 'UNCERTAIN - set at the Policies path only; whether this build reads it has not been retested'
             }
         }
 
@@ -1653,7 +1653,7 @@ begin {
         }
         & $newRecord $adField
 
-        # OS build (to place the DC on the RC4 rollout timeline -- something no Kerberos registry
+        # OS build (to place the DC on the RC4 rollout timeline - something no Kerberos registry
         # value can reveal), the machine's role, and its own idea of its FQDN (used to recognize
         # the same machine audited under two names).
         $osField = @{ RecordType = 'OS'; Path = 'OS'; Name = 'OSInfo'; Found = $true }
@@ -1892,7 +1892,7 @@ begin {
         .SYNOPSIS
             Build one report row with the full, fixed property set.
         .DESCRIPTION
-            Every row -- registry value, AD attribute, derived "effective" row, unreachable host --
+            Every row - registry value, AD attribute, derived "effective" row, unreachable host --
             has the same properties in the same order, so the rows export to CSV/JSON as one table
             and nothing downstream meets a missing property under Set-StrictMode.
         #>
@@ -2234,7 +2234,7 @@ begin {
             $buildInfo = Resolve-BuildClass -Build $build -Ubr $ubr -BuildMap $Policy.Rc4EnforcementBuilds
 
             # Role. ProductType LanmanNT is a domain controller; anything else is not one, and
-            # KDC settings on it mean nothing -- report the host once and skip its values so a
+            # KDC settings on it mean nothing - report the host once and skip its values so a
             # member server can never be reported as a clean DC.
             $uac = Get-RecordField -Record $adRecord -Name 'Uac' -Default $null
             $isRodc = $null -ne $uac -and (([long]$uac -band 0x04000000L) -ne 0)
@@ -2564,7 +2564,7 @@ begin {
             Counts        = $counts
             Findings      = $findings
             # A clean pass needs at least one audited DC, nothing unreachable or unreadable, and
-            # no row in any finding status -- including the derived "effective" rows, so a DC that
+            # no row in any finding status - including the derived "effective" rows, so a DC that
             # still defaults to RC4 with an empty registry is not clean.
             CleanPass     = (@($auditedDcs).Count -gt 0 -and @($findings).Count -eq 0)
         }
@@ -2673,7 +2673,7 @@ begin {
         $rows = @($Result.Rows)
         $title = { param([string]$Text) ConvertTo-ColorText -Text ('================ {0} ================' -f $Text) -Code '1;36' }
 
-        Write-Output (ConvertTo-ColorText -Text ('KDC Kerberos Registry Audit v{0} -- generated {1}' -f $Result.ScriptVersion, $Result.Timestamp) -Code '1;36')
+        Write-Output (ConvertTo-ColorText -Text ('KDC Kerberos Registry Audit v{0} - generated {1}' -f $Result.ScriptVersion, $Result.Timestamp) -Code '1;36')
         Write-Output ''
 
         # Key reference (printed once): each value's default, whether it is set automatically,
@@ -2786,7 +2786,7 @@ begin {
             else {
                 # Propagated bits disagree: the AD attribute is out of sync with the configured value.
                 $msShown = if ($null -ne $msVal) { Format-HexValue -Value $msVal } else { 'not set' }
-                Write-Output (ConvertTo-ColorText -Text ('{0,-26} DIFFER: msDS-SET = {1}, SET ({2}) = {3} -- msDS-SET out of sync with the configured value' -f $dc, $msShown, $setWhere, (Format-HexValue -Value $setVal)) -Code '1;33')
+                Write-Output (ConvertTo-ColorText -Text ('{0,-26} DIFFER: msDS-SET = {1}, SET ({2}) = {3} - msDS-SET out of sync with the configured value' -f $dc, $msShown, $setWhere, (Format-HexValue -Value $setVal)) -Code '1;33')
             }
         }
 
@@ -2830,7 +2830,7 @@ begin {
         Write-Output ('Targets requested  : {0}' -f @($Result.Requested).Count)
         Write-Output ('DCs audited        : {0}' -f @($Result.AuditedDcs).Count)
         foreach ($item in @($Result.Unreachable)) {
-            Write-Output (ConvertTo-ColorText -Text ('Unreachable        : {0} -- {1}' -f $item.Name, $item.Message) -Code $script:StatusColor['Unreachable'])
+            Write-Output (ConvertTo-ColorText -Text ('Unreachable        : {0} - {1}' -f $item.Name, $item.Message) -Code $script:StatusColor['Unreachable'])
         }
         foreach ($name in @($Result.NotDcs)) {
             Write-Output (ConvertTo-ColorText -Text ('Not a DC           : {0}' -f $name) -Code $script:StatusColor['NotDC'])

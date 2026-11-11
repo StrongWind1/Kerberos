@@ -129,7 +129,7 @@ SPNs determine which account the KDC looks up when issuing service tickets.
 
 ### Duplicate SPN Detection
 
-Duplicate SPNs cause authentication failures -- the KDC cannot determine which account to
+Duplicate SPNs cause authentication failures - the KDC cannot determine which account to
 use.  Check for duplicates across the domain:
 
 ```batch
@@ -202,7 +202,7 @@ they show what the KDC used, which is not always what is stored in AD.
 | Field | What It Shows |
 |---|---|
 | `AccountSupportedEncryptionTypes` / `AccountAvailableKeys` | The requesting account's etype config and stored key types (often `N/A` on a TGS-REQ) |
-| `ServiceSupportedEncryptionTypes` / `ServiceAvailableKeys` | The target service account's etypes and keys.  Reflects the **effective** value after DDSET / enforcement substitution -- a `msDS-SET = 0` account shows `0x18` here on an enforced DC, not `0` |
+| `ServiceSupportedEncryptionTypes` / `ServiceAvailableKeys` | The target service account's etypes and keys.  Reflects the **effective** value after DDSET / enforcement substitution - a `msDS-SET = 0` account shows `0x18` here on an enforced DC, not `0` |
 | `DCSupportedEncryptionTypes` / `DCAvailableKeys` | What the DC/KDC itself supports and has keys for |
 | `ClientAdvertizedEncryptionTypes` | The etypes the client advertised in the request (a list of etype names in a single field) |
 | `SessionKeyEncryptionType` | The session key etype, which may differ from the ticket etype |
@@ -390,7 +390,7 @@ in Wireshark captures.
 | `KDC_ERR_TGT_REVOKED` | 20 | `0x14` | TGT has been revoked or is no longer valid | Re-authenticate to get a new TGT |
 | `KDC_ERR_KEY_EXPIRED` | 23 | `0x17` | Account password has expired | Reset the account password |
 | `KDC_ERR_PREAUTH_FAILED` | 24 | `0x18` | Wrong password in pre-authentication | Verify password; check for account lockout |
-| `KDC_ERR_PREAUTH_REQUIRED` | 25 | `0x19` | Pre-authentication needed | Normal -- not an error.  Client should retry with PA-ENC-TIMESTAMP |
+| `KDC_ERR_PREAUTH_REQUIRED` | 25 | `0x19` | Pre-authentication needed | Normal - not an error.  Client should retry with PA-ENC-TIMESTAMP |
 | `KRB_AP_ERR_TKT_EXPIRED` | 32 | `0x20` | Ticket has expired | Purge tickets (`klist purge`) and re-authenticate |
 | `KRB_AP_ERR_TKT_NYV` | 33 | `0x21` | Ticket not yet valid | Check clock synchronisation between client, DC and service |
 | `KRB_AP_ERR_SKEW` | 37 | `0x25` | Clock skew too large (> 5 minutes) | Sync client clock with NTP (`w32tm /resync`) |

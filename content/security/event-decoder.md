@@ -124,7 +124,7 @@ decoder draws no conclusion about the client or the account from such a field.
 
 ## How to Export Event XML
 
-**Event Viewer GUI** — Right-click an event → **Copy** → **Copy details as text**,
+**Event Viewer GUI** - Right-click an event → **Copy** → **Copy details as text**,
 or open the **Details** tab, choose **XML View**, and copy its contents.
 
 **PowerShell** (single event):
@@ -152,8 +152,8 @@ wevtutil qe Security "/q:*[System[EventID=4768]]" /c:1 /rd:true /f:xml
 
 ## See Also
 
-- [Encryption Type Calculator](etype-calculator.md) — decode msDS-SupportedEncryptionTypes bitmask values
-- [Etype Negotiation](etype-negotiation.md) — how the KDC selects encryption types
-- [Troubleshooting](troubleshooting.md) — error codes, KDC System-log events, and common scenarios
-- [Registry Settings](registry.md) — registry paths that control Kerberos encryption
-- [Group Policy](group-policy.md) — GPO settings for encryption type filtering
+- [Encryption Type Calculator](etype-calculator.md) - decode msDS-SupportedEncryptionTypes bitmask values
+- [Etype Negotiation](etype-negotiation.md) - how the KDC selects encryption types
+- [Troubleshooting](troubleshooting.md) - error codes, KDC System-log events, and common scenarios
+- [Registry Settings](registry.md) - registry paths that control Kerberos encryption
+- [Group Policy](group-policy.md) - GPO settings for encryption type filtering

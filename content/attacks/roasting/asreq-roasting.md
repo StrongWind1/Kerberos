@@ -1,6 +1,6 @@
 # AS-REQ Roasting (Passive Capture)
 
-AS-REQ Roasting extracts crackable hashes from Kerberos pre-authentication traffic captured passively on the network. Unlike Kerberoasting and AS-REP Roasting, this attack does not require any interaction with the KDC -- the attacker simply observes legitimate authentication traffic.
+AS-REQ Roasting extracts crackable hashes from Kerberos pre-authentication traffic captured passively on the network. Unlike Kerberoasting and AS-REP Roasting, this attack does not require any interaction with the KDC - the attacker simply observes legitimate authentication traffic.
 
 **MITRE ATT&CK:** [T1040](https://attack.mitre.org/techniques/T1040/) Network Sniffing; [T1110.002](https://attack.mitre.org/techniques/T1110/002/) Brute Force: Password Cracking
 
@@ -8,9 +8,9 @@ AS-REQ Roasting extracts crackable hashes from Kerberos pre-authentication traff
 
 During a standard [AS Exchange](../../protocol/as-exchange.md), the client proves its identity by encrypting a timestamp with its long-term key. This encrypted timestamp is the `PA-ENC-TIMESTAMP` field in the AS-REQ's pre-authentication data ([RFC 4120 &sect;5.2.7.2](https://datatracker.ietf.org/doc/html/rfc4120#section-5.2.7.2)).
 
-Every time a user authenticates to the domain -- at workstation logon, screen unlock, accessing a new service -- their client sends an AS-REQ containing this encrypted timestamp. The encryption key is derived from the user's password:
+Every time a user authenticates to the domain - at workstation logon, screen unlock, accessing a new service - their client sends an AS-REQ containing this encrypted timestamp. The encryption key is derived from the user's password:
 
-- **RC4-HMAC** (etype 23): key = `MD4(UTF-16LE(password))` -- no salt, no iterations
+- **RC4-HMAC** (etype 23): key = `MD4(UTF-16LE(password))` - no salt, no iterations
 - **AES256** (etype 18): key = `DK(PBKDF2-HMAC-SHA1(password, salt, 4096, 32 bytes), "kerberos")` where salt = `<REALM><principal>` ([RFC 3962 &sect;4](https://datatracker.ietf.org/doc/html/rfc3962#section-4))
 - **AES128** (etype 17): the same derivation with a 16-byte key
 
@@ -110,7 +110,7 @@ The attacker must be positioned to capture traffic. Look for indicators of the n
 
 ### Monitor for RC4 Pre-Authentication
 
-If AES is enforced but you see RC4 pre-authentication in your network traffic (via packet inspection or DC logs), this may indicate a downgrade attack or a misconfigured client -- both worth investigating. This finds exposure (accounts whose pre-authentication can be cracked at RC4 speed), not the capture itself.
+If AES is enforced but you see RC4 pre-authentication in your network traffic (via packet inspection or DC logs), this may indicate a downgrade attack or a misconfigured client - both worth investigating. This finds exposure (accounts whose pre-authentication can be cracked at RC4 speed), not the capture itself.
 
 Event ID 4768 records the pre-authentication etype, but not in the field its name suggests. `Ticket Encryption Type` is "the cryptographic suite that was used for issued TGT", and the TGT is encrypted with the `krbtgt` account's key: AES256 on any domain whose `krbtgt` has AES keys, whatever the client pre-authenticated with (see [TGT encryption type](../../security/rc4-deprecation.md#tgt-encryption-type)). A filter on `TicketEncryptionType=0x17` therefore does not find RC4 pre-authentication. The field to use is `Pre-Authentication EncryptionType` (`PreAuthEncryptionType` in the event XML), "the Encryption Type that was selected for the Pre-Authentication flow". It is one of the fields added to 4768 by the January 2025 updates, so it is absent on domain controllers that predate them. This site's lab recorded the field only with the values `0x12` and `0x0`, so the RC4 value in the query below rests on Microsoft's field definition and has not been tested here:
 

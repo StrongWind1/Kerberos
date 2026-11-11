@@ -1,6 +1,6 @@
 # Password Spraying via Kerberos
 
-Password spraying uses Kerberos pre-authentication as an oracle to test credentials across many accounts simultaneously. The Kerberos error codes returned by the KDC reveal not only whether the password was correct, but also account status information, and the attack can be performed without domain membership or elevated privileges -- just network access to port 88.
+Password spraying uses Kerberos pre-authentication as an oracle to test credentials across many accounts simultaneously. The Kerberos error codes returned by the KDC reveal not only whether the password was correct, but also account status information, and the attack can be performed without domain membership or elevated privileges - just network access to port 88.
 
 **MITRE ATT&CK:** [T1110.003](https://attack.mitre.org/techniques/T1110/003/) Brute Force: Password Spraying
 
@@ -10,10 +10,10 @@ In the [AS Exchange](../../protocol/as-exchange.md), when a client sends an AS-R
 
 | KDC Response | Error Code | Meaning |
 |-------------|------------|---------|
-| AS-REP (success) | N/A | **Correct password** -- valid credentials |
-| `KDC_ERR_PREAUTH_FAILED` | 24 (`0x18`) | **Wrong password** -- the encrypted timestamp could not be decrypted |
+| AS-REP (success) | N/A | **Correct password** - valid credentials |
+| `KDC_ERR_PREAUTH_FAILED` | 24 (`0x18`) | **Wrong password** - the encrypted timestamp could not be decrypted |
 | `KDC_ERR_CLIENT_REVOKED` | 18 (`0x12`) | Account is **locked or disabled** |
-| `KDC_ERR_KEY_EXPIRED` | 23 (`0x17`) | Password is **expired but valid** -- the password is correct |
+| `KDC_ERR_KEY_EXPIRED` | 23 (`0x17`) | Password is **expired but valid** - the password is correct |
 | `KDC_ERR_C_PRINCIPAL_UNKNOWN` | 6 (`0x6`) | Account **does not exist** |
 
 The hexadecimal values are how the same codes appear in the Windows events under [Detect](#detect).
@@ -25,8 +25,8 @@ The hexadecimal values are how the same codes appear in the Windows events under
 
 Traditional password spraying via SMB or LDAP (NTLM-based) triggers Event ID 4625 (failed logon), which is well-monitored in most environments. Kerberos pre-authentication failures generate different events:
 
-- **Event ID 4771** (Kerberos pre-authentication failed) -- the event a wrong password produces; a Failure event, so it is logged only where failure auditing is on
-- **Event ID 4768** (TGT was requested) -- logged for a successful request and for failures other than result codes `0x10` and `0x18`; a wrong password is `0x18`, so it is logged as 4771 instead
+- **Event ID 4771** (Kerberos pre-authentication failed) - the event a wrong password produces; a Failure event, so it is logged only where failure auditing is on
+- **Event ID 4768** (TGT was requested) - logged for a successful request and for failures other than result codes `0x10` and `0x18`; a wrong password is `0x18`, so it is logged as 4771 instead
 
 Both come from the same audit subcategory, Audit Kerberos Authentication Service. Where that subcategory does not audit failures, or domain controller logs are not collected at all, Kerberos-based spraying can be quieter than NTLM-based approaches.
 
@@ -184,16 +184,16 @@ For each password, send an AS-REQ for every username on the list. After completi
 - Spray one password across all users
 - Wait 30-35 minutes (the full observation window plus margin)
 - Spray the next password
-- Track any `KDC_ERR_CLIENT_REVOKED` responses -- these indicate an account was already near its lockout threshold from legitimate failed attempts
+- Track any `KDC_ERR_CLIENT_REVOKED` responses - these indicate an account was already near its lockout threshold from legitimate failed attempts
 
 ### 4. Classify Results
 
 | Response | Action |
 |----------|--------|
-| AS-REP | Valid credentials -- use for further access |
-| `KDC_ERR_KEY_EXPIRED` (23) | Password is correct but expired -- note for later |
-| `KDC_ERR_PREAUTH_FAILED` (24) | Wrong password -- continue spraying |
-| `KDC_ERR_CLIENT_REVOKED` (18) | Account locked -- skip in future rounds |
+| AS-REP | Valid credentials - use for further access |
+| `KDC_ERR_KEY_EXPIRED` (23) | Password is correct but expired - note for later |
+| `KDC_ERR_PREAUTH_FAILED` (24) | Wrong password - continue spraying |
+| `KDC_ERR_CLIENT_REVOKED` (18) | Account locked - skip in future rounds |
 
 ---
 
@@ -259,7 +259,7 @@ credwolf --max-lockouts 3 -d CORP.LOCAL kerberos --kdc-ip 192.0.2.10 -U users.tx
 ```
 
 !!! tip "RC4 vs AES request counts"
-    RC4 password spraying sends **1 AS-REQ per attempt** (the password is used directly as the RC4 key). AES password spraying sends **2 AS-REQs per attempt**: the first retrieves the per-user salt (no lockout impact), and the second sends the encrypted timestamp (this is the one that counts toward the bad-password counter). The lockout impact is identical -- 1 failed login per wrong password -- but AES generates twice the network traffic.
+    RC4 password spraying sends **1 AS-REQ per attempt** (the password is used directly as the RC4 key). AES password spraying sends **2 AS-REQs per attempt**: the first retrieves the per-user salt (no lockout impact), and the second sends the encrypted timestamp (this is the one that counts toward the bad-password counter). The lockout impact is identical - 1 failed login per wrong password - but AES generates twice the network traffic.
 
 #### NTLM spraying fallback
 

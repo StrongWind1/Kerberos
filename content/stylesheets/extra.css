@@ -1,11 +1,11 @@
-/* Kerberos -- layout and calculator/decoder UI.
+/* Kerberos - layout and calculator/decoder UI.
  *
  * Colour lives in theme.css, not here: this file contains no colour literals,
  * only var() references, so a scheme never needs a second copy of a rule.
  * (The `transparent` and `black` in the mask-image gradients below are alpha
  * values of a mask, not colours anything is painted with.)
  * Text colours used here are --md-default-fg-color, --md-code-fg-color, the
- * accent, and the --tool-* palette -- all AAA (7:1) on the surfaces they sit
+ * accent, and the --tool-* palette - all AAA (7:1) on the surfaces they sit
  * on. Do not use --md-default-fg-color--light / --lighter or opacity to dim
  * text; they fall below AA. Keep direct colour rules off Material chrome --
  * Material derives those from --md-primary-fg-color and --md-hue.
@@ -160,7 +160,7 @@ html .md-typeset__table table:not([class]) {
 }
 
 /* Colour-scheme switch. Focus is on a zero-size radio input, and Material
-   rings the label that follows that input in the markup -- which is the hidden
+   rings the label that follows that input in the markup - which is the hidden
    one whenever the other scheme is showing. Ring the label that is visible. */
 .md-header__option:has(.md-option:focus-visible) > label:not([hidden]) {
   outline: 2px solid var(--md-primary-bg-color);
@@ -488,7 +488,7 @@ body.event-decoder-page .md-top {
 }
 
 /* A bit this setting ignores.  Marked with a dashed rule, an italic name and
-   the note below it -- not by fading the text, which made it unreadable. */
+   the note below it - not by fading the text, which made it unreadable. */
 .etype-bit--ignored {
   border-left: 3px dashed var(--tool-neutral-border);
 }
@@ -654,7 +654,7 @@ body.event-decoder-page .md-top {
   border-color: var(--md-accent-fg-color);
 }
 
-/* Active preset — matches the current value.  The script also prefixes the
+/* Active preset - matches the current value.  The script also prefixes the
    label with a check mark and sets aria-pressed. */
 .etype-preset-btn--active {
   border: 2px solid var(--md-accent-fg-color);
@@ -890,7 +890,7 @@ body.event-decoder-page .md-top {
 .evdec-results {
   margin-top: 1.25rem;
   /* Decode moves focus here, and the browser scrolls a focused element to the
-     very top of the window -- under the sticky header (2.4rem, and another
+     very top of the window - under the sticky header (2.4rem, and another
      2.4rem of tab bar on wide screens). Stop short of it. */
   scroll-margin-top: 3.2rem;
 }

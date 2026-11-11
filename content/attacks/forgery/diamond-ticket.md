@@ -8,19 +8,19 @@ A Diamond Ticket is a modified legitimate TGT. Where a [Golden Ticket](../forger
 forged from scratch and has detectable anomalies in its metadata, a Diamond Ticket starts with a
 real TGT obtained through a normal [AS Exchange](../../protocol/as-exchange.md) and then surgically
 modifies only the [PAC](../../protocol/tickets.md#pac) contents. The result is a ticket with
-legitimate timestamps, flags, and proper structure -- but with elevated
+legitimate timestamps, flags, and proper structure - but with elevated
 privileges injected into the authorization data.
 
 ---
 
 ## How It Works
 
-The attack requires the same prerequisite as a Golden Ticket -- the `krbtgt` account's secret
-key -- but uses it differently.
+The attack requires the same prerequisite as a Golden Ticket - the `krbtgt` account's secret
+key - but uses it differently.
 
 ### Attack Flow
 
-1. **Request a legitimate TGT** -- the attacker authenticates as a low-privilege user through
+1. **Request a legitimate TGT** - the attacker authenticates as a low-privilege user through
    the standard [AS Exchange](../../protocol/as-exchange.md) (using a password, NT hash, or AES
    key). The KDC issues a real TGT with legitimate metadata:
     - Valid `authtime` matching the actual authentication time
@@ -29,25 +29,25 @@ key -- but uses it differently.
     - Proper `PAC_REQUESTOR` SID
     - A real `PA-ENC-TIMESTAMP` was sent, so Event 4768 is logged normally
 
-2. **Decrypt the TGT** -- using the `krbtgt` key, the attacker decrypts the `enc-part` of the
+2. **Decrypt the TGT** - using the `krbtgt` key, the attacker decrypts the `enc-part` of the
    TGT, exposing the `EncTicketPart` structure including the PAC.
 
-3. **Modify the PAC** -- the attacker changes the `KERB_VALIDATION_INFO` structure inside the
+3. **Modify the PAC** - the attacker changes the `KERB_VALIDATION_INFO` structure inside the
    PAC:
     - Adds high-privilege group SIDs (Domain Admins = 512, Enterprise Admins = 519)
     - Can change the user SID to impersonate a different user
     - Can add Extra SIDs for cross-domain privilege escalation
 
-4. **Re-sign the PAC** -- the attacker recomputes both PAC signatures:
-    - `PAC_SERVER_CHECKSUM` -- signed with the `krbtgt` key (since the TGT's "service" is
+4. **Re-sign the PAC** - the attacker recomputes both PAC signatures:
+    - `PAC_SERVER_CHECKSUM` - signed with the `krbtgt` key (since the TGT's "service" is
       `krbtgt`)
-    - `PAC_PRIVSVR_CHECKSUM` -- also signed with the `krbtgt` key
+    - `PAC_PRIVSVR_CHECKSUM` - also signed with the `krbtgt` key
     - Both signatures are valid because the attacker has the `krbtgt` key
 
-5. **Re-encrypt the TGT** -- the modified `EncTicketPart` (with the new PAC) is encrypted with
+5. **Re-encrypt the TGT** - the modified `EncTicketPart` (with the new PAC) is encrypted with
    the `krbtgt` key, producing a valid TGT ciphertext.
 
-6. **Use the modified TGT** -- the attacker presents the modified TGT to the KDC in a TGS-REQ.
+6. **Use the modified TGT** - the attacker presents the modified TGT to the KDC in a TGS-REQ.
    The KDC decrypts it, validates the PAC signatures, and issues service tickets with the
    attacker's elevated group memberships.
 
@@ -65,12 +65,12 @@ The key difference from a Golden Ticket:
 | Only change | Everything is fabricated | Only the PAC group memberships |
 
 Because the ticket originated from a real AS Exchange, all the metadata that Golden Ticket
-detections rely on -- anomalous lifetimes, missing 4768 events, unusual flag combinations -- is
+detections rely on - anomalous lifetimes, missing 4768 events, unusual flag combinations - is
 legitimate.
 
 !!! danger "Same prerequisites, harder to detect"
     A Diamond Ticket requires the `krbtgt` key, which means the domain is already fully
-    compromised. The purpose of the Diamond Ticket is not initial access -- it is **stealth
+    compromised. The purpose of the Diamond Ticket is not initial access - it is **stealth
     persistence** that evades the detection mechanisms built to catch Golden Tickets.
 
 ---
@@ -82,9 +82,9 @@ defenses, since both require the `krbtgt` key.
 
 ### KRBTGT Password Rotation
 
-Same as Golden Ticket -- rotate the `krbtgt` password twice, with a full replication cycle and
+Same as Golden Ticket - rotate the `krbtgt` password twice, with a full replication cycle and
 at least the maximum ticket lifetime (10 hours by default) between changes (see
-[Golden Ticket -- Defend](golden-ticket.md#krbtgt-password-rotation)). A Diamond Ticket depends on the `krbtgt` key to decrypt, modify, and re-encrypt
+[Golden Ticket - Defend](golden-ticket.md#krbtgt-password-rotation)). A Diamond Ticket depends on the `krbtgt` key to decrypt, modify, and re-encrypt
 the TGT. Once the key is rotated, the attacker's ability to create new Diamond Tickets is gone.
 
 ### Restrict DCSync Privileges

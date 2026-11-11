@@ -1,5 +1,5 @@
 /**
- * Kerberos Event Decoder — paste a Windows Security event (4768, 4769, 4770
+ * Kerberos Event Decoder - paste a Windows Security event (4768, 4769, 4770
  * or 4771) as XML or as the Event Viewer / Format-List text, and get field
  * explanations, KDC option flags, encryption type assessments and warnings.
  *
@@ -30,7 +30,7 @@
   };
 
   /* ------------------------------------------------------------------ */
-  /*  KDC options — the "Ticket Options" field of 4768/4769/4770/4771    */
+  /*  KDC options - the "Ticket Options" field of 4768/4769/4770/4771    */
   /*                                                                    */
   /*  The field is the kdc-options bit string of the request (RFC 4120  */
   /*  §5.4.1), not the flags of the issued ticket.  MSB 0 numbering:    */
@@ -70,10 +70,10 @@
   var KDC_OPTION_S4U2PROXY = 14;
 
   /* ------------------------------------------------------------------ */
-  /*  Encryption types — etype number to name and security assessment   */
+  /*  Encryption types - etype number to name and security assessment   */
   /* ------------------------------------------------------------------ */
 
-  /* IANA Kerberos Encryption Type Numbers —
+  /* IANA Kerberos Encryption Type Numbers - 
      https://www.iana.org/assignments/kerberos-parameters
      plus the negative Windows-internal RC4 variants.  Keys are unsigned
      32-bit values, so -128 is 0xFFFFFF80. */
@@ -212,13 +212,13 @@
     20: { name: "PA-SVR-REFERRAL-INFO", desc: "KDC referral ticket" },
     129: { name: "PA-FOR-USER", desc: "S4U2Self request [MS-SFU]" },
     136: { name: "PA-FX-FAST", desc: "Kerberos armoring (FAST, RFC 6113)" },
-    138: { name: "PA-ENCRYPTED-CHALLENGE", desc: "Kerberos armoring (FAST) encrypted challenge — Server 2012+" },
+    138: { name: "PA-ENCRYPTED-CHALLENGE", desc: "Kerberos armoring (FAST) encrypted challenge - Server 2012+" },
     165: { name: "PA-SUPPORTED-ENCTYPES", desc: "Supported encryption types [MS-KILE]" },
     167: { name: "PA-PAC-OPTIONS", desc: "PAC options [MS-KILE]" }
   };
 
   /* ------------------------------------------------------------------ */
-  /*  SupportedEncryptionTypes bit names — [MS-KILE] §2.2.7             */
+  /*  SupportedEncryptionTypes bit names - [MS-KILE] §2.2.7             */
   /*  Must stay identical to BITS in etype-calculator.js (tests/js).    */
   /* ------------------------------------------------------------------ */
 
@@ -276,7 +276,7 @@
   };
 
   /* ------------------------------------------------------------------ */
-  /*  Field source descriptions — where each value comes from.          */
+  /*  Field source descriptions - where each value comes from.          */
   /* ------------------------------------------------------------------ */
 
   var EFFECTIVE_SET_RULE = "msDS-SupportedEncryptionTypes if non-zero, otherwise DefaultDomainSupportedEncTypes if set on the DC, otherwise the build default (0x27 before the April 2026 cumulative update, 0x18 on it or later)";
@@ -707,7 +707,7 @@
    * Parse pasted input: XML when an <Event> element is present, text
    * otherwise.  One event is decoded at a time.  When the paste holds
    * several, the first one that decodes is returned and parsed.batch says so:
-   * { count, index, incomplete } — events found, zero-based position of the
+   * { count, index, incomplete } - events found, zero-based position of the
    * one returned, and whether a further XML event was cut off.
    */
   function parseEvent(raw) {
@@ -1106,7 +1106,7 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /*  Copy Details — plain-text summary for troubleshooting              */
+  /*  Copy Details - plain-text summary for troubleshooting              */
   /* ------------------------------------------------------------------ */
 
   /** Right-pad a label to a fixed width for monospace alignment. */
@@ -1127,7 +1127,7 @@
     var lines = [];
     var row = function (label, value) { lines.push(pad(label, 20) + value); };
 
-    lines.push("Kerberos Event " + parsed.eventId + " — " + meta.name + " — " + OUTCOME_TEXT[eventOutcome(parsed)]);
+    lines.push("Kerberos Event " + parsed.eventId + " - " + meta.name + " - " + OUTCOME_TEXT[eventOutcome(parsed)]);
     var metaParts = [];
     if (parsed.time) metaParts.push(formatTime(parsed.time));
     if (parsed.computer) metaParts.push(parsed.computer);
@@ -1139,11 +1139,11 @@
     if (f.ServiceName) row("Service:", f.ServiceName);
     if (f.Status) {
       var code = decodeResultCode(f.Status);
-      row(meta.statusLabel + ":", f.Status + " — " + code.name + (code.desc ? " — " + code.desc : ""));
+      row(meta.statusLabel + ":", f.Status + " - " + code.name + (code.desc ? " - " + code.desc : ""));
     }
     if (f.TicketOptions) {
       var opts = decodeKdcOptions(f.TicketOptions);
-      row("KDC options:", f.TicketOptions + " — " + (opts === null ? "unparseable" : (opts.map(function (o) { return o.name; }).join(", ") || "none set")));
+      row("KDC options:", f.TicketOptions + " - " + (opts === null ? "unparseable" : (opts.map(function (o) { return o.name; }).join(", ") || "none set")));
     }
     lines.push("");
 
@@ -1183,7 +1183,7 @@
     }
     if (f.PreAuthType) {
       var pa = decodePreAuthType(f.PreAuthType);
-      row("Pre-auth type:", pa.name + (pa.desc ? " — " + pa.desc : ""));
+      row("Pre-auth type:", pa.name + (pa.desc ? " - " + pa.desc : ""));
     }
     if (outputs.length || f.PreAuthType) lines.push("");
 
@@ -1197,7 +1197,7 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /*  Share link — base64url-encoded input in the URL hash               */
+  /*  Share link - base64url-encoded input in the URL hash               */
   /* ------------------------------------------------------------------ */
 
   function toBase64Url(str) {
@@ -1348,19 +1348,19 @@
         var etype = decodeEncryptionType(val);
         var span = el("span", null, etype.name + " ");
         span.appendChild(el("span", "evdec-badge " + etypeBadgeClass(etype.security), etype.security));
-        if (etype.note) span.appendChild(document.createTextNode(" — " + etype.note));
+        if (etype.note) span.appendChild(document.createTextNode(" - " + etype.note));
         td.appendChild(span);
         break;
       }
       case "Status": {
         var code = decodeResultCode(val);
-        td.appendChild(el("span", null, code.name + (code.desc ? " — " + code.desc : "")));
+        td.appendChild(el("span", null, code.name + (code.desc ? " - " + code.desc : "")));
         if (code.causes) td.appendChild(el("div", "evdec-causes", code.causes));
         break;
       }
       case "PreAuthType": {
         var pa = decodePreAuthType(val);
-        td.textContent = pa.name + (pa.desc ? " — " + pa.desc : "");
+        td.textContent = pa.name + (pa.desc ? " - " + pa.desc : "");
         break;
       }
       case "IpAddress":
@@ -1369,7 +1369,7 @@
       case "TargetSid":
       case "ServiceSid":
         td.textContent = val;
-        if (val === "S-1-0-0") td.appendChild(el("span", "evdec-note", " (NULL SID — failure event)"));
+        if (val === "S-1-0-0") td.appendChild(el("span", "evdec-note", " (NULL SID - failure event)"));
         break;
       case "AccountSupportedEncryptionTypes":
       case "ServiceSupportedEncryptionTypes":
@@ -1696,7 +1696,7 @@
 
   if (typeof document === "undefined") return;
 
-  /* Run after DOM is ready — covers the first page load. */
+  /* Run after DOM is ready - covers the first page load. */
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {

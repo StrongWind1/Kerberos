@@ -1,5 +1,5 @@
 ---
-description: How a client presents a Kerberos service ticket to a service -- the AP-REQ and AP-REP, the authenticator, mutual authentication, and SPNEGO/GSS-API wrapping.
+description: How a client presents a Kerberos service ticket to a service - the AP-REQ and AP-REP, the authenticator, mutual authentication, and SPNEGO/GSS-API wrapping.
 ---
 
 # AP Exchange
@@ -7,7 +7,7 @@ description: How a client presents a Kerberos service ticket to a service -- the
 How clients authenticate to services using service tickets.
 
 After the client obtains a service ticket through the [TGS Exchange](tgs-exchange.md), it can
-authenticate directly to the target service. This is the **AP Exchange** -- the final step in the
+authenticate directly to the target service. This is the **AP Exchange** - the final step in the
 Kerberos authentication flow. The name comes from its messages: RFC 4120 calls `KRB_AP_REQ` the
 "application request" and the exchange itself the client/server authentication exchange, and
 MS-KILE writes "Authentication Protocol (AP) exchange".
@@ -23,8 +23,8 @@ PAC is a separate Windows step that services do not perform by default; see
 
 The AP Exchange has two messages:
 
-1. **KRB-AP-REQ** (message type 14) -- client to service
-2. **KRB-AP-REP** (message type 15) -- service to client (only if mutual authentication is requested)
+1. **KRB-AP-REQ** (message type 14) - client to service
+2. **KRB-AP-REP** (message type 15) - service to client (only if mutual authentication is requested)
 
 Per [RFC 4120 &sect;3.2](https://datatracker.ietf.org/doc/html/rfc4120#section-3.2), this exchange "is used by network applications to authenticate the client to
 the server and vice versa", with credentials the client "MUST have already acquired" through the
@@ -51,13 +51,13 @@ sequenceDiagram
     Note over C,S: Secure session established<br/>Application communication proceeds
 ```
 
-### Step 1 -- Client Sends KRB-AP-REQ
+### Step 1 - Client Sends KRB-AP-REQ
 
 The client constructs a `KRB-AP-REQ` message containing two parts:
 
 Service Ticket
 :   The encrypted ticket received from the TGS in the [TGS Exchange](tgs-exchange.md). The client
-    cannot read or modify this -- it is encrypted with the service's secret key. The client passes
+    cannot read or modify this - it is encrypted with the service's secret key. The client passes
     it along unchanged.
 
 Authenticator
@@ -66,7 +66,7 @@ Authenticator
 
     - Client name and realm (`cname`, `crealm`)
     - Current timestamp (`ctime`, `cusec`)
-    - Optional checksum. When Kerberos is used through GSS-API -- which is how Windows uses it --
+    - Optional checksum. When Kerberos is used through GSS-API - which is how Windows uses it -
       this field has checksum type `0x8003` and carries the channel-binding hash, the context
       flags, and, when the client is delegating, the forwarded TGT ([RFC 4121 &sect;4.1.1](https://datatracker.ietf.org/doc/html/rfc4121#section-4.1.1))
     - Optional sub-session key (for establishing a new key for the application session)
@@ -74,7 +74,7 @@ Authenticator
 The Authenticator proves the client actually possesses the Service Session Key. Without it, a
 stolen ticket could be replayed by anyone.
 
-### Step 2 -- Service Decrypts the Ticket
+### Step 2 - Service Decrypts the Ticket
 
 The service receives the `KRB-AP-REQ` and:
 
@@ -83,22 +83,22 @@ The service receives the `KRB-AP-REQ` and:
    timestamps, and authorization data (including the [PAC](tickets.md#pac)).
 2. **Extracts the Service Session Key** from the decrypted ticket.
 
-### Step 3 -- Service Validates the Authenticator
+### Step 3 - Service Validates the Authenticator
 
 Using the extracted Service Session Key, the service:
 
 1. **Decrypts the Authenticator** from the `KRB-AP-REQ`.
-2. **Validates the timestamp** -- it must be within the acceptable clock skew window (default:
+2. **Validates the timestamp** - it must be within the acceptable clock skew window (default:
    **5 minutes**). Per [RFC 4120 &sect;3.2.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.2.3), the acceptable clock skew is typically
    5 minutes.
-3. **Checks for replay** -- the service keeps a cache of recently seen `(client name, timestamp,
+3. **Checks for replay** - the service keeps a cache of recently seen `(client name, timestamp,
    microsecond)` tuples. If this exact combination was already seen, the request is rejected.
 4. **Confirms the client identity** in the Authenticator matches the `cname` and `crealm` in the
    decrypted ticket.
 
 If all checks pass, the client is authenticated.
 
-### Step 4 -- Mutual Authentication (Optional)
+### Step 4 - Mutual Authentication (Optional)
 
 If the client set the `mutual-required` flag in the AP-REQ options, the service must prove its
 own identity by sending a `KRB-AP-REP` message. This message contains:
@@ -117,7 +117,7 @@ secret key).
     In Active Directory environments, mutual authentication is enabled by default for most
     protocols.
 
-### Step 5 -- Session Established
+### Step 5 - Session Established
 
 After a successful AP Exchange, the client and service share the Service Session Key (or a
 sub-session key if one was negotiated in the Authenticator). Application-level communication
@@ -132,7 +132,7 @@ This is the most important architectural point of the AP Exchange:
 !!! info "The service validates the ticket locally"
     The service never contacts the KDC during the AP Exchange. It decrypts the ticket with its own
     key, extracts the session key, and validates the Authenticator. This is what makes Kerberos
-    scalable -- the KDC is only involved during ticket issuance, not during every service access.
+    scalable - the KDC is only involved during ticket issuance, not during every service access.
 
 This means a service can authenticate clients even when the domain controller is temporarily
 unreachable, as long as the client already has a valid service ticket cached.
@@ -140,7 +140,7 @@ unreachable, as long as the client already has a valid service ticket cached.
 It also means the service trusts whatever is inside the ticket. If the ticket says the user is
 `alice@CORP.LOCAL` and is a member of `Domain Admins`, the service accepts that at face value.
 The [PAC signatures](tickets.md#pac-signatures) provide integrity protection, but the service can
-verify only one of them itself -- the server signature, which uses the service's own key
+verify only one of them itself - the server signature, which uses the service's own key
 ([MS-KILE &sect;3.4.5.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/4ad7ed1f-0bfa-4b5f-bda3-fedbc549a6c0)). The other signatures use the `krbtgt` key, which the service does not
 have. Checking them means asking a domain controller through PAC validation, which is the one case
 in which a server does contact a domain controller while accepting a ticket. Windows services that
@@ -203,7 +203,7 @@ flowchart LR
     - If the protocol spec calls for `gss_get_mic` / `gss_verify_mic`, the correct SSPI
       counterparts are `MakeSignature` / `VerifySignature`. But if the spec calls for
       `GSS_Wrap` / `GSS_Unwrap`, always use `EncryptMessage` / `DecryptMessage` on the SSPI
-      side -- never `MakeSignature` / `VerifySignature`.
+      side - never `MakeSignature` / `VerifySignature`.
 
 ---
 
@@ -252,7 +252,7 @@ Here is a concrete walkthrough of `alice@CORP.LOCAL` accessing a web application
     On Linux/Unix services (Apache, Nginx, Samba), the service's secret key is stored in a
     **keytab file** rather than being derived from the computer account password in Active Directory.
     The keytab is generated during service registration (typically with `ktpass` or `msktutil`)
-    and must be kept secure -- anyone with the keytab can decrypt service tickets.
+    and must be kept secure - anyone with the keytab can decrypt service tickets.
 
 ---
 
@@ -280,7 +280,7 @@ Key takeaways:
 - The service ticket proves the client's identity to the service
 - The Authenticator proves the client actually possesses the session key (not just a stolen ticket)
 - Mutual authentication proves the service is genuine to the client
-- The KDC takes no part -- the service decrypts and checks the ticket locally. PAC validation by a
+- The KDC takes no part - the service decrypts and checks the ticket locally. PAC validation by a
   domain controller is a separate step that Windows services do not perform by default
 - AP Exchange messages are always wrapped in application protocols via SPNEGO/GSS-API
 

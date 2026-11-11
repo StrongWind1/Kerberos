@@ -7,7 +7,7 @@ discovery, or reuse stolen Kerberos artifacts (tickets and keys) to impersonate 
 [roasting attacks](../roasting/index.md), which require offline cracking, the attacks in this
 category either test credentials in real time against the KDC or replay stolen material directly.
 
-Two of these attacks -- password spraying and user enumeration -- require nothing more than
+Two of these attacks - password spraying and user enumeration - require nothing more than
 network access to the domain controller on port 88: no domain membership, no LDAP bind, and no
 existing credentials. Pass-the-Ticket and Pass-the-Key start from a ticket or key the attacker
 has already stolen.
@@ -31,26 +31,26 @@ has already stolen.
 
 [CredWolf](https://github.com/StrongWind1/CredWolf) supports Kerberos-based credential testing and user enumeration:
 
-- **`credwolf kerberos`** -- test passwords, NT hashes, AES keys, and ticket files against
+- **`credwolf kerberos`** - test passwords, NT hashes, AES keys, and ticket files against
   the KDC via pre-authentication (see [CredWolf Kerberos usage](https://github.com/StrongWind1/CredWolf))
-- **`credwolf userenum`** -- enumerate valid usernames via bare AS-REQs without triggering
+- **`credwolf userenum`** - enumerate valid usernames via bare AS-REQs without triggering
   login attempts or incrementing the bad-password counter
 
 kerbwolf tools handle the offensive side:
 
-- **`kw-tgt`** -- request TGTs with passwords, NT hashes, or AES keys (pass-the-key /
+- **`kw-tgt`** - request TGTs with passwords, NT hashes, or AES keys (pass-the-key /
   overpass-the-hash)
-- **`kw-asrep`** -- AS-REP Roasting with implicit user enumeration
+- **`kw-asrep`** - AS-REP Roasting with implicit user enumeration
 
 ---
 
 ## Common Defenses
 
-- **Credential Guard** -- isolates NTLM hashes and Kerberos TGTs outside LSASS; service tickets
+- **Credential Guard** - isolates NTLM hashes and Kerberos TGTs outside LSASS; service tickets
   are not protected
-- **Protected Users group** -- no NTLM authentication, a 4-hour TGT that cannot be renewed, and
+- **Protected Users group** - no NTLM authentication, a 4-hour TGT that cannot be renewed, and
   no DES or RC4 in Kerberos pre-authentication
-- **Short TGT lifetimes** -- limit the window during which a stolen ticket is usable
-- **Account lockout policies** -- limit password spraying attempts (but beware of lockout-based
+- **Short TGT lifetimes** - limit the window during which a stolen ticket is usable
+- **Account lockout policies** - limit password spraying attempts (but beware of lockout-based
   denial of service)
-- **Network rate limiting** -- restrict AS-REQ volume per source IP on port 88
+- **Network rate limiting** - restrict AS-REQ volume per source IP on port 88

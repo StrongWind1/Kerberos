@@ -1,4 +1,4 @@
-[RFC 1510]: https://datatracker.ietf.org/doc/html/rfc1510 "The Kerberos Network Authentication Service (V5) -- obsoleted by RFC 4120"
+[RFC 1510]: https://datatracker.ietf.org/doc/html/rfc1510 "The Kerberos Network Authentication Service (V5) - obsoleted by RFC 4120"
 [RFC 3961]: https://datatracker.ietf.org/doc/html/rfc3961 "Encryption and Checksum Specifications for Kerberos 5"
 [RFC 3962]: https://datatracker.ietf.org/doc/html/rfc3962 "AES Encryption for Kerberos 5"
 [RFC 4120]: https://datatracker.ietf.org/doc/html/rfc4120 "The Kerberos Network Authentication Service (V5)"

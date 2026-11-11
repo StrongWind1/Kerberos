@@ -101,7 +101,7 @@ Both paths set, no DDSET, unset account, DC1, 6-7 April 2026:
 
 The Policies value decided the outcome every time.  For the Server 2022 versus Server 2025
 path comparison, see
-[Registry Settings — Which path the KDC reads](registry.md#which-path-the-kdc-reads).
+[Registry Settings - Which path the KDC reads](registry.md#which-path-the-kdc-reads).
 
 ---
 

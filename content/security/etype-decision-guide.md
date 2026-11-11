@@ -125,7 +125,7 @@ flowchart TD
 etype preference has **no effect** on the service ticket encryption etype.  A Kerberoasting
 attacker cannot force RC4 on an account that does not list RC4 by asking for RC4.  If
 `KdcUseRequestedEtypesForTickets` is `1`, the client's preference is honored for any
-account whose set still contains RC4 — and, on the pre-enforcement build tested (6-7 April
+account whose set still contains RC4 - and, on the pre-enforcement build tested (6-7 April
 2026), even for AES-only accounts.  See [Registry Settings](registry.md#kdcuserequestedetypesfortickets).
 
 ---
@@ -154,15 +154,15 @@ Problems arise when:
 
 When the KDC selects the etype for a **service ticket**, it evaluates in this order:
 
-1. **Target account `msDS-SupportedEncryptionTypes`** (input #11) — if nonzero, this is the
+1. **Target account `msDS-SupportedEncryptionTypes`** (input #11) - if nonzero, this is the
    etype set.
-2. **DC `DefaultDomainSupportedEncTypes`** (input #7) — used only if the target's attribute
+2. **DC `DefaultDomainSupportedEncTypes`** (input #7) - used only if the target's attribute
    is 0 or absent.  If this is also absent, the built-in default applies: `0x18` on the
    April 2026 update or later, `0x27` before (lab: Server 2022).
-3. **Available keys on the target account** (input #10) — the KDC cannot use an etype the
+3. **Available keys on the target account** (input #10) - the KDC cannot use an etype the
    account has no key for.  An account at `0x18` with no AES keys **fails**; it does not
    fall back to RC4 (lab, enforcing build).
-4. **KDC filter** (input #8) — the KDC will not issue an etype the filter excludes.
+4. **KDC filter** (input #8) - the KDC will not issue an etype the filter excludes.
    **Requires a KDC restart** to take effect, unlike DDSET.
 
 The filter step is not a plain intersection.  Measured behavior:
@@ -195,7 +195,7 @@ AES-SK bit (`0x20`) that the November 2022 update (CVE-2022-37966) introduced.
     Before the April 2026 update, every unset account got this split, because the built-in
     default was `0x27`.  On the April 2026 update or later an unset account is treated as
     `0x18` and gets AES256 for both, so the split can only arise where a value containing
-    `0x20` without the AES bits is set **explicitly** — typically `0x24` on an account, which
+    `0x20` without the AES bits is set **explicitly** - typically `0x24` on an account, which
     is what Microsoft's KB5073381 suggests for a service that cannot accept AES tickets.
     Whether a patched DC still produces the split for such an account has not been confirmed
     here; see the note under [When AES-SK applies](#when-aes-sk-applies).
@@ -376,7 +376,7 @@ Lab DC state:
 
 ### Example 1: User account, unset (pre-enforcement default)
 
-**Target**: `svc_app01` -- SPN `HTTP/app01.corp.local`, `msDS-SupportedEncryptionTypes` = not set
+**Target**: `svc_app01` - SPN `HTTP/app01.corp.local`, `msDS-SupportedEncryptionTypes` = not set
 
 The KDC sees `msDS-SET = 0` and substitutes `DefaultDomainSupportedEncTypes`.  The registry
 value is not set, so on this pre-enforcement build the KDC uses the built-in default `0x27`
@@ -391,7 +391,7 @@ and this account gets an AES256 ticket and session key.**
 
 **Event 4769 (abridged):**
 
-```text title="Event 4769 — default etype, AES-SK split"
+```text title="Event 4769 - default etype, AES-SK split"
 Service Name:                     svc_app01
 MSDS-SupportedEncryptionTypes:    0x27 (DES, RC4, AES-Sk)
 Available Keys:                   AES-SHA1, RC4
@@ -411,17 +411,17 @@ the AES128/AES256 bits), but the session key is AES256 (because `0x27` includes 
 bit and the client supports AES256).
 
 !!! warning "The account has AES keys but gets an RC4 ticket"
-    Note "Available Keys: AES-SHA1, RC4" -- the account *has* AES keys.  But because
+    Note "Available Keys: AES-SHA1, RC4" - the account *has* AES keys.  But because
     `msDS-SupportedEncryptionTypes` is 0, this build falls back to `0x27`, which does not
     include the AES128/AES256 bits (only AES-SK).  **Having AES keys is necessary but not
-    sufficient** -- the effective etype set must also include AES.  The AES session key
+    sufficient** - the effective etype set must also include AES.  The AES session key
     protects the live session but the RC4 ticket is still crackable.
 
 ---
 
 ### Example 2: User account, explicit RC4-only
 
-**Target**: `svc_app02` -- SPN `HTTP/app02.corp.local`, `msDS-SupportedEncryptionTypes` = 4 (`0x04`, RC4 only)
+**Target**: `svc_app02` - SPN `HTTP/app02.corp.local`, `msDS-SupportedEncryptionTypes` = 4 (`0x04`, RC4 only)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -430,7 +430,7 @@ bit and the client supports AES256).
 
 **Event 4769:**
 
-```text title="Event 4769 — explicit RC4-only configuration"
+```text title="Event 4769 - explicit RC4-only configuration"
 Service Name:                     svc_app02
 MSDS-SupportedEncryptionTypes:    0x4 (RC4)
 Available Keys:                   AES-SHA1, RC4
@@ -448,7 +448,7 @@ client that offers only AES gets `KDC_ERR_ETYPE_NOSUPP` for this account.
 
 ### Example 3: User account, AES-only (AES128 + AES256)
 
-**Target**: `svc_app03` -- SPN `HTTP/app03.corp.local`, `msDS-SupportedEncryptionTypes` = 24 (`0x18`, AES128 + AES256)
+**Target**: `svc_app03` - SPN `HTTP/app03.corp.local`, `msDS-SupportedEncryptionTypes` = 24 (`0x18`, AES128 + AES256)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -457,7 +457,7 @@ client that offers only AES gets `KDC_ERR_ETYPE_NOSUPP` for this account.
 
 **Event 4769:**
 
-```text title="Event 4769 — AES-only configuration, both ticket and session key AES256"
+```text title="Event 4769 - AES-only configuration, both ticket and session key AES256"
 Service Name:                     svc_app03
 MSDS-SupportedEncryptionTypes:    0x18 (AES128-SHA96, AES256-SHA96)
 Available Keys:                   AES-SHA1, RC4
@@ -472,7 +472,7 @@ includes AES and the client advertises AES, everything aligns to AES.  No split 
 
 ### Example 4: User account, AES256-only
 
-**Target**: `svc_app04` -- SPN `HTTP/app04.corp.local`, `msDS-SupportedEncryptionTypes` = 16 (`0x10`, AES256 only)
+**Target**: `svc_app04` - SPN `HTTP/app04.corp.local`, `msDS-SupportedEncryptionTypes` = 16 (`0x10`, AES256 only)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -481,7 +481,7 @@ includes AES and the client advertises AES, everything aligns to AES.  No split 
 
 **Event 4769:**
 
-```text title="Event 4769 — AES256-only configuration"
+```text title="Event 4769 - AES256-only configuration"
 Service Name:                     svc_app04
 MSDS-SupportedEncryptionTypes:    0x10 (AES256-SHA96)
 Available Keys:                   AES-SHA1, RC4
@@ -493,7 +493,7 @@ Session Encryption Type:          0x12
 
 ### Example 5: User account, AES128-only
 
-**Target**: `svc_app05` -- SPN `HTTP/app05.corp.local`, `msDS-SupportedEncryptionTypes` = 8 (`0x08`, AES128 only)
+**Target**: `svc_app05` - SPN `HTTP/app05.corp.local`, `msDS-SupportedEncryptionTypes` = 8 (`0x08`, AES128 only)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -518,7 +518,7 @@ the client.  A client in the 6-7 April 2026 run received an AES128 session key. 
 
 ### Example 6: User account, RC4 + AES (strongest wins)
 
-**Target**: `svc_app06` -- SPN `HTTP/app06.corp.local`, `msDS-SupportedEncryptionTypes` = 28 (`0x1C`, RC4 + AES128 + AES256)
+**Target**: `svc_app06` - SPN `HTTP/app06.corp.local`, `msDS-SupportedEncryptionTypes` = 28 (`0x1C`, RC4 + AES128 + AES256)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -527,7 +527,7 @@ the client.  A client in the 6-7 April 2026 run received an AES128 session key. 
 
 **Event 4769:**
 
-```text title="Event 4769 — RC4 + AES configuration, KDC picks strongest etype"
+```text title="Event 4769 - RC4 + AES configuration, KDC picks strongest etype"
 Service Name:                     svc_app06
 MSDS-SupportedEncryptionTypes:    0x1C (RC4, AES128-SHA96, AES256-SHA96)
 Available Keys:                   AES-SHA1, RC4
@@ -537,7 +537,7 @@ Session Encryption Type:          0x12
 
 When an account supports both RC4 and AES, the KDC picks the **strongest** etype for the
 ticket (AES256), not the weakest.  A Kerberoasting attacker cannot downgrade this to RC4 by
-requesting RC4 in their TGS-REQ -- the client's preference does not affect ticket encryption.
+requesting RC4 in their TGS-REQ - the client's preference does not affect ticket encryption.
 The session key here is AES256 because the test client offered only AES256.  A client that
 offers only RC4, or that lists RC4 ahead of AES256, still gets the AES256 ticket, with an
 **RC4** session key (lab: an RC4-only client on both builds, an RC4-first client on
@@ -547,7 +547,7 @@ offers only RC4, or that lists RC4 ahead of AES256, still gets the AES256 ticket
 
 ### Example 7: Computer account, AES-only
 
-**Target**: `WS01$` -- SPN `HOST/WS01.corp.local`, `msDS-SupportedEncryptionTypes` = 24 (`0x18`)
+**Target**: `WS01$` - SPN `HOST/WS01.corp.local`, `msDS-SupportedEncryptionTypes` = 24 (`0x18`)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -562,7 +562,7 @@ etype policy, whereas user service accounts must be configured manually.
 
 ### Example 8: Computer account, RC4-only
 
-**Target**: `SRV01$` -- SPN `HOST/SRV01.corp.local`, `msDS-SupportedEncryptionTypes` = 4 (`0x04`, RC4 only)
+**Target**: `SRV01$` - SPN `HOST/SRV01.corp.local`, `msDS-SupportedEncryptionTypes` = 4 (`0x04`, RC4 only)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -583,7 +583,7 @@ overwritten was **not lab-verified**.
 
 ### Example 9: Protected Users member with SPN (unset)
 
-**Target**: `svc_protected` -- SPN `HTTP/app-protected.corp.local`, `msDS-SupportedEncryptionTypes` = not set, **member of Protected Users**
+**Target**: `svc_protected` - SPN `HTTP/app-protected.corp.local`, `msDS-SupportedEncryptionTypes` = not set, **member of Protected Users**
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -592,7 +592,7 @@ overwritten was **not lab-verified**.
 
 **Event 4769:**
 
-```text title="Event 4769 — Protected Users member with no msDS-SET (service ticket still RC4)"
+```text title="Event 4769 - Protected Users member with no msDS-SET (service ticket still RC4)"
 Service Name:                     svc_protected
 MSDS-SupportedEncryptionTypes:    0x27 (DES, RC4, AES-Sk)
 Available Keys:                   AES-SHA1, RC4
@@ -615,7 +615,7 @@ Session Encryption Type:          0x12
 
 ### Example 10: User account, RC4-only with SPN (edge case)
 
-**Target**: `svc_legacy` -- SPN `HTTP/app-legacy.corp.local`, `msDS-SupportedEncryptionTypes` = 4 (`0x04`, RC4 only)
+**Target**: `svc_legacy` - SPN `HTTP/app-legacy.corp.local`, `msDS-SupportedEncryptionTypes` = 4 (`0x04`, RC4 only)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -624,7 +624,7 @@ Session Encryption Type:          0x12
 
 **Event 4769:**
 
-```text title="Event 4769 — explicit RC4-only, no AES-SK split"
+```text title="Event 4769 - explicit RC4-only, no AES-SK split"
 Service Name:                     svc_legacy
 MSDS-SupportedEncryptionTypes:    0x4 (RC4)
 Available Keys:                   AES-SHA1, RC4
@@ -636,7 +636,7 @@ Session Encryption Type:          0x17
 
 ### Example 11: Unset account with MSSQLSvc SPN (the classic pre-2026 case)
 
-**Target**: `svc_db01` -- SPN `MSSQLSvc/db01.corp.local:1433`, `msDS-SupportedEncryptionTypes` = not set
+**Target**: `svc_db01` - SPN `MSSQLSvc/db01.corp.local:1433`, `msDS-SupportedEncryptionTypes` = not set
 
 Before the April 2026 update this was the most common Kerberoasting scenario: a SQL Server
 user service account created by a DBA, with a password set by a human, and no etype
@@ -649,7 +649,7 @@ configuration.  It is still what you get from any DC that has not been updated.
 
 **Event 4769:**
 
-```text title="Event 4769 — MSSQLSvc account with no msDS-SET, common Kerberoasting scenario"
+```text title="Event 4769 - MSSQLSvc account with no msDS-SET, common Kerberoasting scenario"
 Service Name:                     svc_db01
 MSDS-SupportedEncryptionTypes:    0x27 (DES, RC4, AES-Sk)
 Available Keys:                   AES-SHA1, RC4
@@ -668,7 +668,7 @@ password is still crackable, only more slowly.
 
 ### Example 12: AES-configured MSSQLSvc account
 
-**Target**: `svc_db02` -- SPN `MSSQLSvc/db02.corp.local:1433`, `msDS-SupportedEncryptionTypes` = 24 (`0x18`)
+**Target**: `svc_db02` - SPN `MSSQLSvc/db02.corp.local:1433`, `msDS-SupportedEncryptionTypes` = 24 (`0x18`)
 
 | Component | Etype | Reason |
 |---|---|---|
@@ -693,7 +693,7 @@ difference in cracking speed is roughly three orders of magnitude (see
 The TGT is AES256 on this domain regardless of the requesting user's configuration.  The `krbtgt` account's `msDS-SupportedEncryptionTypes` is 0 (not set), but
 the KDC uses krbtgt's actual stored keys (which include AES256).
 
-This is why Mistake #3 above is so common -- people see their TGT is AES256 and assume
+This is why Mistake #3 above is so common - people see their TGT is AES256 and assume
 they are "AES-only," but service tickets *to* other accounts may still be RC4.
 
 ---
@@ -738,8 +738,8 @@ service-ticket requests and are not listed.
 | 4 | svc_app04 | User | 16 (AES256) | Yes | AES256 (0x12) | AES256 (0x12) | No | AES256 ticket (lab; session key not recorded) |
 | 5 | svc_app05 | User | 8 (AES128) | Yes | AES128 (0x11) | AES128 (0x11), 6-7 April 2026 run | No | `KDC_ERR_ETYPE_NOSUPP` (lab; the client did not offer AES128) |
 | 6 | svc_app06 | User | 28 (RC4 + AES) | Yes | AES256 (0x12) | AES256 (0x12) | No | AES256 ticket, RC4 session key (lab; RC4-first client) |
-| 7 | WS01$ | Computer | 24 (AES) | Yes | AES256 (0x12) | not recorded | — | same ticket etype expected (not re-measured) |
-| 8 | SRV01$ | Computer | 4 (RC4) | Yes | RC4 (0x17) | not recorded | — | same ticket etype expected (not re-measured) |
+| 7 | WS01$ | Computer | 24 (AES) | Yes | AES256 (0x12) | not recorded | - | same ticket etype expected (not re-measured) |
+| 8 | SRV01$ | Computer | 4 (RC4) | Yes | RC4 (0x17) | not recorded | - | same ticket etype expected (not re-measured) |
 | 9 | svc_protected | User (PU) | unset | Yes | RC4 (0x17) | AES256 (0x12) | Yes | AES256 ticket (lab, different PU account; session key not recorded) |
 | 10 | svc_legacy | User | 4 (RC4) | Yes | RC4 (0x17) | RC4 (0x17) | No | same (not re-measured) |
 | 11 | svc_db01 | User | unset | Yes | RC4 (0x17) | AES256 (0x12) | Yes | AES256 / AES256 (as Example 1) |

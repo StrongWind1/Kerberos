@@ -16,7 +16,7 @@ per-account `msDS-SupportedEncryptionTypes` attribute and per-DC registry values
     configured policy settings as expected", which may have fixed this, but it has not been
     retested here.  On Server 2022 the policy filters as described.  Either way, verify per
     DC after applying the policy; see
-    [Registry Settings — Which path the KDC reads](registry.md#which-path-the-kdc-reads).
+    [Registry Settings - Which path the KDC reads](registry.md#which-path-the-kdc-reads).
 
 ---
 
@@ -47,7 +47,7 @@ The primary GPO for controlling Kerberos encryption types.
 
 | Applied To | Effect |
 |---|---|
-| **Domain controllers** | Controls what the **KDC will accept and issue** for both AS and TGS exchanges (lab, Server 2022; see the Server 2025 warning above).  If RC4 is not checked here, the KDC will not issue RC4 tickets: an account that explicitly allows only RC4 then **fails** rather than being upgraded.  It also blocks pre-authentication with etypes not in the filter, so new logons fail for clients that only support excluded etypes.  **Requires a KDC restart** (`Restart-Service kdc`) on each DC -- the KDC reads this value only at service start, and `gpupdate` alone changes nothing. |
+| **Domain controllers** | Controls what the **KDC will accept and issue** for both AS and TGS exchanges (lab, Server 2022; see the Server 2025 warning above).  If RC4 is not checked here, the KDC will not issue RC4 tickets: an account that explicitly allows only RC4 then **fails** rather than being upgraded.  It also blocks pre-authentication with etypes not in the filter, so new logons fail for clients that only support excluded etypes.  **Requires a KDC restart** (`Restart-Service kdc`) on each DC - the KDC reads this value only at service start, and `gpupdate` alone changes nothing. |
 | **Client workstations** | Controls what the **Kerberos client will request** in AS-REQ and TGS-REQ messages.  The client will not advertise etypes that are not enabled here. |
 | **Member servers** | Controls what the **server's Kerberos client** will request.  The server also writes the allowed cipher bits to its own computer account's `msDS-SupportedEncryptionTypes`, which is what decides the etype of service tickets issued *to* that server. |
 
@@ -111,14 +111,14 @@ to a domain controller, the DC updates its own computer account (e.g., `DC1$`), 
 !!! warning "The GPO does NOT set `DefaultDomainSupportedEncTypes`"
     This GPO writes `SupportedEncryptionTypes` (the KDC etype filter), **not**
     `DefaultDomainSupportedEncTypes` (the fallback for unconfigured accounts).  These are
-    different registry keys with different effects — and they operate independently.
+    different registry keys with different effects - and they operate independently.
 
     When both exist they do not simply intersect.  For an **unset** account, an AES-only
     filter over a default that includes RC4 yields an AES ticket, not an error.  The reverse
     does not hold: an RC4-only filter over an AES default fails.  And the filter never
     rescues an account whose **explicit** `msDS-SupportedEncryptionTypes` it excludes; that
     request fails too.  See
-    [Registry Settings — How the filter combines](registry.md#how-the-filter-combines) for
+    [Registry Settings - How the filter combines](registry.md#how-the-filter-combines) for
     the measured matrix.
 
 ### Windows Server 2025 Security Baseline
@@ -160,8 +160,8 @@ Account Policies > Kerberos Policy
 !!! info "Clock synchronization is critical"
     Kerberos relies on timestamps to prevent replay attacks.  If a client's clock drifts more
     than 5 minutes from the DC, all Kerberos operations will fail.  Ensure NTP is properly
-    configured across your domain.  The default tolerance of 5 minutes should not be increased
-    -- doing so weakens replay protection.
+    configured across your domain.  The default tolerance of 5 minutes should not be increased -
+    doing so weakens replay protection.
 
 ### Protected Users Group Override
 
@@ -239,7 +239,7 @@ recorded **per principal**:
 values, not the raw AD attribute: for an unset service account the field shows what the KDC
 substituted (`0x18` on the enforcing lab build).  When a request is refused the service
 fields are empty and `TicketEncryptionType` is `0xFFFFFFFF`.  See
-[Troubleshooting — Event ID Reference](troubleshooting.md#event-id-reference) for the full
+[Troubleshooting - Event ID Reference](troubleshooting.md#event-id-reference) for the full
 field descriptions.
 
 ---
@@ -260,5 +260,5 @@ While not Kerberos-specific, these affect Kerberos security indirectly:
 
 The **Protected Users** group enforces additional security restrictions (no NTLM, AES-only
 pre-auth, 4-hour non-renewable TGT, no credential caching) that cannot be set via GPO.  See
-[Mitigations — Protected Users](mitigations.md#priority-4-protected-users-group) for the full
+[Mitigations - Protected Users](mitigations.md#priority-4-protected-users-group) for the full
 details and guidance on which accounts to add.

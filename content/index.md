@@ -4,7 +4,7 @@ description: How Kerberos works in Active Directory, how to configure it securel
 
 # Kerberos in Active Directory
 
-A comprehensive guide to Kerberos authentication in Microsoft Windows Active Directory -- how the protocol works, how to configure it securely, and how attackers exploit it.
+A comprehensive guide to Kerberos authentication in Microsoft Windows Active Directory - how the protocol works, how to configure it securely, and how attackers exploit it.
 
 ---
 
@@ -83,7 +83,7 @@ To get the most out of this guide, you should be comfortable with:
 - Windows domain concepts (Active Directory, domain controllers, user accounts, group membership)
 - Command-line tools (PowerShell, Linux shell)
 
-No cryptography background is needed -- encryption concepts are explained as they come up.
+No cryptography background is needed - encryption concepts are explained as they come up.
 
 ---
 
@@ -93,7 +93,7 @@ Attack pages use [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impack
 
 ### kerbwolf
 
-[kerbwolf](https://github.com/StrongWind1/KerbWolf) -- Kerberos roasting and TGT attack toolkit:
+[kerbwolf](https://github.com/StrongWind1/KerbWolf) - Kerberos roasting and TGT attack toolkit:
 
 | Tool | Purpose |
 |---|---|
@@ -104,7 +104,7 @@ Attack pages use [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impack
 
 ### Microsoft Kerberos-Crypto
 
-[Kerberos-Crypto](https://github.com/microsoft/Kerberos-Crypto) -- Microsoft's official PowerShell scripts for assessing RC4 usage and key readiness:
+[Kerberos-Crypto](https://github.com/microsoft/Kerberos-Crypto) - Microsoft's official PowerShell scripts for assessing RC4 usage and key readiness:
 
 | Script | Purpose |
 |---|---|
@@ -115,11 +115,11 @@ See [Detect and remediate RC4 usage in Kerberos](https://learn.microsoft.com/en-
 
 ### KDC registry audit script
 
-[`Get-KdcKerberosRegistryAudit.ps1`](https://github.com/StrongWind1/Kerberos/blob/main/scripts/Get-KdcKerberosRegistryAudit.ps1) -- this site's read-only audit of the Kerberos registry values on every domain controller: which values are set, whether they sit at a path the KDC actually reads, and whether the DC's build enforces the RC4 default removal.  See the [script README](https://github.com/StrongWind1/Kerberos/blob/main/scripts/README.md) for download and usage notes, and [Registry Audit](security/registry-audit.md) for the lab results behind it.
+[`Get-KdcKerberosRegistryAudit.ps1`](https://github.com/StrongWind1/Kerberos/blob/main/scripts/Get-KdcKerberosRegistryAudit.ps1) - this site's read-only audit of the Kerberos registry values on every domain controller: which values are set, whether they sit at a path the KDC actually reads, and whether the DC's build enforces the RC4 default removal.  See the [script README](https://github.com/StrongWind1/Kerberos/blob/main/scripts/README.md) for download and usage notes, and [Registry Audit](security/registry-audit.md) for the lab results behind it.
 
 ### PSKerb
 
-[PSKerb](https://github.com/microsoft/Kerberos-Crypto/tree/main/PSKerb) -- PowerShell module for reading and writing Kerberos client registry configuration on Windows:
+[PSKerb](https://github.com/microsoft/Kerberos-Crypto/tree/main/PSKerb) - PowerShell module for reading and writing Kerberos client registry configuration on Windows:
 
 ```powershell
 Install-Module -Name PSKerb
@@ -143,7 +143,7 @@ This guide is grounded in the official protocol specifications. Inline reference
 
 | Document | Description |
 |---|---|
-| [RFC 4120](https://datatracker.ietf.org/doc/html/rfc4120) | The Kerberos Network Authentication Service (V5) -- the authoritative base protocol specification |
+| [RFC 4120](https://datatracker.ietf.org/doc/html/rfc4120) | The Kerberos Network Authentication Service (V5) - the authoritative base protocol specification |
 | [RFC 6806](https://datatracker.ietf.org/doc/html/rfc6806) | Kerberos Principal Name Canonicalization and Cross-Realm Referrals |
 | [RFC 4556](https://datatracker.ietf.org/doc/html/rfc4556) | Public Key Cryptography for Initial Authentication in Kerberos (PKINIT) |
 | [RFC 6113](https://datatracker.ietf.org/doc/html/rfc6113) | A Generalized Framework for Kerberos Pre-Authentication (FAST) |
@@ -152,25 +152,25 @@ This guide is grounded in the official protocol specifications. Inline reference
 
 | Document | Description |
 |---|---|
-| [RFC 3961](https://datatracker.ietf.org/doc/html/rfc3961) | Encryption and Checksum Specifications for Kerberos 5 -- the cryptographic framework |
+| [RFC 3961](https://datatracker.ietf.org/doc/html/rfc3961) | Encryption and Checksum Specifications for Kerberos 5 - the cryptographic framework |
 | [RFC 3962](https://datatracker.ietf.org/doc/html/rfc3962) | Using AES Encryption with Kerberos 5 (AES-CTS-HMAC-SHA1-96) |
 | [RFC 6649](https://datatracker.ietf.org/doc/html/rfc6649) | Deprecate DES, RC4-HMAC-EXP, and Other Weak Cryptographic Algorithms in Kerberos |
-| [RFC 7465](https://datatracker.ietf.org/doc/html/rfc7465) | Prohibiting RC4 Cipher Suites -- a TLS document, not a Kerberos one; listed as background on RC4 |
+| [RFC 7465](https://datatracker.ietf.org/doc/html/rfc7465) | Prohibiting RC4 Cipher Suites - a TLS document, not a Kerberos one; listed as background on RC4 |
 | [RFC 8429](https://datatracker.ietf.org/doc/html/rfc8429) | Deprecate Triple-DES (3DES) and RC4 in Kerberos |
 
 ### Microsoft Open Specifications
 
 | Document | Description |
 |---|---|
-| [MS-KILE](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/) | Kerberos Protocol Extensions -- Windows-specific additions to the base protocol |
-| [MS-PAC](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/) | Privilege Attribute Certificate Data Structure -- the authorization data inside Kerberos tickets |
+| [MS-KILE](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/) | Kerberos Protocol Extensions - Windows-specific additions to the base protocol |
+| [MS-PAC](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/) | Privilege Attribute Certificate Data Structure - the authorization data inside Kerberos tickets |
 | [MS-SFU](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/) | Kerberos Protocol Extensions: Service for User and Constrained Delegation Protocol |
-| [MS-ADTS](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/) | Active Directory Technical Specification -- AD object classes, attributes, and protocol behavior |
-| [MS-APDS](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-apds/) | Authentication Protocol Domain Support -- how domain controllers process authentication requests |
-| [MS-DRSR](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-drsr/) | Directory Replication Service Remote Protocol -- used by DCSync and key extraction techniques |
-| [MS-RPRN](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rprn/) | Print System Remote Protocol -- abused for authentication coercion (Printer Bug) |
-| [MS-EFSR](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-efsr/) | Encrypting File System Remote (EFSRPC) Protocol -- abused for authentication coercion (PetitPotam) |
-| [MS-DFSNM](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dfsnm/) | Distributed File System (DFS): Namespace Management Protocol -- abused for authentication coercion |
+| [MS-ADTS](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/) | Active Directory Technical Specification - AD object classes, attributes, and protocol behavior |
+| [MS-APDS](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-apds/) | Authentication Protocol Domain Support - how domain controllers process authentication requests |
+| [MS-DRSR](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-drsr/) | Directory Replication Service Remote Protocol - used by DCSync and key extraction techniques |
+| [MS-RPRN](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rprn/) | Print System Remote Protocol - abused for authentication coercion (Printer Bug) |
+| [MS-EFSR](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-efsr/) | Encrypting File System Remote (EFSRPC) Protocol - abused for authentication coercion (PetitPotam) |
+| [MS-DFSNM](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dfsnm/) | Distributed File System (DFS): Namespace Management Protocol - abused for authentication coercion |
 
 ### Security Advisories
 

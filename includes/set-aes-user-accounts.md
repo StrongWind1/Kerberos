@@ -19,7 +19,7 @@ What the script will and will not do:
   `krbtgt` carries the SPN `kadmin/changepw`, so a plain "every user with an SPN" filter
   matches it.
 - **Only replaces values listed in `$OnlyFrom`** (default: unset).  Accounts that already
-  carry a deliberate value — an RC4 exception at `4`, `28` or `60`, for example — are
+  carry a deliberate value - an RC4 exception at `4`, `28` or `60`, for example - are
   listed as skipped, not flattened.
 - **Skips accounts whose password predates AES key generation.**  Setting an AES-only
   value on an account without AES keys makes every ticket request for it fail with

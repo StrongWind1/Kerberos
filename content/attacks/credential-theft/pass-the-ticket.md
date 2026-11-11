@@ -7,7 +7,7 @@ Stealing and reusing cached Kerberos tickets.
 Pass-the-Ticket (PtT) is a lateral movement technique where the attacker extracts Kerberos
 tickets from one machine and injects them into another session. Unlike
 [Pass-the-Key](pass-the-key.md), the attacker does not need the user's password or encryption
-key -- just the ticket and the session key cached with it. A stolen TGT grants access to any service in the domain;
+key - just the ticket and the session key cached with it. A stolen TGT grants access to any service in the domain;
 a stolen service ticket is limited to the specific service it was issued for.
 
 ---
@@ -46,7 +46,7 @@ outside the encrypted `EncTicketPart`
 ([RFC 4120 &sect;5.3](https://datatracker.ietf.org/doc/html/rfc4120#section-5.3)), and none of the
 PAC signatures covers it. Whoever holds the ticket can rewrite the service class (e.g., change
 `HTTP/host` to `CIFS/host`) without knowing any key, and the ticket still decrypts.
-This is practical when both services run under the same account -- see
+This is practical when both services run under the same account - see
 [SPN-jacking](../delegation/spn-jacking.md) for details on SPN substitution.
 
 ### Ticket Lifetime and Revocation
@@ -57,7 +57,7 @@ lifetime in Active Directory is **10 hours**, with a maximum renewal period of *
 !!! warning "Kerberos tickets cannot be revoked"
     There is no mechanism in the Kerberos protocol to invalidate an individual ticket before its
     expiration time. The only way to invalidate all outstanding TGTs in a domain is to rotate
-    the `krbtgt` password twice (see [Golden Ticket -- Defend](../forgery/golden-ticket.md#krbtgt-password-rotation)).
+    the `krbtgt` password twice (see [Golden Ticket - Defend](../forgery/golden-ticket.md#krbtgt-password-rotation)).
     For service tickets, rotating the user service account's password invalidates outstanding tickets
     for that service.
 
@@ -65,7 +65,7 @@ lifetime in Active Directory is **10 hours**, with a maximum renewal period of *
 
 On Linux and macOS, the equivalent technique is sometimes called **Pass-the-Cache** because the
 attacker steals the ccache file rather than extracting from process memory. The mechanics are
-identical -- only the extraction method differs.
+identical - only the extraction method differs.
 
 ### Ticket Format Conversion
 
@@ -181,7 +181,7 @@ Both events are logged on domain controllers only: 4768 needs **Audit Kerberos A
 Service** and 4769 needs **Audit Kerberos Service Ticket Operations** (see
 [Kerberos Auditing Policies](../../security/group-policy.md#kerberos-auditing-policies)).
 
-### Event ID 4768 -- TGT from Unexpected Source
+### Event ID 4768 - TGT from Unexpected Source
 
 A TGT request (Event 4768) followed by TGS requests (Event 4769) from a **different IP address**
 indicates the TGT was moved to another machine:

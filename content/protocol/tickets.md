@@ -1,5 +1,5 @@
 ---
-description: What is inside a Kerberos ticket in Active Directory -- the ASN.1 structure, ticket flags, the PAC and its four signatures, klist output, and ticket lifetimes.
+description: What is inside a Kerberos ticket in Active Directory - the ASN.1 structure, ticket flags, the PAC and its four signatures, klist output, and ticket lifetimes.
 ---
 
 # Ticket Structure
@@ -7,8 +7,8 @@ description: What is inside a Kerberos ticket in Active Directory -- the ASN.1 s
 What is inside a Kerberos ticket and what each field means.
 
 Kerberos tickets are the core data structure of the protocol. Every authentication decision
-ultimately depends on what is inside a ticket. There are two types -- the **Ticket-Granting Ticket
-(TGT)** and the **Service Ticket** -- but they share the same internal structure. The difference is
+ultimately depends on what is inside a ticket. There are two types - the **Ticket-Granting Ticket
+(TGT)** and the **Service Ticket** - but they share the same internal structure. The difference is
 which key encrypts them and which service they are for.
 
 ---
@@ -25,7 +25,7 @@ which key encrypts them and which service they are for.
 
 !!! info "Same structure, different keys"
     A TGT is technically just a service ticket for the `krbtgt` service. The KDC treats the TGT
-    the same way any service treats its own service ticket -- it decrypts it with its own key and
+    the same way any service treats its own service ticket - it decrypts it with its own key and
     trusts the contents.
 
 The table describes the TGT a client obtains for its own realm. A cross-realm (referral) TGT is
@@ -53,7 +53,7 @@ Ticket ::= [APPLICATION 1] SEQUENCE {
 |---|---|
 | `tkt-vno` | Version number. Always `5` for Kerberos V5. |
 | `realm` | The realm (domain) that issued the ticket. Also identifies the server's realm. |
-| `sname` | Server name -- the principal name of the service. For a TGT this is `krbtgt/CORP.LOCAL`. For a service ticket this is the SPN, such as `HTTP/web.corp.local`. |
+| `sname` | Server name - the principal name of the service. For a TGT this is `krbtgt/CORP.LOCAL`. For a service ticket this is the SPN, such as `HTTP/web.corp.local`. |
 | `enc-part` | The encrypted portion containing all the actual ticket data. Only the service (or KDC for TGTs) can decrypt this. |
 
 The `realm` and `sname` fields are in cleartext. Anyone observing network traffic can see which
@@ -61,7 +61,7 @@ service a ticket is for. The sensitive data is all inside `enc-part`.
 
 ---
 
-## EncTicketPart -- The Encrypted Contents
+## EncTicketPart - The Encrypted Contents
 
 The encrypted portion of the ticket is where all the important data lives. Its definition, from [RFC 4120 &sect;5.3](https://datatracker.ietf.org/doc/html/rfc4120#section-5.3), is:
 
@@ -99,7 +99,7 @@ EncTicketPart ::= [APPLICATION 3] SEQUENCE {
 
 `transited`
 :   Records which intermediate realms were traversed during [cross-realm
-    authentication](cross-realm.md). RFC 4120 intends it for policy checking -- a service can
+    authentication](cross-realm.md). RFC 4120 intends it for policy checking - a service can
     reject tickets that passed through realms it does not trust. Active Directory does not use
     it that way: per [MS-KILE &sect;3.1.5.4](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/de260077-1955-447c-a120-af834afe45c2), "KILE does not check for transited domains on
     servers or a KDC."
@@ -141,7 +141,7 @@ means:
 | 1 | `FORWARDABLE` | The TGS is allowed to issue a new TGT with a different network address based on this ticket. Enables [delegation](delegation.md) scenarios where a service needs to act on the user's behalf from a different host. |
 | 2 | `FORWARDED` | This ticket has been forwarded, or was issued based on a forwarded TGT. A service can check this flag to detect that delegation occurred. |
 | 3 | `PROXIABLE` | The TGS is allowed to issue a service ticket (not a TGT) with a different network address. Similar to FORWARDABLE, but applies only to service tickets, not TGTs. |
-| 4 | `PROXY` | This ticket is a proxy ticket -- it was issued with a different address than the original. |
+| 4 | `PROXY` | This ticket is a proxy ticket - it was issued with a different address than the original. |
 | 5 | `MAY-POSTDATE` | The TGS is allowed to issue a postdated ticket based on this TGT. Postdated tickets have a future `starttime`. Bits 5 to 7 are RFC 4120 features that Active Directory does not offer: per [MS-KILE &sect;3.1.5.4](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/de260077-1955-447c-a120-af834afe45c2), "Postdated tickets are not supported in KILE." |
 | 6 | `POSTDATED` | This ticket has a `starttime` in the future. It was postdated at issuance. |
 | 7 | `INVALID` | This ticket is not yet valid and must be validated by the KDC before use. Postdated tickets start in this state. Application servers must reject tickets with this flag set. |
@@ -166,13 +166,13 @@ In practice, you will see these flag combinations most often:
 
 ---
 
-## PAC -- Privilege Attribute Certificate { #pac }
+## PAC - Privilege Attribute Certificate { #pac }
 
 The PAC is a Microsoft extension defined in [MS-PAC](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/166d8064-c863-41e1-9c23-edaaa5f36962) that carries Windows authorization data
 inside Kerberos tickets. It lives in the `authorization-data` field of the `EncTicketPart`.
 
-Standard Kerberos (RFC 4120) is an **authentication** protocol -- it proves who you are. It does
-not handle **authorization** -- determining what you are allowed to do. Microsoft solved this by
+Standard Kerberos (RFC 4120) is an **authentication** protocol - it proves who you are. It does
+not handle **authorization** - determining what you are allowed to do. Microsoft solved this by
 embedding authorization data directly in the ticket through the PAC.
 
 !!! info "Why the PAC matters"
@@ -217,7 +217,7 @@ define each of the four:
 | Extended KDC signature ([MS-PAC &sect;2.8.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/9cf6f6ad-6b76-44b3-aefa-901aa1ff5a08)) | `0x13` | `krbtgt` key | The entire PAC | The KDC |
 
 The ticket signature and the extended KDC signature are added to tickets that are **not**
-encrypted with the `krbtgt` key or a trust key -- that is, to service tickets. A TGT carries only
+encrypted with the `krbtgt` key or a trust key - that is, to service tickets. A TGT carries only
 the server and KDC signatures, both made with the `krbtgt` key.
 
 The two newer signatures close specific gaps. The original KDC signature covers only the server
@@ -233,8 +233,8 @@ the whole PAC.
     is the **server signature**. The other three need the `krbtgt` key, which means a domain
     controller has to do the checking.
 
-    Windows has a mechanism for that -- PAC validation, in which the server sends the PAC
-    signatures to a domain controller over Netlogon -- but it is the exception, not the rule. Per
+    Windows has a mechanism for that - PAC validation, in which the server sends the PAC
+    signatures to a domain controller over Netlogon - but it is the exception, not the rule. Per
     [Microsoft's description of the feature](https://learn.microsoft.com/en-us/archive/blogs/openspecification/understanding-microsoft-kerberos-pac-validation),
     PAC validation is skipped when the service runs as Local System, Network Service, or Local
     Service, or holds `SeTcbPrivilege` ("Act as part of the operating system"). That covers the
@@ -251,8 +251,8 @@ the whole PAC.
     of `SeTcbPrivilege`.
 
     The consequence: an attacker who knows a service's long-term key can forge a ticket to that
-    service with a PAC of their choosing and a valid server signature -- a
-    [Silver Ticket](../attacks/forgery/silver-ticket.md) -- and a service that does not ask a
+    service with a PAC of their choosing and a valid server signature - a
+    [Silver Ticket](../attacks/forgery/silver-ticket.md) - and a service that does not ask a
     domain controller will accept it. The `krbtgt`-keyed signatures only stop the forgery when
     something that holds the `krbtgt` key looks at the ticket.
 
@@ -268,17 +268,17 @@ KDC copies the group SIDs from the TGT's PAC into the service ticket's PAC and a
 domain-local groups of the service's domain ([MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39)). A change to a user's group
 membership therefore takes effect when the user obtains a new TGT, not before.
 
-### KERB_VALIDATION_INFO -- The Authorization Payload
+### KERB_VALIDATION_INFO - The Authorization Payload
 
 The `KERB_VALIDATION_INFO` structure is the most important part of the PAC. It contains
 everything Windows needs to build an access token:
 
-- **User SID** -- e.g., `S-1-5-21-<domain>-1013` (alice's unique security identifier)
-- **Primary Group SID** -- e.g., `S-1-5-21-<domain>-513` (Domain Users)
-- **Group SIDs** -- list of all security groups the user belongs to
-- **Extra SIDs** -- additional SIDs from other domains (used in cross-realm scenarios)
-- **User Account Control flags** -- account status (enabled, locked, password expired, etc.)
-- **Logon information** -- logon time, logon count, bad password count, password last set
+- **User SID** - e.g., `S-1-5-21-<domain>-1013` (alice's unique security identifier)
+- **Primary Group SID** - e.g., `S-1-5-21-<domain>-513` (Domain Users)
+- **Group SIDs** - list of all security groups the user belongs to
+- **Extra SIDs** - additional SIDs from other domains (used in cross-realm scenarios)
+- **User Account Control flags** - account status (enabled, locked, password expired, etc.)
+- **Logon information** - logon time, logon count, bad password count, password last set
 
 When a Windows service receives a ticket, it reads the `KERB_VALIDATION_INFO` from the PAC and
 constructs a Windows access token. This token is then used for all authorization decisions (file

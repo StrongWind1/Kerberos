@@ -8,7 +8,7 @@ AS-REP Roasting targets Active Directory accounts that have Kerberos pre-authent
 
 In a standard [AS Exchange](../../protocol/as-exchange.md), the client must prove knowledge of its password by encrypting a timestamp with its long-term key (the `PA-ENC-TIMESTAMP` pre-authentication data). The KDC decrypts this timestamp to verify the client's identity before issuing a TGT.
 
-However, when an account has the `DONT_REQUIRE_PREAUTH` flag set (UserAccountControl bit `0x400000`), the KDC skips this verification. It accepts a bare AS-REQ -- one with no pre-authentication data -- and returns a full AS-REP containing:
+However, when an account has the `DONT_REQUIRE_PREAUTH` flag set (UserAccountControl bit `0x400000`), the KDC skips this verification. It accepts a bare AS-REQ - one with no pre-authentication data - and returns a full AS-REP containing:
 
 - A **TGT** encrypted with the krbtgt key (not useful for cracking)
 - An **enc-part** outside the ticket, encrypted with the target user's long-term key
@@ -41,7 +41,7 @@ sequenceDiagram
 
 ### Encryption Type Downgrade
 
-When sending the AS-REQ, the attacker controls the `etype` field and can request RC4-HMAC (etype 23) as the only supported type. The KDC encrypts the AS-REP `enc-part` using the strongest etype from the **client's list** that the account has a key for -- and since AD always generates RC4 keys on password change, an RC4 key almost always exists.  Unlike TGS-REP (where `msDS-SupportedEncryptionTypes` controls the ticket etype), **the AS-REP `enc-part` etype is driven by the client's request and the account's available keys, not by `msDS-SupportedEncryptionTypes`.**  Setting `msDS-SupportedEncryptionTypes = 0x18` on the account does not prevent RC4 AS-REP roasting.
+When sending the AS-REQ, the attacker controls the `etype` field and can request RC4-HMAC (etype 23) as the only supported type. The KDC encrypts the AS-REP `enc-part` using the strongest etype from the **client's list** that the account has a key for - and since AD always generates RC4 keys on password change, an RC4 key almost always exists.  Unlike TGS-REP (where `msDS-SupportedEncryptionTypes` controls the ticket etype), **the AS-REP `enc-part` etype is driven by the client's request and the account's available keys, not by `msDS-SupportedEncryptionTypes`.**  Setting `msDS-SupportedEncryptionTypes = 0x18` on the account does not prevent RC4 AS-REP roasting.
 
 Protected Users membership should not be relied on to close this. Microsoft documents the domain controller side of that protection as members being unable to "use DES or RC4 encryption types in Kerberos preauthentication" ([Protected Users security group](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group)), and an account with `DONT_REQUIRE_PREAUTH` has no pre-authentication step for that rule to act on. Whether a domain controller still encrypts the AS-REP with RC4 for a Protected Users member that has the flag set has not been tested in this site's lab. The November 2022 update ([KB5021131](https://support.microsoft.com/help/5021131), CVE-2022-37966) changed the session key default and says nothing about Protected Users or no-preauth replies. What the lab did show: on Server 2022 build 20348.5020, which enforces the April 2026 default, an AS-REP roast of a `DONT_REQUIRE_PREAUTH` account still returned an RC4 reply, because that enforcement applies to service tickets only. The lab notes do not record that account as a Protected Users member.
 
@@ -165,7 +165,7 @@ For each vulnerable account, construct an AS-REQ with:
 
 ### 3. Extract Encrypted Material
 
-Parse the AS-REP and extract the outer `enc-part` -- the portion encrypted with the user's key. This is distinct from the TGT itself (which is encrypted with the krbtgt key and not crackable).
+Parse the AS-REP and extract the outer `enc-part` - the portion encrypted with the user's key. This is distinct from the TGT itself (which is encrypted with the krbtgt key and not crackable).
 
 ### 4. Format and Crack
 
@@ -205,7 +205,7 @@ Sends an AS-REQ for `jsmith` without pre-authentication. If the account has `DON
 kw-asrep -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin -p '<password>' --ldap
 ```
 
-Authenticates to LDAP, queries for all accounts with `DONT_REQUIRE_PREAUTH` set, and roasts each one. Domain credentials are only needed for the LDAP query -- the actual AS-REQ attack requires no credentials.
+Authenticates to LDAP, queries for all accounts with `DONT_REQUIRE_PREAUTH` set, and roasts each one. Domain credentials are only needed for the LDAP query - the actual AS-REQ attack requires no credentials.
 
 #### Username List with RC4 Request
 

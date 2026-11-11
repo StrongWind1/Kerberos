@@ -3,7 +3,7 @@
 What we learned from ~80 registry tests, etype matrix tests, and Windows client
 validation against Server 2022 (Build 20348, April 2026 CU).
 
-> **Note added 2026-11-10 — build and KB labels.**  These notes call the enforcing update
+> **Note added 2026-11-10 - build and KB labels.**  These notes call the enforcing update
 > "KB5078763" and a later retest build "KB5082137+".  Neither number resolves on Microsoft
 > Support.  Microsoft's Server 2022 update history lists 20348.4893 as KB5078766 (10 March
 > 2026, not enforcing) and 20348.5020 as **KB5082142 (14 April 2026)**, the update that
@@ -51,7 +51,7 @@ immediately.
 
 **Mechanism 2: Etype filter (SupportedEncryptionTypes at Pol or Lsa)**
 Filters what the KDC will actually issue. Overrides mechanism 1 for ticket
-issuance -- does not intersect with it. Requires KDC restart. Also affects
+issuance - does not intersect with it. Requires KDC restart. Also affects
 pre-auth (AS exchange), not just service tickets.
 
 When they disagree: Pol=24 (AES) + DDSET default 0x27 (RC4) = AES ticket,
@@ -127,7 +127,7 @@ the client/KDC intersection, independent of the target's declaration.
 
 **Claimed (unsourced):** Starting with Server 2025, Kerberos no longer honors the Lsa path.
 
-**Actual (2x2 lab test 2026-06-26):** Server 2022 (20348.5020) honors **both** the Policies and Lsa paths as KDC etype filters -- an RC4-only value at either path forced an AES-only account to `KDC_ERR_ETYPE_NOSUPP`. Server 2025 (26100.32522) honors the **Lsa** path and **ignores** the Policies path -- the reverse of the claim. The "2025 drops Lsa" assertion had no KB/spec source and is refuted. (KDC restart required either way.)
+**Actual (2x2 lab test 2026-06-26):** Server 2022 (20348.5020) honors **both** the Policies and Lsa paths as KDC etype filters - an RC4-only value at either path forced an AES-only account to `KDC_ERR_ETYPE_NOSUPP`. Server 2025 (26100.32522) honors the **Lsa** path and **ignores** the Policies path - the reverse of the claim. The "2025 drops Lsa" assertion had no KB/spec source and is refuted. (KDC restart required either way.)
 
 ### 6. SupportedEncryptionTypes filter requires KDC restart
 
@@ -139,7 +139,7 @@ GPO but nothing happened."
 
 ### 7. SupportedEncryptionTypes filter blocks pre-auth too
 
-**Not documented.** The filter doesn't just control TGS ticket issuance -- it
+**Not documented.** The filter doesn't just control TGS ticket issuance - it
 also restricts what etypes the KDC will accept for AS exchange pre-auth.
 Setting Pol=24 (AES only) blocked new Windows logon sessions that relied on
 RC4 pre-auth. Confirmed when a scheduled task running as a domain user
@@ -150,7 +150,7 @@ failed to authenticate after the filter was applied.
 ## What was correct (confirmed by testing)
 
 - DDSET immediate effect, no restart needed
-- DDSET fallback behavior (substituted when msDS-SET=0) — **caveat: see April 2026 correction below**
+- DDSET fallback behavior (substituted when msDS-SET=0) - **caveat: see April 2026 correction below**
 - Explicit msDS-SET always overrides DDSET
 - KDC picks strongest etype from the computed set (default behavior)
 - GPO writes SupportedEncryptionTypes not DDSET
@@ -159,16 +159,16 @@ failed to authenticate after the filter was applied.
 - Protected Users doesn't affect service ticket encryption
 - TGT always AES256 on modern DCs (DFL >= 2008)
 - Client etype preference doesn't affect ticket etype (when KdcUseReq=0)
-- USE_DES_KEY_ONLY causes failure on Server 2022 (DES disabled)
-  — **superseded 2026-06-26**: on build 20348.5020 the flag forced a DES ticket (4769
+- USE_DES_KEY_ONLY causes failure on Server 2022 (DES disabled) -
+  **superseded 2026-06-26**: on build 20348.5020 the flag forced a DES ticket (4769
   ticket=0x3, ServiceSET=0x3); see `lab-verify-2026-06-26.md` round 3, claim C10.
-- AES-SK split: RC4 ticket + AES256 session key for msDS-SET=0 accounts — **caveat: enforcement blocks RC4 for msDS-SET=0 after April 2026 patch**
+- AES-SK split: RC4 ticket + AES256 session key for msDS-SET=0 accounts - **caveat: enforcement blocks RC4 for msDS-SET=0 after April 2026 patch**
 
 ### 8. Empty etype intersection produces KRB_ERROR
 
 When the client's etype list and the target's supported etypes have no
 overlap, the KDC returns KDC_ERR_ETYPE_NOSUPP. This is the expected
-failure mode -- not a silent fallback:
+failure mode - not a silent fallback:
 - svc_check_02 (msDS-SET=4, RC4 only) with client requesting only AES256: FAIL
 - svc_check_05 (msDS-SET=8, AES128 only) with client requesting only AES256: FAIL
 
@@ -181,7 +181,7 @@ The April 2026 CU introduces Kdcsvc events in the System log.
 > **Correction added 2026-11-10.**  Per Microsoft's KB5073381 the Kdcsvc 201-209 events were
 > introduced by the **January** 2026 updates, not the April one.  Per the same KB, 205 is
 > logged at KDC start when an explicit DDSET includes anything other than AES-SHA1.
-Updated after April 2026 patch validation (2026-04-14) — see `april-2026-findings.md` for full event text.
+Updated after April 2026 patch validation (2026-04-14) - see `april-2026-findings.md` for full event text.
 
 | Event | Phase | Trigger | Type | Notes |
 |-------|-------|---------|------|-------|
@@ -199,7 +199,7 @@ Events 202, 204, 206, 207, 209 not triggered in either testing session.
 
 > **Status update 2026-06-26 / 2026-11-10.**  Two rows below were tested later
 > (`lab-verify-2026-06-26.md`): the Server 2025 Lsa-path claim was refuted on build
-> 26100.32522 (rounds 3-4: Lsa honoured, Policies ignored — note that build is the March 2026
+> 26100.32522 (rounds 3-4: Lsa honoured, Policies ignored - note that build is the March 2026
 > update and Microsoft's April update KB5082063 mentions a policy-reading fix, not retested),
 > and "msDS-SET=0x18 without AES keys" was confirmed as NOSUPP (round 4).  The July 2026 row
 > is **still untested** as of 2026-11-10.  Server 2025 default DDSET, dMSA defaults and DES
@@ -237,9 +237,9 @@ Events 202, 204, 206, 207, 209 not triggered in either testing session.
 | Event | Log | What to watch for |
 |-------|-----|-------------------|
 | 4769 | Security | Ticket Encryption Type: 0x17 = RC4, 0x12 = AES256 |
-| 205 | System (Kdcsvc) | KDC start with RC4 in DDSET -- investigate |
-| 206 | System (Kdcsvc) | Service is AES but client lacks AES -- upgrade client |
-| 201-204 | System (Kdcsvc) | RC4 audit events -- identify accounts needing msDS-SET |
+| 205 | System (Kdcsvc) | KDC start with RC4 in DDSET - investigate |
+| 206 | System (Kdcsvc) | Service is AES but client lacks AES - upgrade client |
+| 201-204 | System (Kdcsvc) | RC4 audit events - identify accounts needing msDS-SET |
 
 ### Recommended DDSET values
 
@@ -249,7 +249,7 @@ Events 202, 204, 206, 207, 209 not triggered in either testing session.
 | 56 | 0x38 | AES128 + AES256 + AES-SK (new deployments) |
 | 60 | 0x3C | RC4 + AES + AES-SK (transitional only) |
 
-Do NOT use 0x27 (39) or 0x24 (36) -- both include RC4 in the ticket etype set.
+Do NOT use 0x27 (39) or 0x24 (36) - both include RC4 in the ticket etype set.
 
 ---
 
@@ -260,7 +260,7 @@ Do NOT use 0x27 (39) or 0x24 (36) -- both include RC4 in the ticket etype set.
 The April 2026 CU (KB5078763) enables enforcement by default. After installing
 the patch, the KDC blocks RC4 for accounts with no `msDS-SupportedEncryptionTypes`
 set (blank or 0). The `RC4DefaultDisablementPhase` key is absent by default,
-which means enforcement is active — Phase=absent == Phase=2.
+which means enforcement is active - Phase=absent == Phase=2.
 
 Corrected behavior:
 
@@ -271,7 +271,7 @@ Corrected behavior:
 | 1 (audit) | ALLOWED | 0x27 (old RC4-inclusive) |
 | 2 | BLOCKED (same as absent) | 0x18 (AES-only) |
 
-Setting Phase=2 does not enable enforcement — it's already on. Phase=0 is the
+Setting Phase=2 does not enable enforcement - it's already on. Phase=0 is the
 rollback (allowed until July 2026). Phase=1 is audit-only (RC4 allowed, events logged).
 
 **Correction (2026-04-25):** retesting on KB5082137+ confirmed that an explicit DDSET overrides the enforcement default.  Setting DDSET=4 re-enables RC4 for blank/0 accounts, matching KB5073381's documented behavior.  The earlier finding that enforcement overrides DDSET was incorrect.
@@ -286,7 +286,7 @@ The enforcement only applies to accounts with no configuration (blank or 0).
 ### PSKerb module (Kerberos-Crypto repo)
 
 PSKerb reads/writes the Pol path only. It describes itself as a "Windows
-Kerberos client" tool, which is accurate -- the Pol path is where client
+Kerberos client" tool, which is accurate - the Pol path is where client
 config lives. It doesn't cover KDC-side keys (DDSET, KdcUseReq,
 RC4DefaultDisablementPhase) because those live at different registry paths
 and are not client settings. PSKerb is not wrong, just different scope.

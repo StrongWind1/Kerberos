@@ -5,8 +5,8 @@
     Pester tests for scripts/Get-KdcKerberosRegistryAudit.ps1.
 
     The script is dot-sourced, which defines its functions and policy without discovering or
-    reading anything. Every scenario then feeds fixture records -- the same flat shape the
-    registry reader returns from a DC -- to ConvertTo-KdcAuditResult, the pure core that the
+    reading anything. Every scenario then feeds fixture records - the same flat shape the
+    registry reader returns from a DC - to ConvertTo-KdcAuditResult, the pure core that the
     text report, the HTML report, -PassThru and the exit code are all rendered from. Nothing
     here needs Windows, Active Directory or WinRM, so the suite runs on any PowerShell.
 

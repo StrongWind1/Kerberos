@@ -1,10 +1,10 @@
 ---
-description: How Kerberos names users, computers, and services in Active Directory -- principal name format, realms, sAMAccountName and UPN, computer accounts, and Service Principal Names.
+description: How Kerberos names users, computers, and services in Active Directory - principal name format, realms, sAMAccountName and UPN, computer accounts, and Service Principal Names.
 ---
 
 # Principals and Realms
 
-Every participant in a Kerberos exchange -- whether a user, a computer, or a service -- needs a unique identity. Kerberos calls these identities **principals**. Principals live inside administrative boundaries called **realms**. This page explains how naming works and how Active Directory maps its own naming conventions onto the Kerberos model.
+Every participant in a Kerberos exchange - whether a user, a computer, or a service - needs a unique identity. Kerberos calls these identities **principals**. Principals live inside administrative boundaries called **realms**. This page explains how naming works and how Active Directory maps its own naming conventions onto the Kerberos model.
 
 ---
 
@@ -103,7 +103,7 @@ sAMAccountName@DnsDomainName
 This is called the **implicit UPN**. For example, if Alice's sAMAccountName is `alice` and she is in the domain `corp.local`, she can log in as `alice@corp.local` regardless of whether an explicit UPN is configured.
 
 !!! tip "What Kerberos actually uses"
-    No matter which login format you type -- `CORP\alice`, `alice@corp.local`, or a custom UPN like `alice@contoso.com` -- the TGT that comes back always contains the **sAMAccountName** as the client name and the **DNS domain name** (uppercase) as the realm. The login name is resolved to these canonical values during the AS exchange.
+    No matter which login format you type - `CORP\alice`, `alice@corp.local`, or a custom UPN like `alice@contoso.com` - the TGT that comes back always contains the **sAMAccountName** as the client name and the **DNS domain name** (uppercase) as the realm. The login name is resolved to these canonical values during the AS exchange.
 
 ### Other Name Forms
 
@@ -125,7 +125,7 @@ Computer account naming:
 - The computer has a password (a long, randomly generated string that the machine manages automatically, rotating every 30 days by default)
 - The computer authenticates to the KDC using this password-derived key, just like a user does
 
-When a computer boots and joins the network, it performs an AS exchange to get its own TGT -- exactly the same process a user goes through at login.
+When a computer boots and joins the network, it performs an AS exchange to get its own TGT - exactly the same process a user goes through at login.
 
 ---
 
@@ -169,7 +169,7 @@ Windows automatically registers SPNs for standard services. These are mapped thr
 | `krbtgt` | Ticket-Granting Service | Special SPN for the KDC itself |
 
 !!! info "HOST is a catch-all"
-    When a computer joins the domain, Windows registers `HOST/<hostname>` and `HOST/<fqdn>` on the computer account. The forest-wide `sPNMappings` attribute (on the `CN=Directory Service` object in the configuration partition) maps HOST to a long list of service classes such as `cifs`, `http`, `www`, `dns`, `rpcss`, and `spooler`, so a single HOST registration covers many standard services. Microsoft's [`setspn` reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/setspn) lists the 52 built-in service classes and notes that "a host SPN can substitute for any of the mentioned SPNs". Service classes that are **not** in the default mapping -- `ldap`, `TERMSRV`, `WSMAN`, `MSSQLSvc`, and others -- are registered as SPNs in their own right, either by the service itself or by an administrator. You also need explicit SPNs for services running under a different account.
+    When a computer joins the domain, Windows registers `HOST/<hostname>` and `HOST/<fqdn>` on the computer account. The forest-wide `sPNMappings` attribute (on the `CN=Directory Service` object in the configuration partition) maps HOST to a long list of service classes such as `cifs`, `http`, `www`, `dns`, `rpcss`, and `spooler`, so a single HOST registration covers many standard services. Microsoft's [`setspn` reference](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/setspn) lists the 52 built-in service classes and notes that "a host SPN can substitute for any of the mentioned SPNs". Service classes that are **not** in the default mapping - `ldap`, `TERMSRV`, `WSMAN`, `MSSQLSvc`, and others - are registered as SPNs in their own right, either by the service itself or by an administrator. You also need explicit SPNs for services running under a different account.
 
 ### Where SPNs Are Stored
 
@@ -209,15 +209,15 @@ setspn -D HTTP/web.corp.local corp\webserver
 
 Five Active Directory object types can have `servicePrincipalName` registered:
 
-- **User service accounts** (`user`, objectCategory=person) — manually registered SPNs,
+- **User service accounts** (`user`, objectCategory=person) - manually registered SPNs,
   human-set passwords; the primary Kerberoasting target.
-- **Computer accounts** (`computer`) — SPNs registered automatically at domain join;
+- **Computer accounts** (`computer`) - SPNs registered automatically at domain join;
   passwords auto-rotate every 30 days.
-- **gMSA** (`msDS-GroupManagedServiceAccount`) — explicitly registered SPNs;
+- **gMSA** (`msDS-GroupManagedServiceAccount`) - explicitly registered SPNs;
   240-byte randomly generated, auto-rotating password.
-- **MSA** (`msDS-ManagedServiceAccount`) — explicitly registered SPNs; auto-rotating
+- **MSA** (`msDS-ManagedServiceAccount`) - explicitly registered SPNs; auto-rotating
   password.
-- **dMSA** (`msDS-DelegatedManagedServiceAccount`, Server 2025+) — explicitly registered
+- **dMSA** (`msDS-DelegatedManagedServiceAccount`, Server 2025+) - explicitly registered
   SPNs; auto-rotating password.
 
 For the full table of defaults, targets, and GPO coverage per type, see
@@ -235,6 +235,6 @@ For the full table of defaults, targets, and GPO coverage per type, see
 - Whatever logon name a user types, the ticket carries the sAMAccountName and the realm
 - Computers are principals too: they hold a password-derived key and obtain their own TGT
 - An SPN maps a service request to the account whose key encrypts the service ticket; it must be unique in the forest
-- SPNs live on the account the service runs as -- the computer account, a managed service account, or a user account
+- SPNs live on the account the service runs as - the computer account, a managed service account, or a user account
 
 Next: [Protocol Overview](overview.md), the three exchanges and the keys that tie them together.

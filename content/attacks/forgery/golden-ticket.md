@@ -22,7 +22,7 @@ During the [TGS Exchange](../../protocol/tgs-exchange.md), the client presents a
 The KDC decrypts the TGT using the `krbtgt` account's key, reads the
 [PAC](../../protocol/tickets.md#pac), and uses the PAC contents to build service tickets. The KDC
 trusts the decrypted PAC contents without cross-referencing them against the Active Directory
-database -- with one exception: per [MS-KILE &sect;3.3.5.7.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/e19be8b8-9130-40a4-9cd1-92d0cbd46a51), TGTs older than 20 minutes trigger
+database - with one exception: per [MS-KILE &sect;3.3.5.7.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/e19be8b8-9130-40a4-9cd1-92d0cbd46a51), TGTs older than 20 minutes trigger
 an account-revocation check (disabled, expired, locked, outside logon hours) against AD.
 
 !!! note "What the later PAC hardening does and does not check"
@@ -112,7 +112,7 @@ Get-ADUser krbtgt -Properties PasswordLastSet | Select-Object PasswordLastSet
 
 ### Restrict DCSync Privileges
 
-The `krbtgt` hash is most commonly obtained through DCSync -- replicating credentials from a
+The `krbtgt` hash is most commonly obtained through DCSync - replicating credentials from a
 domain controller over the network. Only these principals should have the
 `Replicating Directory Changes All` permission:
 
@@ -144,7 +144,7 @@ controller, which checks them with the `krbtgt` key. Service tickets obtained wi
 Ticket are issued by the real KDC, which signs their PACs itself, so the check passes. The
 check is also skipped altogether for services that run as Local System, Network Service, or
 Local Service, or that hold `SeTcbPrivilege`, whatever the registry value says (see
-[Silver Ticket -- Defend](silver-ticket.md#enable-pac-validation)).
+[Silver Ticket - Defend](silver-ticket.md#enable-pac-validation)).
 
 The checks that do bear on forged TGTs run on the KDC and arrive with updates, not settings:
 see the [PAC hardening timeline](../../protocol/tickets.md#pac-hardening-timeline), and keep
@@ -163,7 +163,7 @@ A Golden Ticket is used directly in a TGS-REQ without a preceding AS-REQ. Look f
 
 - **Event 4769** (TGS request) for a user **without** a matching **Event 4768** (TGT request)
   from the same user in the expected timeframe
-- This requires correlating 4768 and 4769 events -- a missing 4768 before a 4769 is suspicious
+- This requires correlating 4768 and 4769 events - a missing 4768 before a 4769 is suspicious
 
 A missing 4768 is a lead, not proof, and a raw query for it also matches normal activity.
 Event 4768 is written once, when the TGT is issued, and only on the domain controller
@@ -213,7 +213,7 @@ Active Directory. Custom SIEM rules can look for:
   domain where every DC is updated both warrant a look
 - TGS requests with anomalous KDC options (the `Ticket Options` field) or encryption types
 
-!!! info "Detection is hard -- but improving"
+!!! info "Detection is hard - but improving"
     Because the Golden Ticket is encrypted with the real `krbtgt` key, the cryptographic
     validation at the KDC succeeds. Detection must focus on metadata anomalies and behavioral
     analysis, not cryptographic verification.
@@ -232,13 +232,13 @@ Active Directory. Custom SIEM rules can look for:
 
 ### Prerequisites
 
-1. **KRBTGT hash** -- obtained through one of:
+1. **KRBTGT hash** - obtained through one of:
     - DCSync: `mimikatz lsadump::dcsync /user:krbtgt`
     - NTDS.dit extraction: `secretsdump.py -ntds ntds.dit -system SYSTEM LOCAL`
     - Direct domain controller compromise
-2. **Domain name** -- e.g., `CORP.LOCAL`
-3. **Domain SID** -- e.g., `S-1-5-21-1111111111-2222222222-3333333333`
-4. **Target username** -- typically `Administrator`
+2. **Domain name** - e.g., `CORP.LOCAL`
+3. **Domain SID** - e.g., `S-1-5-21-1111111111-2222222222-3333333333`
+4. **Target username** - typically `Administrator`
 
 ### Step-by-Step
 

@@ -227,7 +227,7 @@ Add-ADGroupMember -Identity "Protected Users" -Members "admin_jdoe"
 
 !!! note "Protected Users + RC4 edge case"
     Protected Users group membership overrides per-account `msDS-SupportedEncryptionTypes` for
-    the **AS exchange** -- pre-authentication and TGT encryption are forced to AES regardless of
+    the **AS exchange** - pre-authentication and TGT encryption are forced to AES regardless of
     the account's etype configuration.
 
     However, Protected Users does **not** affect service ticket encryption. A Protected Users
@@ -238,8 +238,8 @@ Add-ADGroupMember -Identity "Protected Users" -Members "admin_jdoe"
 !!! warning "Group membership changes require new tickets"
     Adding a user to Protected Users (or any AD security group) does **not** take effect in
     their existing Kerberos tickets.  The user's cached TGT still contains the old group
-    membership in its PAC.  The user must log out and log back in -- or run `klist purge` and
-    re-authenticate -- for the new group membership to appear in fresh tickets.
+    membership in its PAC.  The user must log out and log back in - or run `klist purge` and
+    re-authenticate - for the new group membership to appear in fresh tickets.
 
     This is a common gotcha when implementing hardening: you add an account to Protected Users,
     but the protections (no NTLM, no delegation, 4-hour TGT, AES-only) do not activate until
@@ -492,7 +492,7 @@ immediately: every TGT still in use would become invalid at once.
 !!! note "AzureADKerberos (Entra Cloud Kerberos Trust)"
     If your domain uses Azure AD / Entra Cloud Kerberos Trust, there will be a computer
     object named `AzureADKerberos` in the Domain Controllers OU.  This is a **proxy
-    object**, not a real domain controller — exclude it from DC counts and encryption
+    object**, not a real domain controller - exclude it from DC counts and encryption
     assessments.
 
     The `AzureADKerberos` object has its own `krbtgt_AzureAD` account whose keys are

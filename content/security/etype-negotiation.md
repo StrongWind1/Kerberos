@@ -201,8 +201,8 @@ the password; see [Auditing Kerberos Keys](account-key-audit.md).
 
 ## Further Reading
 
-- [Etype Decision Guide](etype-decision-guide.md) — every input, the precedence ladder,
+- [Etype Decision Guide](etype-decision-guide.md) - every input, the precedence ladder,
   common mistakes, and worked examples with Event 4769 output.
-- [Registry Settings](registry.md) and [Registry Audit Results](registry-audit.md) — the
+- [Registry Settings](registry.md) and [Registry Audit Results](registry-audit.md) - the
   values above and the lab measurements behind them.
-- [RC4 Deprecation](rc4-deprecation.md) — the 2026 timeline and the Kdcsvc events.
+- [RC4 Deprecation](rc4-deprecation.md) - the 2026 timeline and the Kdcsvc events.

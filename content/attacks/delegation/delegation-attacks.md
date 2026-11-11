@@ -7,7 +7,7 @@ Abusing unconstrained, constrained, and resource-based constrained delegation.
 Kerberos delegation allows a service to act on behalf of a user when accessing other services.
 Active Directory implements three delegation models, each with distinct abuse patterns. All three
 share a common theme: the attacker leverages a compromised account's delegation privileges to
-impersonate other users -- often Domain Admins -- to services they could not otherwise access.
+impersonate other users - often Domain Admins - to services they could not otherwise access.
 
 For the protocol mechanics of delegation, see [Delegation](../../protocol/delegation.md).
 
@@ -34,7 +34,7 @@ their TGT in the host's LSASS memory.
 2. Extract cached TGTs from LSASS memory
 3. Use those TGTs to impersonate any user who authenticated to the host
 
-**The escalation -- authentication coercion:**
+**The escalation - authentication coercion:**
 
 Instead of waiting for a high-value user to authenticate, the attacker forces a high-privilege
 account (such as a domain controller's computer account) to authenticate to the compromised host.
@@ -93,7 +93,7 @@ has a version that excludes domain controllers by primary group.
 
 **Protect high-value accounts:**
 
-- Add Domain Admins and other sensitive accounts to the **Protected Users** group -- members
+- Add Domain Admins and other sensitive accounts to the **Protected Users** group - members
   cannot be delegated with unconstrained or constrained delegation, so the KDC does not issue
   a forwarded TGT for them and none reaches an unconstrained delegation host
 - Mark individual accounts as **"Account is sensitive and cannot be delegated"** in Active
@@ -116,7 +116,7 @@ has a version that excludes domain controllers by primary group.
 
 | Event / Signal | Description |
 |---|---|
-| `Get-ADComputer` / `Get-ADUser` with `-Filter 'TrustedForDelegation -eq $true'` | Periodic audit -- only DCs should appear |
+| `Get-ADComputer` / `Get-ADUser` with `-Filter 'TrustedForDelegation -eq $true'` | Periodic audit - only DCs should appear |
 | Event 4624 (type 3) with `Impersonation Level` = `Delegation` | Network logon to an unconstrained delegation host from a high-privilege account. Logged on the host itself (Audit Logon subcategory), not on the domain controller |
 | TGT forwarding patterns | Unusual concentration of forwarded TGTs at a single host |
 | Coercion indicators | Print Spooler RPC calls or EFSRPC calls from unexpected sources |
@@ -132,11 +132,11 @@ services are listed in the `msDS-AllowedToDelegateTo` attribute on the delegatin
 
 Two S4U (Service for User) extensions power constrained delegation:
 
-**S4U2Self** -- the service requests a service ticket to **itself** on behalf of any user, without
+**S4U2Self** - the service requests a service ticket to **itself** on behalf of any user, without
 needing that user's TGT. The KDC issues a ticket as if the user had directly requested a service
 ticket for the delegating service.
 
-**S4U2Proxy** -- the service presents the S4U2Self ticket (or a forwarded user ticket) to the KDC
+**S4U2Proxy** - the service presents the S4U2Self ticket (or a forwarded user ticket) to the KDC
 and requests a new service ticket to the target service listed in
 `msDS-AllowedToDelegateTo`. The KDC validates that the target SPN is in the allowed list
 and issues the ticket.
@@ -162,7 +162,7 @@ The `sname` field in the service ticket is **not protected** by the PAC signatur
 `msDS-AllowedToDelegateTo` constrains the S4U2Proxy exchange, but after receiving the ticket,
 the attacker can modify the `sname` to target a different service on the same host. For example,
 if `msDS-AllowedToDelegateTo` contains `HTTP/web.corp.local`, the attacker can change the SPN
-to `CIFS/web.corp.local` to access file shares -- because both services run under the same
+to `CIFS/web.corp.local` to access file shares - because both services run under the same
 computer account.
 
 !!! warning "SPN is not a security boundary"
@@ -172,13 +172,13 @@ computer account.
 
 ### Defend
 
-- **Minimize constrained delegation scope** -- only configure `msDS-AllowedToDelegateTo` where
+- **Minimize constrained delegation scope** - only configure `msDS-AllowedToDelegateTo` where
   absolutely required
 - **Monitor changes** to `msDS-AllowedToDelegateTo` (Event 5136 for directory service object
   modifications; it needs the audit settings described under [RBCD](#rbcd), Defend)
-- **Prefer RBCD** over constrained delegation where possible -- RBCD is configured on the target
+- **Prefer RBCD** over constrained delegation where possible - RBCD is configured on the target
   rather than the source, making it easier to audit and manage
-- **Use Protected Users** for sensitive accounts -- their tickets cannot be delegated. The
+- **Use Protected Users** for sensitive accounts - their tickets cannot be delegated. The
   "Account is sensitive and cannot be delegated" flag has the same effect for a single account
 
 ### Detect
@@ -201,31 +201,31 @@ using the `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute. This attribute s
 accounts are allowed to delegate to the target.
 
 The key difference for attackers: writing `msDS-AllowedToActOnBehalfOfOtherIdentity` only
-requires **write access to the target computer object** -- not Domain Admin privileges.
+requires **write access to the target computer object** - not Domain Admin privileges.
 
 **The attack flow:**
 
-1. **Identify a writable computer object** -- the attacker has write access to a computer account
+1. **Identify a writable computer object** - the attacker has write access to a computer account
    in AD (through ACL misconfiguration, account operator privileges, or creator-owner rights)
 
-2. **Create or control a computer account** -- by default, any domain user can create up to 10
+2. **Create or control a computer account** - by default, any domain user can create up to 10
    computer accounts (`ms-DS-MachineAccountQuota` default is 10)
 
     ```bash title="Create a computer account via impacket addcomputer"
     addcomputer.py 'CORP.LOCAL/jsmith:<password>' -computer-name FAKEMACHINE$ -computer-pass '<password>'
     ```
 
-3. **Configure RBCD** -- write the controlled computer account's SID to
+3. **Configure RBCD** - write the controlled computer account's SID to
    `msDS-AllowedToActOnBehalfOfOtherIdentity` on the target computer
 
     ```powershell title="Configure RBCD: allow FAKEMACHINE to delegate to TARGET"
     Set-ADComputer TARGET$ -PrincipalsAllowedToDelegateToAccount FAKEMACHINE$
     ```
 
-4. **S4U2Self** -- request a service ticket to the controlled machine on behalf of a target user
+4. **S4U2Self** - request a service ticket to the controlled machine on behalf of a target user
    (e.g., `administrator`)
 
-5. **S4U2Proxy** -- present that ticket to the KDC and request a service ticket to the target
+5. **S4U2Proxy** - present that ticket to the KDC and request a service ticket to the target
    computer's service (e.g., `CIFS/target.corp.local`)
 
 6. **Access the target** as the impersonated user
@@ -331,8 +331,8 @@ on domain controllers). Alert on unexpected computer accounts created by non-adm
 
 | Event / Signal | Description |
 |---|---|
-| Event 5136 | Directory service object modification -- filter for `msDS-AllowedToActOnBehalfOfOtherIdentity`. Logged only with Audit Directory Service Changes enabled and a SACL that audits writes to the attribute (see Defend above) |
-| Event 4741 | New computer account creation -- alert if the creator is not an expected admin |
+| Event 5136 | Directory service object modification - filter for `msDS-AllowedToActOnBehalfOfOtherIdentity`. Logged only with Audit Directory Service Changes enabled and a SACL that audits writes to the attribute (see Defend above) |
+| Event 4741 | New computer account creation - alert if the creator is not an expected admin |
 | Event 4769 with Transited Services | S4U2Proxy activity for the target computer (also `Ticket Options` bit 14, mask `0x00020000`) (bit number from MS-SFU &sect;2.2.3; Microsoft's 4769 flag table labels bit 14 "Request-anonymous"; not captured in this site's lab) |
 | New computer accounts | Unexpected accounts matching patterns like short names or unusual naming conventions |
 

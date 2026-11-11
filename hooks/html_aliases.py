@@ -1,7 +1,7 @@
 """Emit legacy ``<page>.html`` aliases beside every directory URL.
 
 This site used to build with ``use_directory_urls`` disabled. That was not a
-deliberate choice -- it is a side effect of Material's ``offline`` plugin, which
+deliberate choice - it is a side effect of Material's ``offline`` plugin, which
 forces the setting off so the docs can be browsed straight off a filesystem. The
 consequence was that every page published at ``<path>.html`` while the other nine
 sites under strongwind.dev published directory URLs, and those ``.html`` paths are
@@ -9,8 +9,8 @@ now sitting in search indexes and in other people's links.
 
 Dropping ``offline`` puts this site on directory URLs like its siblings. To avoid
 404ing the old paths, this hook writes a small redirect stub at each one after the
-build. GitHub Pages serves static files only -- there is no server-side redirect to
-reach for -- so an instant client-side redirect plus a canonical link is the
+build. GitHub Pages serves static files only - there is no server-side redirect to
+reach for - so an instant client-side redirect plus a canonical link is the
 strongest signal available. Google treats an instant meta refresh as a permanent
 redirect.
 
@@ -18,7 +18,7 @@ The stub redirects from script first, because only script can see the rest of th
 address: ``location.replace`` carries the query string and the fragment across, so an
 old deep link such as ``rc4-deprecation.html#timeline`` or a shared calculator link
 (``etype-calculator.html?setting=msds&value=0x1C``) still lands where it pointed. A
-meta refresh cannot do that -- its target is fixed text -- so it is kept only as the
+meta refresh cannot do that - its target is fixed text - so it is kept only as the
 fallback for readers and crawlers without script, inside ``<noscript>``; left outside,
 it would race the script and could win, dropping the fragment again.
 
@@ -80,7 +80,7 @@ def on_post_build(config: MkDocsConfig, **kwargs: Any) -> None:  # noqa: ARG001
         if page_dir == site_dir:
             continue
 
-        # Build the sibling name by hand -- with_suffix() would mangle any
+        # Build the sibling name by hand - with_suffix() would mangle any
         # directory whose name already contains a dot.
         alias = page_dir.parent / f"{page_dir.name}.html"
         # Never clobber a real page that legitimately owns this path.

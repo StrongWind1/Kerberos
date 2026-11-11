@@ -1,10 +1,10 @@
 ---
-description: Step-by-step walkthrough of the Kerberos TGS exchange in Active Directory -- the authenticator, SPN lookup, the service ticket, and how the PAC is carried forward.
+description: Step-by-step walkthrough of the Kerberos TGS exchange in Active Directory - the authenticator, SPN lookup, the service ticket, and how the PAC is carried forward.
 ---
 
 # TGS Exchange (Ticket-Granting Service)
 
-The TGS exchange is the second step in the Kerberos authentication flow. Having already obtained a TGT through the [AS exchange](as-exchange.md), the client now uses that TGT to request a **Service Ticket** for a specific target service -- all without typing a password again. This is Single Sign-On in action.
+The TGS exchange is the second step in the Kerberos authentication flow. Having already obtained a TGT through the [AS exchange](as-exchange.md), the client now uses that TGT to request a **Service Ticket** for a specific target service - all without typing a password again. This is Single Sign-On in action.
 
 Per [RFC 4120 &sect;3.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.3): "The TGS exchange between a client and the Kerberos TGS is initiated by a client when it seeks to obtain authentication credentials for a given server."
 
@@ -17,7 +17,7 @@ The TGS exchange accomplishes two things:
 1. **The client proves it owns the TGT** by constructing an Authenticator encrypted with the TGT Session Key.
 2. **The KDC issues a Service Ticket** encrypted with the target service's secret key, along with a new Service Session Key that the client and service will share.
 
-After this exchange, the client holds a sealed credential (the Service Ticket) that it can present directly to the target service -- the service can decrypt and check it without contacting the KDC.
+After this exchange, the client holds a sealed credential (the Service Ticket) that it can present directly to the target service - the service can decrypt and check it without contacting the KDC.
 
 ---
 
@@ -40,7 +40,7 @@ The workstation builds a `KRB-TGS-REQ` message. This message has two main sectio
 
 **Pre-authentication data** (`padata`):
 
-The padata contains a `KRB-AP-REQ` structure -- effectively an AP exchange directed at the TGS itself. It includes:
+The padata contains a `KRB-AP-REQ` structure - effectively an AP exchange directed at the TGS itself. It includes:
 
 | Field | Value | Description |
 |-------|-------|-------------|
@@ -49,7 +49,7 @@ The padata contains a `KRB-AP-REQ` structure -- effectively an AP exchange direc
 
 ### Step 2: Client builds the Authenticator
 
-The **Authenticator** is a freshly generated structure that proves the client actually possesses the TGT Session Key -- and is not just replaying a stolen TGT. It contains:
+The **Authenticator** is a freshly generated structure that proves the client actually possesses the TGT Session Key - and is not just replaying a stolen TGT. It contains:
 
 | Authenticator Field | Value | Description |
 |--------------------|-------|-------------|
@@ -62,7 +62,7 @@ The **Authenticator** is a freshly generated structure that proves the client ac
 The entire Authenticator is encrypted with the **TGT Session Key** that Alice received from the AS exchange. Only someone who successfully decrypted the AS-REP could know this key.
 
 !!! info "Why the Authenticator matters"
-    The TGT alone is not enough. Tickets can be copied -- if an attacker captures Alice's TGT from the network, they have the ticket. But they cannot create a valid Authenticator without the TGT Session Key, which was never sent in the clear. The Authenticator's timestamp also ensures it cannot be replayed: the KDC tracks recent timestamps and rejects duplicates.
+    The TGT alone is not enough. Tickets can be copied - if an attacker captures Alice's TGT from the network, they have the ticket. But they cannot create a valid Authenticator without the TGT Session Key, which was never sent in the clear. The Authenticator's timestamp also ensures it cannot be replayed: the KDC tracks recent timestamps and rejects duplicates.
 
 ### Step 3: KDC decrypts the TGT
 
@@ -95,7 +95,7 @@ The KDC takes the requested service name (`CIFS/fileserver.corp.local`) and sear
 
 In this example, the KDC finds the computer account `FILESERVER$` with the SPN `CIFS/fileserver.corp.local` registered.
 
-If the SPN is not found, the KDC returns `KDC_ERR_S_PRINCIPAL_UNKNOWN`. If the requested name resolves to an account that exists but has no SPN registered -- an ordinary user account, for example -- the KDC returns `KDC_ERR_MUST_USE_USER2USER` instead ([MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39)): a ticket for such an account can only be issued through the user-to-user variant of the exchange, in which the ticket is encrypted with the session key of the target's own TGT.
+If the SPN is not found, the KDC returns `KDC_ERR_S_PRINCIPAL_UNKNOWN`. If the requested name resolves to an account that exists but has no SPN registered - an ordinary user account, for example - the KDC returns `KDC_ERR_MUST_USE_USER2USER` instead ([MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39)): a ticket for such an account can only be issued through the user-to-user variant of the exchange, in which the ticket is encrypted with the session key of the target's own TGT.
 
 !!! warning "Missing SPNs are a common source of failures"
     If a service does not have its SPN registered, or if the SPN is registered on the wrong account, the KDC cannot issue a service ticket. The symptom is usually an NTLM fallback or an authentication failure. Use `setspn -Q */hostname` to check SPN registrations. See [Principals and Realms](principals.md) for SPN details.
@@ -121,7 +121,7 @@ The KDC constructs the **Service Ticket**, which has the same structure as a TGT
 | &nbsp;&nbsp;`authtime` | `2026-04-03T08:00:00Z` | Original authentication time (from TGT) |
 | &nbsp;&nbsp;`starttime` | `2026-04-03T09:15:00Z` | When the service ticket becomes valid |
 | &nbsp;&nbsp;`endtime` | `2026-04-03T18:00:00Z` | Expiration (cannot exceed TGT endtime) |
-| &nbsp;&nbsp;`authorization-data` | PAC | User's SID, group SIDs, logon info -- carried from the TGT |
+| &nbsp;&nbsp;`authorization-data` | PAC | User's SID, group SIDs, logon info - carried from the TGT |
 
 The PAC is copied from the TGT into the Service Ticket. This is how the file server knows which groups Alice belongs to, without querying the Domain Controller. Per [MS-KILE &sect;3.3.5.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/c25d48df-67f0-4c5f-9e46-27a7d5710909), the KDC generates the PAC when it issues the TGT; per [MS-KILE &sect;3.3.5.7](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/2e5dcf34-4b51-44a0-b45a-277ed616ca39), it copies the populated fields into the service ticket's PAC during the TGS exchange and signs the result again. See [PAC Inclusion](#pac-inclusion) below for what is and is not re-evaluated at this point.
 
@@ -139,7 +139,7 @@ The KDC sends the `KRB-TGS-REP` message, which contains two parts:
 Note the parallel with the AS exchange:
 
 - In the AS exchange, the encrypted part was protected with the user's secret key.
-- In the TGS exchange, the encrypted part is protected with the **TGT Session Key** -- because the client no longer needs to use its password-derived key.
+- In the TGS exchange, the encrypted part is protected with the **TGT Session Key** - because the client no longer needs to use its password-derived key.
 
 ### Step 9: Client processes the response
 
@@ -173,7 +173,7 @@ The **Privilege Attribute Certificate (PAC)** is a Microsoft extension to the Ke
 
 | PAC Component | Description |
 |--------------|-------------|
-| User SID | `S-1-5-21-...-1013` -- uniquely identifies Alice |
+| User SID | `S-1-5-21-...-1013` - uniquely identifies Alice |
 | Group SIDs | SIDs of all security groups Alice belongs to (domain local, global, universal) |
 | Logon information | Account name, full name, logon count, password timestamps |
 | Client claims | AD attribute-based claims for dynamic access control |
@@ -189,7 +189,7 @@ The PAC is initially built by the KDC during the AS exchange and embedded in the
 The [Ticket Structure](tickets.md#pac) page lists every PAC buffer and what each signature covers.
 
 !!! tip "Pentester note"
-    The PAC in a service ticket carries four signatures. One -- the server signature -- uses the service's own key; the other three use the `krbtgt` key. In a Silver Ticket attack (forging a service ticket with a compromised service key), the attacker can compute a valid server signature but none of the `krbtgt`-keyed ones. The forgery works anyway when the target service never asks a domain controller to check the PAC. Windows services running as Local System, Network Service, or Local Service do not, and by default neither do services running under other accounts. See [PAC Signatures](tickets.md#pac-signatures).
+    The PAC in a service ticket carries four signatures. One - the server signature - uses the service's own key; the other three use the `krbtgt` key. In a Silver Ticket attack (forging a service ticket with a compromised service key), the attacker can compute a valid server signature but none of the `krbtgt`-keyed ones. The forgery works anyway when the target service never asks a domain controller to check the PAC. Windows services running as Local System, Network Service, or Local Service do not, and by default neither do services running under other accounts. See [PAC Signatures](tickets.md#pac-signatures).
 
 ---
 
@@ -222,7 +222,7 @@ sequenceDiagram
 ## Summary
 
 - The TGS exchange proves TGT ownership through the **Authenticator**, not by re-entering a password. This is why Single Sign-On works.
-- The **Authenticator** binds the TGT to the client -- a stolen TGT is useless without the TGT Session Key.
+- The **Authenticator** binds the TGT to the client - a stolen TGT is useless without the TGT Session Key.
 - The KDC finds the target account by **looking up the SPN** in Active Directory. Missing or duplicate SPNs cause failures.
 - The **Service Ticket** is encrypted with the target service's key. The client cannot read or modify it.
 - The **PAC** is copied from the TGT into the Service Ticket and re-signed, carrying the user's group memberships and SIDs so the service can make authorization decisions without contacting the DC. Only domain-local groups of the service's domain are added at this point.

@@ -7,7 +7,7 @@ Forging service tickets without contacting the domain controller.
 A Silver Ticket is a forged service ticket (TGS) encrypted with the target account's
 secret key. Unlike a [Golden Ticket](../forgery/golden-ticket.md), which forges a TGT and then requests
 service tickets through the KDC, a Silver Ticket goes directly to the
-[AP Exchange](../../protocol/ap-exchange.md) -- no domain controller contact required. The attacker
+[AP Exchange](../../protocol/ap-exchange.md) - no domain controller contact required. The attacker
 controls the [PAC](../../protocol/tickets.md#pac) contents and can claim any identity and group
 membership for the targeted service.
 
@@ -27,7 +27,7 @@ This creates the attack:
     - Sets `cname` to the user they want to impersonate
     - Populates the PAC with arbitrary group SIDs (e.g., Domain Admins)
     - Signs the `PAC_SERVER_CHECKSUM` with the target account's key
-    - Fabricates the `PAC_PRIVSVR_CHECKSUM` (KDC signature) -- since the service does not
+    - Fabricates the `PAC_PRIVSVR_CHECKSUM` (KDC signature) - since the service does not
       validate it by default, any value works
 3. The attacker presents the forged ticket directly to the service in an AP-REQ
 4. The service decrypts the ticket, reads the PAC, and grants access based on the forged group
@@ -55,7 +55,7 @@ Attacker                              Target Service
 ### PAC Signature Bypass
 
 The PAC in a service ticket carries four signatures (see
-[Ticket Structure -- PAC](../../protocol/tickets.md#pac)):
+[Ticket Structure - PAC](../../protocol/tickets.md#pac)):
 
 | Signature | Key | Can the attacker compute it? |
 |---|---|---|
@@ -88,7 +88,7 @@ is limited to the specific service (or services) whose key was compromised.
 
 !!! danger "Silver Ticket to a Domain Controller's LDAP service"
     If the attacker obtains a DC's computer account hash and forges a Silver Ticket for the
-    `LDAP` service on that DC, they can perform DCSync -- replicating all credentials from
+    `LDAP` service on that DC, they can perform DCSync - replicating all credentials from
     Active Directory. This escalates a single computer account compromise to full domain
     compromise.
 
@@ -224,7 +224,7 @@ missing is logged by the KDC as System event 43 or 44
 | 4624 (type 3) | Target host | Network logon from unexpected source |
 | 4634 | Target host | Logoff following suspicious 4624 |
 | 4769 | Domain controller | **Absence** of this event for the session in 4624 (match on Logon GUID; see the caveats under [Missing TGS Request](#missing-tgs-request)) |
-| 4672 | Target host | Special privilege logon -- indicates the forged PAC claimed admin rights |
+| 4672 | Target host | Special privilege logon - indicates the forged PAC claimed admin rights |
 
 ---
 
@@ -232,14 +232,14 @@ missing is logged by the KDC as System event 43 or 44
 
 ### Prerequisites
 
-1. **Target account hash** -- obtained through:
+1. **Target account hash** - obtained through:
     - [Kerberoasting](../roasting/kerberoasting.md) (for user-based SPNs)
     - LSASS dump on the service host (for computer accounts)
     - DCSync (any account's hash)
-2. **Domain name** -- e.g., `CORP.LOCAL`
-3. **Domain SID** -- e.g., `S-1-5-21-...`
-4. **Target SPN** -- e.g., `CIFS/fileserver.corp.local`
-5. **Username to impersonate** -- typically `administrator`
+2. **Domain name** - e.g., `CORP.LOCAL`
+3. **Domain SID** - e.g., `S-1-5-21-...`
+4. **Target SPN** - e.g., `CIFS/fileserver.corp.local`
+5. **Username to impersonate** - typically `administrator`
 
 ### Step-by-Step
 

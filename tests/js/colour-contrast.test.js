@@ -60,7 +60,7 @@ const palettes = {
   slate: { ...shared, ...declarations(css, '[data-md-color-scheme="slate"]') },
 };
 
-/* [text colour, background] — a background is a variable or a surface name. */
+/* [text colour, background] - a background is a variable or a surface name. */
 const TEXT_PAIRS = [
   ["--md-primary-bg-color", "--md-primary-fg-color"],
   /* Material's own foregrounds, restated in theme.css as opaque colours. */

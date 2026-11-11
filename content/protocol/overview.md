@@ -1,5 +1,5 @@
 ---
-description: A bird's-eye view of Kerberos in Active Directory -- the AS, TGS, and AP exchanges, long-term and session keys, timestamps, transport, and infrastructure dependencies.
+description: A bird's-eye view of Kerberos in Active Directory - the AS, TGS, and AP exchanges, long-term and session keys, timestamps, transport, and infrastructure dependencies.
 ---
 
 # Protocol Overview
@@ -18,7 +18,7 @@ Every Kerberos authentication flows through three message exchanges, each servin
 | **TGS** (Ticket-Granting Service) | KRB-TGS-REQ / KRB-TGS-REP | Client presents TGT, receives a Service Ticket for a specific service | Client and KDC |
 | **AP** (application request and reply) | KRB-AP-REQ / KRB-AP-REP | Client presents Service Ticket, authenticates to the target service | Client and Service |
 
-The AS exchange typically happens once -- when the user logs in. The TGS exchange happens each time the user accesses a new service. The AP exchange happens each time the client connects to the service.
+The AS exchange typically happens once - when the user logs in. The TGS exchange happens each time the user accesses a new service. The AP exchange happens each time the client connects to the service.
 
 !!! info "The KDC speaks AS and TGS"
     Although AS and TGS are described as separate services, in practice they run as different protocol entry points within the same KDC process on the Domain Controller. Per [RFC 4120 &sect;1.1](https://datatracker.ietf.org/doc/html/rfc4120#section-1.1), in practice the AS and TGS are implemented as different protocol entry points within a single Kerberos server.
@@ -33,7 +33,7 @@ This is the central security property of Kerberos. Here is how it works:
 2. The workstation converts the password into a cryptographic **secret key** using a one-way function called **string-to-key** (defined in [RFC 3961](https://datatracker.ietf.org/doc/html/rfc3961)). This function takes the password plus a salt value (typically `REALM` + `username` for AES key types) and produces a fixed-length key.
 3. Only the resulting key (or data encrypted with it) is used in network communication. The plaintext password is never transmitted.
 4. The KDC has its own copy of the same key, derived from the same password when it was originally set and stored in the AD database.
-5. Both sides can encrypt and decrypt data with the shared key -- proving they both know the password -- without the password itself ever appearing on the wire.
+5. Both sides can encrypt and decrypt data with the shared key - proving they both know the password - without the password itself ever appearing on the wire.
 
 ```
                     Password: "Tr0ub4dor&3"
@@ -76,7 +76,7 @@ These are derived from passwords using the string-to-key function and persist un
 | **KRBTGT key** | krbtgt account's password + salt | KDC only (encrypts all TGTs) |
 | **Inter-realm key** | Trust password + salt | KDCs on both sides of a trust |
 
-The **KRBTGT key** deserves special attention. It is used to encrypt every TGT issued in the domain. Since only the KDC knows this key, no client or service can forge or tamper with a TGT. The krbtgt account's password is set when the domain is created and is never changed automatically -- administrators must rotate it manually.
+The **KRBTGT key** deserves special attention. It is used to encrypt every TGT issued in the domain. Since only the KDC knows this key, no client or service can forge or tamper with a TGT. The krbtgt account's password is set when the domain is created and is never changed automatically - administrators must rotate it manually.
 
 ### Session Keys (Short-Term Keys)
 
@@ -132,9 +132,9 @@ Kerberos communication (AS and TGS exchanges) uses **port 88** on the Domain Con
 | UDP | 88 | Still accepted by the KDC. Used by some non-Windows clients and tools for small messages. |
 | TCP/UDP | 464 | Kerberos password change (`kpasswd`). |
 
-The protocol itself allows both transports ([RFC 4120 &sect;7.2](https://datatracker.ietf.org/doc/html/rfc4120#section-7.2)), and [MS-KILE &sect;2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/a560d6fe-3583-47bf-a06e-7fa3e66cde72) still describes UDP-first behavior with a message size threshold of 1,465 bytes. When a reply would not fit in a UDP datagram -- which happens quickly once the PAC carries many group memberships -- the KDC answers with `KRB_ERR_RESPONSE_TOO_BIG` (error 52) and the client retries over TCP. On the KDC that limit is `MaxDatagramReplySize`, also 1,465 bytes by default. In an all-Windows environment you will normally see only TCP.
+The protocol itself allows both transports ([RFC 4120 &sect;7.2](https://datatracker.ietf.org/doc/html/rfc4120#section-7.2)), and [MS-KILE &sect;2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/a560d6fe-3583-47bf-a06e-7fa3e66cde72) still describes UDP-first behavior with a message size threshold of 1,465 bytes. When a reply would not fit in a UDP datagram - which happens quickly once the PAC carries many group memberships - the KDC answers with `KRB_ERR_RESPONSE_TOO_BIG` (error 52) and the client retries over TCP. On the KDC that limit is `MaxDatagramReplySize`, also 1,465 bytes by default. In an all-Windows environment you will normally see only TCP.
 
-The AP exchange does not use port 88 -- it is carried within the application protocol itself (e.g., inside HTTP headers, SMB negotiation, LDAP bind).
+The AP exchange does not use port 88 - it is carried within the application protocol itself (e.g., inside HTTP headers, SMB negotiation, LDAP bind).
 
 ---
 
@@ -170,7 +170,7 @@ Architecture" table in Microsoft's Windows Server 2003 technical reference,
 
 ## End-to-End Flow
 
-The following diagram shows the complete Kerberos authentication flow -- all three exchanges in sequence. Alice logs in to her workstation and then accesses a file share on a server.
+The following diagram shows the complete Kerberos authentication flow - all three exchanges in sequence. Alice logs in to her workstation and then accesses a file share on a server.
 
 ```mermaid
 sequenceDiagram
@@ -215,7 +215,7 @@ After this flow completes:
 - Alice's password was used only on her local workstation to derive a key. It was never sent over the network.
 - The TGT is cached and reused for subsequent TGS requests (default lifetime: 10 hours, renewable for 7 days).
 - The Service Ticket is cached and reused for subsequent connections to the same service.
-- The file server never contacted the KDC -- it validated the ticket using only its own secret key.
+- The file server never contacted the KDC - it validated the ticket using only its own secret key.
 
 ---
 

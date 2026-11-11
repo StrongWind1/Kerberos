@@ -55,8 +55,8 @@ $DryRun = $true      # $true = show what would be restored. Set $false to write.
 ```
 
 The restore only touches an account whose current value is still the one the bulk run
-wrote.  A row marked `SKIPPED` has been changed since — by an administrator, or by the
-machine itself in the case of a Windows computer account — and is left as it is; a row
+wrote.  A row marked `SKIPPED` has been changed since - by an administrator, or by the
+machine itself in the case of a Windows computer account - and is left as it is; a row
 marked `NOT restored` could not be read or written (a deleted account, missing rights).
 Rows whose write failed during the bulk run show `nothing to do`.  To undo a restore, run
 the bulk script again.

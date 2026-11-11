@@ -4,7 +4,7 @@ Offline credential cracking from Kerberos encrypted material.
 
 Roasting attacks exploit a fundamental property of the Kerberos protocol: certain message fields
 are encrypted with keys derived from user passwords. Any party that receives these encrypted
-fields can attempt to crack them offline -- testing candidate passwords until one produces a
+fields can attempt to crack them offline - testing candidate passwords until one produces a
 valid decryption. The KDC does not rate-limit or log the offline cracking phase, making these
 attacks difficult to prevent once the encrypted material is obtained.
 
@@ -43,11 +43,11 @@ rather than an encryption-type setting.
 
 All three roasting attacks share overlapping defenses:
 
-- **Enforce AES encryption** -- eliminate RC4 to make cracking dramatically harder (per
+- **Enforce AES encryption** - eliminate RC4 to make cracking dramatically harder (per
   account for service tickets; in the domain controllers' encryption-type policy for
   pre-authentication)
-- **Strong passwords** -- 25+ random characters for user service accounts; use gMSA where possible
-- **Honeypot accounts** -- detect enumeration and roasting attempts with decoy SPNs or
+- **Strong passwords** - 25+ random characters for user service accounts; use gMSA where possible
+- **Honeypot accounts** - detect enumeration and roasting attempts with decoy SPNs or
   no-preauth accounts
-- **Network segmentation** -- limit access to Kerberos traffic (port 88) to reduce passive
+- **Network segmentation** - limit access to Kerberos traffic (port 88) to reduce passive
   capture risk

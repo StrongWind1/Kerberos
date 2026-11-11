@@ -26,7 +26,7 @@ that genuinely needs it (KB5073381).
 ## Accounts Without SPNs: msDS-SET Does Not Matter { #no-spn-accounts }
 
 The KDC only reads `msDS-SupportedEncryptionTypes` on the **target account** of a
-TGS-REQ — the account that owns the SPN the client is requesting a service ticket for.
+TGS-REQ - the account that owns the SPN the client is requesting a service ticket for.
 Regular user accounts without SPNs are never the target of a TGS-REQ, so their
 `msDS-SupportedEncryptionTypes` value is never consulted during normal Kerberos
 operation.
@@ -207,7 +207,7 @@ RC4 option entirely.
 ### Accounts Whose Passwords Predate AES
 
 An account whose password was last set before the domain generated AES keys has **no AES
-keys at all**, whatever its attribute says.  Reset the password once and verify the keys --
+keys at all**, whatever its attribute says.  Reset the password once and verify the keys -
 see [Password resets and AES keys](algorithms.md#password-resets-and-aes-keys).
 
 ---
@@ -230,11 +230,11 @@ Get-ADServiceAccount -Identity gMSA_SQL -Properties msDS-SupportedEncryptionType
     Select-Object Name, msDS-SupportedEncryptionTypes
 ```
 
-### All SPN-Bearing Accounts — Overview (All 5 Types) { #all-spn-bearing-accounts-overview-all-5-types }
+### All SPN-Bearing Accounts - Overview (All 5 Types) { #all-spn-bearing-accounts-overview-all-5-types }
 
 --8<-- "includes/spn-overview-query.md"
 
-### All SPN-Bearing Accounts — Detail List
+### All SPN-Bearing Accounts - Detail List
 
 One row per account with type classification, name, current msDS-SET value, and the
 first two SPNs registered on the account:
@@ -321,7 +321,7 @@ value in the Attribute Editor tab, or use PowerShell, to confirm it is `0x18` (2
 ### Setting Computer Accounts
 
 **Windows machines:** do not write the attribute directly.  The machine rewrites it from its
-own Kerberos etype policy, so set the policy instead -- see
+own Kerberos etype policy, so set the policy instead - see
 [Group Policy](group-policy.md#computer-accounts-auto-update).
 
 **Non-Windows computer objects** (filers, Linux hosts, appliances) do not maintain the
@@ -358,7 +358,7 @@ Get-ADUser -Filter 'msDS-SupportedEncryptionTypes -band 4' `
 ```
 
 The query above covers user accounts only.  For a cross-type view of every SPN-bearing
-account with the RC4 bit set, use the LDAP bitwise filter below — it works against all
+account with the RC4 bit set, use the LDAP bitwise filter below - it works against all
 five account types simultaneously.
 
 ### All SPN-Bearing Accounts with RC4 Enabled (All Types)
@@ -429,7 +429,7 @@ Measured on the enforcing build (20348.5020) for an account holding only an RC4 
 
 | Attribute | Result |
 |---|---|
-| `0x18` | `KDC_ERR_ETYPE_NOSUPP` — no fallback to RC4 |
+| `0x18` | `KDC_ERR_ETYPE_NOSUPP` - no fallback to RC4 |
 | unset | `KDC_ERR_ETYPE_NOSUPP` |
 | `0x1C` | RC4 ticket |
 | `0x04` | RC4 ticket |

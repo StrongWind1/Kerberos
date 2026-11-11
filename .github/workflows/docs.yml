@@ -94,7 +94,7 @@ jobs:
       - name: Lint YAML
         run: |
           set -euo pipefail
-          # Whole repo, not just .github -- mkdocs.yml is the file most likely to
+          # Whole repo, not just .github - mkdocs.yml is the file most likely to
           # be hand-edited. .yamllint.yml scopes the walk via yaml-files and
           # ignore-from-file.
           python3 -m pip install --user --quiet yamllint==1.38.0
@@ -113,7 +113,7 @@ jobs:
       - name: actionlint
         run: |
           set -euo pipefail
-          # Pinned release, verified against the published checksum -- the same
+          # Pinned release, verified against the published checksum - the same
           # supply-chain posture as the SHA-pinned actions above.
           curl -sSfL -o actionlint.tar.gz \
             "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"

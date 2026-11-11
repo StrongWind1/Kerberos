@@ -22,7 +22,7 @@ Each etype combines a cipher, an integrity algorithm, and a key derivation metho
 | RC4-HMAC | RC4 with HMAC-MD5 | 128 | **No** | 23 | **Deprecated.**  Explicit opt-in only on DCs with the April 2026 update: no longer assumed for unset accounts |
 | AES128-CTS-HMAC-SHA1-96 | AES-128 in CTS mode | 128 | Yes | 17 | Current |
 | AES256-CTS-HMAC-SHA1-96 | AES-256 in CTS mode | 256 | Yes | 18 | **Recommended** |
-| AES256-CTS-HMAC-SHA1-96-SK | Not a cipher: a flag asking for AES256 **session keys** | -- | -- | -- | Legacy transitional flag (November 2022) |
+| AES256-CTS-HMAC-SHA1-96-SK | Not a cipher: a flag asking for AES256 **session keys** | - | - | - | Legacy transitional flag (November 2022) |
 | AES128-CTS-HMAC-SHA256-128 | AES-128 with SHA-2 (RFC 8009) | 128 | Yes | 19 | Supported in Server 2025 / Windows 11 24H2, **disabled by default** ([MS-KILE]); not lab-verified |
 | AES256-CTS-HMAC-SHA384-192 | AES-256 with SHA-2 (RFC 8009) | 256 | Yes | 20 | As above |
 
@@ -40,7 +40,7 @@ two variants differ only in the integrity check: CRC32 (etype 1) or MD5 (etype 3
 
 **Security assessment.** A 56-bit key is trivially brute-forceable on modern hardware
 in hours.  DES is also vulnerable to known-plaintext attacks and weak-key collisions.
-The CRC32 checksum (etype 1) provides no cryptographic integrity at all -- an attacker
+The CRC32 checksum (etype 1) provides no cryptographic integrity at all - an attacker
 can modify ciphertext and fix the CRC.
 
 | Event | When |
@@ -66,7 +66,7 @@ can modify ciphertext and fix the CRC.
 
 ### Key derivation
 
-The RC4 key is the **MD4 hash of the UTF-16LE encoded password** -- identical to the
+The RC4 key is the **MD4 hash of the UTF-16LE encoded password** - identical to the
 NT (NTLM) hash:
 
 ```
@@ -86,7 +86,7 @@ hashes cracks RC4 Kerberos keys.
 **The key is interchangeable with the NTLM hash.**  Compromising an RC4 Kerberos key
 gives you a pass-the-hash credential for free, and vice versa.  They are the same bytes.
 
-**Fast to crack.**  RC4 key derivation is a single MD4 hash -- one operation per
+**Fast to crack.**  RC4 key derivation is a single MD4 hash - one operation per
 password guess.  AES uses PBKDF2 with 4096 iterations, adding a fixed cost per guess
 that makes brute force slower by roughly three orders of magnitude:
 
@@ -108,7 +108,7 @@ two or more with hashcat version and driver.  For real numbers, run `hashcat -b 
     This site quotes **~800×** as a conservative figure for RC4 versus AES256; the real ratio
     may be nearer 1,500×.  At 800×, a password that falls to RC4 cracking in one hour takes
     about 33 days via AES256 under the same conditions.  AES does not eliminate
-    Kerberoasting -- it makes strong passwords a viable defense.  Combined with a 25+
+    Kerberoasting - it makes strong passwords a viable defense.  Combined with a 25+
     character random password, AES makes offline cracking infeasible in practice.
 
 **Stream cipher weaknesses.**  RC4 has well-documented statistical biases in its
@@ -151,14 +151,14 @@ the lowercase computer name without the trailing `$`, a dot, and the lowercase r
 ([MS-KILE] section 3.1.1.2).  The same password produces **different keys for different
 accounts**, which defeats rainbow tables and precomputation.
 
-The 4096 PBKDF2 iterations are fixed-cost per guess -- the main reason AES cracking
+The 4096 PBKDF2 iterations are fixed-cost per guess - the main reason AES cracking
 runs ~400× slower than RC4.
 
 ### When to use it
 
 AES128 is fully supported and secure.  In practice, most deployments target
 `msDS-SupportedEncryptionTypes = 0x18` (AES128 + AES256 together) to give the KDC
-maximum flexibility -- the KDC will always pick AES256 when available.
+maximum flexibility - the KDC will always pick AES256 when available.
 
 ---
 
@@ -174,7 +174,7 @@ AES256 key = DK(tkey, "kerberos")
 This is the **recommended default** for all accounts and services.
 
 - 256-bit key provides a wide security margin, including against Grover's algorithm
-  (which reduces effective symmetric key strength by half -- 128-bit equivalent is
+  (which reduces effective symmetric key strength by half - 128-bit equivalent is
   still considered secure).
 - PBKDF2 with salt defeats rainbow tables and slows brute force by ~800× vs RC4.
 - Well-studied block cipher; no known practical attacks on AES-256.
@@ -185,7 +185,7 @@ This is the **recommended default** for all accounts and services.
 
 ## AES256-CTS-HMAC-SHA1-96-SK (Session Key Variant)
 
-This is not a cipher -- it is a **configuration flag** (bit `0x20`) introduced by the
+This is not a cipher - it is a **configuration flag** (bit `0x20`) introduced by the
 November 2022 update (CVE-2022-37966).  [MS-KILE] section 2.2.7 defines it as "Enforce AES
 session keys when legacy ciphers are in use."  In effect it tells the KDC:
 
@@ -238,7 +238,7 @@ key.
 | **Integrity** | CRC32 / MD5 | HMAC-MD5 | HMAC-SHA1-96 | HMAC-SHA1-96 |
 | **Crack speed (relative, approximate)** | Trivial | 1× (baseline) | ~400× slower or more | ~800× slower or more |
 | **NTLM-interchangeable** | No | **Yes** | No | No |
-| **RFC deprecated** | RFC 6649 (2012) | RFC 8429 (2018) | -- | -- |
+| **RFC deprecated** | RFC 6649 (2012) | RFC 8429 (2018) | - | - |
 | **Recommended** | No | No | Acceptable | **Yes** |
 
 ---
@@ -285,7 +285,7 @@ client in the encrypted reply.  They are never stored in AD, and expire with the
 !!! tip "The client never decrypts tickets"
     The client receives TGTs and service tickets as opaque blobs.  It can only decrypt
     the **reply encrypted parts** (which deliver session keys to the client).  The ticket
-    etype is entirely determined by the KDC and the target account -- the client's
+    etype is entirely determined by the KDC and the target account - the client's
     capabilities are irrelevant for ticket encryption.
 
 ---
@@ -311,7 +311,7 @@ account held DES, RC4, AES128 and AES256 keys whatever its attribute said.
 an account's password was last set while the domain was still at the Windows Server 2003
 functional level, the DC stored only DES and RC4 keys.  Changing
 `msDS-SupportedEncryptionTypes` to `0x18` on that account does not create AES keys
-retroactively -- the password must be set again.
+retroactively - the password must be set again.
 
 **A password set from a hash creates no AES keys.**  AES keys are derived from the cleartext
 password and a salt, so a tool that writes an NT hash directly (some migration and
@@ -338,7 +338,7 @@ and resetting twice is how you retire an old or compromised key.  See
 [KRBTGT](#krbtgt-special-considerations).
 
 !!! warning "Reset once, then verify"
-    Do not assume a reset produced AES keys -- check.  If verification still shows no AES
+    Do not assume a reset produced AES keys - check.  If verification still shows no AES
     keys, find out why (password written as a hash, or by a tool that bypasses the DC's
     normal password-set path) before resetting again.  See
     [Auditing Kerberos Keys](account-key-audit.md) for all four methods.
@@ -372,7 +372,7 @@ An account with a later date *probably* has them, unless its password was writte
 
 An account that has only an RC4 key cannot be issued a service ticket once its effective
 etype set is AES-only.  That happens when you set `msDS-SupportedEncryptionTypes = 0x18` on
-it, and -- on a DC with the April 2026 update -- also when the account is simply **unset**,
+it, and - on a DC with the April 2026 update - also when the account is simply **unset**,
 because the default is now `0x18`.  The KDC returns `KDC_ERR_ETYPE_NOSUPP`; it does not fall
 back to RC4 (lab, build 20348.5020).  The DC logs:
 
@@ -421,7 +421,7 @@ specify").  Nothing rotates it automatically.
   only when responding to a compromise, where invalidating existing TGTs is the point.
 - Use a controlled script for the rollout across multiple DCs: Microsoft's
   `New-KrbtgtKeys.ps1`, or the community `Reset-KrbTgt-Password-For-RWDCs-And-RODCs.ps1`.
-  See [Mitigations — KRBTGT rotation](mitigations.md#priority-9-krbtgt-password-rotation).
-- If the KRBTGT key is compromised, an attacker can forge Golden Tickets -- TGTs
+  See [Mitigations - KRBTGT rotation](mitigations.md#priority-9-krbtgt-password-rotation).
+- If the KRBTGT key is compromised, an attacker can forge Golden Tickets - TGTs
   encrypted with the KRBTGT key and carrying arbitrary PAC contents.  See
   [Golden Ticket](../attacks/forgery/golden-ticket.md) for the attack mechanics.

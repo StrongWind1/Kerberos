@@ -7,7 +7,7 @@ Privilege escalation by moving Service Principal Names between accounts.
 SPN-jacking exploits the fact that Kerberos constrained delegation targets are specified as
 **SPNs** (in `msDS-AllowedToDelegateTo`), and SPNs can be moved between AD accounts by anyone
 with write access to the `servicePrincipalName` attribute. By moving an SPN from its legitimate
-account to one the attacker controls, the attacker redirects the delegation -- the KDC encrypts
+account to one the attacker controls, the attacker redirects the delegation - the KDC encrypts
 the resulting S4U2Proxy ticket with the **new** account's key, giving the attacker a service
 ticket they can decrypt and use.
 
@@ -50,7 +50,7 @@ After SPN-jacking:
 
 The attacker now has a service ticket for `CIFS/serverB` encrypted with ServerC's key. If the
 attacker controls ServerC (or knows its key), they can decrypt the ticket and have a valid
-service ticket impersonating the target user -- but encrypted for a service the attacker controls.
+service ticket impersonating the target user - but encrypted for a service the attacker controls.
 
 ### Two Variants
 
@@ -194,8 +194,8 @@ The primary detection signal, provided the audit prerequisites under
 
 | Operation | Meaning |
 |-----------|---------|
-| Value added | SPN registered on an account -- expected for new services, suspicious for existing accounts |
-| Value deleted | SPN removed from an account -- may indicate live SPN-jacking |
+| Value added | SPN registered on an account - expected for new services, suspicious for existing accounts |
+| Value deleted | SPN removed from an account - may indicate live SPN-jacking |
 | Value added on computer account created by non-admin | Strong indicator of SPN-jacking setup |
 
 ### Orphaned SPN Monitoring

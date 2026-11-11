@@ -1,5 +1,5 @@
 ---
-description: How Kerberos pre-authentication works in Active Directory -- PA-ENC-TIMESTAMP, PA-ETYPE-INFO2, the DONT_REQUIRE_PREAUTH flag, PKINIT, and FAST armoring.
+description: How Kerberos pre-authentication works in Active Directory - PA-ENC-TIMESTAMP, PA-ETYPE-INFO2, the DONT_REQUIRE_PREAUTH flag, PKINIT, and FAST armoring.
 ---
 
 # Pre-Authentication
@@ -19,7 +19,7 @@ Active Directory requires pre-authentication by default for all accounts.
 In the original Kerberos V5 design (before pre-authentication became standard), the AS Exchange
 worked like this:
 
-1. Client sends `KRB-AS-REQ` with just a username -- no proof of identity
+1. Client sends `KRB-AS-REQ` with just a username - no proof of identity
 2. KDC looks up the user, generates a TGT and session key, encrypts the session key with the
    user's secret key, and returns the `KRB-AS-REP`
 3. If the client knows the password, it can decrypt the session key and proceed
@@ -43,7 +43,7 @@ Pre-authentication solves this by requiring the client to encrypt a timestamp wi
 
 ---
 
-## PA-ENC-TIMESTAMP -- Password-Based Pre-Authentication
+## PA-ENC-TIMESTAMP - Password-Based Pre-Authentication
 
 `PA-ENC-TIMESTAMP` (pre-authentication type 2) is the most common form of pre-authentication in
 Active Directory. The client encrypts the current timestamp with the key derived from its password.
@@ -68,7 +68,7 @@ sequenceDiagram
 
 ### Step by Step
 
-**Step 1 -- Initial AS-REQ (no pre-auth)**
+**Step 1 - Initial AS-REQ (no pre-auth)**
 
 The client sends a `KRB-AS-REQ` containing:
 
@@ -91,20 +91,20 @@ No password material is included. This first request is essentially a probe.
     captured the first AS-REQ of a current Windows client, so it does not claim that every
     logon begins with the error.
 
-**Step 2 -- KDC responds with PREAUTH_REQUIRED error**
+**Step 2 - KDC responds with PREAUTH_REQUIRED error**
 
 The KDC does not issue a TGT. Instead, it returns `KRB-ERROR` with error code
 `KDC_ERR_PREAUTH_REQUIRED` (25). This error includes critical metadata:
 
 `PA-ETYPE-INFO2`
 :   A list of encryption types the KDC will accept for pre-authentication, along with the **salt**
-    value for each. The salt is used in key derivation -- for AES encryption types, the salt is
+    value for each. The salt is used in key derivation - for AES encryption types, the salt is
     typically `REALM` + principal name (e.g., `CORP.LOCALalice`).
 
     This tells the client: "I need you to prove your identity. Here are the encryption algorithms
     I accept and the salt values to use."
 
-**Step 3 -- Client re-sends AS-REQ with encrypted timestamp**
+**Step 3 - Client re-sends AS-REQ with encrypted timestamp**
 
 The client:
 
@@ -114,7 +114,7 @@ The client:
 3. Encrypts the current timestamp (`PA-ENC-TS-ENC` structure) with the derived key
 4. Sends a new `KRB-AS-REQ` with the `PA-ENC-TIMESTAMP` field in the `padata` section
 
-**Step 4 -- KDC validates and issues the TGT**
+**Step 4 - KDC validates and issues the TGT**
 
 The KDC:
 
@@ -126,7 +126,7 @@ The KDC:
 3. Decrypts the timestamp from `PA-ENC-TIMESTAMP`
 4. Validates the timestamp is within the acceptable clock skew (default: 5 minutes)
 5. If valid, the KDC is satisfied that the client knows the password and proceeds with the
-   normal [AS Exchange](as-exchange.md) -- generating a session key and TGT
+   normal [AS Exchange](as-exchange.md) - generating a session key and TGT
 
 !!! tip "Clock synchronization is critical"
     The 5-minute tolerance for timestamps means all machines in the domain must have synchronized
@@ -140,7 +140,7 @@ The KDC:
 
 ---
 
-## PA-ETYPE-INFO2 -- Encryption Type Negotiation
+## PA-ETYPE-INFO2 - Encryption Type Negotiation
 
 The `PA-ETYPE-INFO2` structure in the `KDC_ERR_PREAUTH_REQUIRED` error tells the client
 which encryption types the KDC accepts. Per [RFC 4120 &sect;5.2.7.5](https://datatracker.ietf.org/doc/html/rfc4120#section-5.2.7.5), it contains:
@@ -158,20 +158,20 @@ environments, this will typically be AES-256.
 
 The salt ensures that users with the same password end up with different encryption keys.
 RC4-HMAC does not use a salt (the key is simply the NT hash), which is one reason it is weaker.
-AES keys use a salt constructed from the realm and principal name -- see
-[Encryption Types — Salt Composition](encryption.md#salt-composition) for the format and
+AES keys use a salt constructed from the realm and principal name - see
+[Encryption Types - Salt Composition](encryption.md#salt-composition) for the format and
 examples.
 
 ---
 
-## DONT_REQUIRE_PREAUTH -- Disabling Pre-Authentication
+## DONT_REQUIRE_PREAUTH - Disabling Pre-Authentication
 
 The `DONT_REQUIRE_PREAUTH` flag is bit `0x400000` (4194304) in the `userAccountControl` attribute
 of an Active Directory account.
 
 When this bit is set on an account, the KDC **skips** the pre-authentication check entirely. On
 receiving an AS-REQ for this account, the KDC immediately returns an AS-REP with the TGT and
-encrypted session key -- no password proof required.
+encrypted session key - no password proof required.
 
 ### Where to Find It
 
@@ -211,7 +211,7 @@ Get-ADUser -Filter 'DoesNotRequirePreAuth -eq $true' -Properties DoesNotRequireP
 
 ---
 
-## PKINIT -- Certificate-Based Pre-Authentication
+## PKINIT - Certificate-Based Pre-Authentication
 
 PKINIT (Public Key Cryptography for Initial Authentication in Kerberos, [RFC 4556](https://datatracker.ietf.org/doc/html/rfc4556), with
 Microsoft's profile in [MS-PKCA](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pkca/d0cf1763-3541-4008-a75f-a577fa5e8c5b)) replaces the password-based `PA-ENC-TIMESTAMP` with an X.509
@@ -220,13 +220,13 @@ certificate and public key signature. It uses pre-authentication types `PA-PK-AS
 
 ### When PKINIT Is Used
 
-- **Smart card logon** -- the user inserts a smart card and enters a PIN. The smart card holds a
+- **Smart card logon** - the user inserts a smart card and enters a PIN. The smart card holds a
   private key and certificate.
-- **Windows Hello for Business** -- uses a TPM-backed key pair instead of a physical smart card.
+- **Windows Hello for Business** - uses a TPM-backed key pair instead of a physical smart card.
   In a certificate trust deployment the key is bound to a CA-issued certificate. In a key trust
   deployment the client presents a self-signed certificate and the KDC matches its public key
   against the account's `msDS-KeyCredentialLink` attribute. Both are PKINIT.
-- **Certificate-based authentication** -- any scenario where the client authenticates with a
+- **Certificate-based authentication** - any scenario where the client authenticates with a
   certificate instead of a password.
 
 ### How PKINIT Works
@@ -242,14 +242,14 @@ sequenceDiagram
     K-->>C: KRB-AS-REP with PA-PK-AS-REP<br/>TGT + Session Key<br/>PAC includes NTLM credentials<br/>in PAC_CREDENTIAL_INFO
 ```
 
-**Step 1 -- Client sends PA-PK-AS-REQ**
+**Step 1 - Client sends PA-PK-AS-REQ**
 
 The client sends an AS-REQ with a `PA-PK-AS-REQ` pre-authentication data block containing:
 
 - The client's X.509 certificate (issued by a trusted Certificate Authority)
 - A timestamp signed with the client's **private key** (proving possession of the key)
 
-**Step 2 -- KDC validates and responds**
+**Step 2 - KDC validates and responds**
 
 The KDC:
 
@@ -277,14 +277,14 @@ The KDC:
     When PKINIT is used, the KDC includes the user's NTLM credentials in the
     `PAC_CREDENTIAL_INFO` buffer of the PAC. This allows the client to fall back to NTLM
     authentication if a target service does not support Kerberos. Per [MS-PAC &sect;2.6.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/cc919d0c-f2eb-4f21-b487-080c486d85fe), the
-    buffer is included **only** when PKINIT is used, and it is encrypted with the AS reply key --
+    buffer is included **only** when PKINIT is used, and it is encrypted with the AS reply key -
     the key that the PKINIT exchange itself produced. So the party that completed the PKINIT
     logon can decrypt its own credentials, and nobody else can. Certificate-based attacks that
     exploit this mechanism are outside the scope of this guide.
 
 ---
 
-## FAST -- Kerberos Armoring
+## FAST - Kerberos Armoring
 
 `PA-ENC-TIMESTAMP` proves that the client knows the key, but it also puts a value encrypted with
 that key on the wire, where a passive observer can capture it and attack the password offline
@@ -315,7 +315,7 @@ These error codes appear during the pre-authentication process:
 
 | Error Code | Name | Meaning |
 |---|---|---|
-| 25 | `KDC_ERR_PREAUTH_REQUIRED` | Pre-authentication is required but was not provided. Normal -- the client should retry with pre-auth data. |
+| 25 | `KDC_ERR_PREAUTH_REQUIRED` | Pre-authentication is required but was not provided. Normal - the client should retry with pre-auth data. |
 | 24 | `KDC_ERR_PREAUTH_FAILED` | The pre-authentication data was invalid (wrong password, bad timestamp). |
 | 14 | `KDC_ERR_ETYPE_NOSUPP` | The KDC does not support any of the encryption types requested by the client. Common when RC4 is disabled but the account only has RC4 keys. |
 | 6 | `KDC_ERR_C_PRINCIPAL_UNKNOWN` | The client principal was not found in the KDC's database. |
@@ -335,7 +335,7 @@ These error codes appear during the pre-authentication process:
 - `PA-ENC-TIMESTAMP` is the standard mechanism: encrypt a timestamp with the password-derived key
 - A request sent without pre-authentication data is answered with an error (`PREAUTH_REQUIRED`)
   that tells the client which encryption types and salts to use
-- `DONT_REQUIRE_PREAUTH` disables this protection and enables AS-REP Roasting -- audit accounts
+- `DONT_REQUIRE_PREAUTH` disables this protection and enables AS-REP Roasting - audit accounts
   with this flag
 - PKINIT provides certificate-based pre-authentication for smart cards and Windows Hello for
   Business

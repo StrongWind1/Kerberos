@@ -4,7 +4,7 @@ Using stolen encryption keys to request Kerberos tickets without knowing the pas
 
 **MITRE ATT&CK:** [T1550.002](https://attack.mitre.org/techniques/T1550/002/) Use Alternate Authentication Material: Pass the Hash (covers overpass-the-hash)
 
-This attack converts a stolen credential artifact -- an NT hash or AES key -- into a fully
+This attack converts a stolen credential artifact - an NT hash or AES key - into a fully
 functional Kerberos TGT. The attacker never needs the plaintext password. Because the resulting
 TGT is issued by a real KDC and contains a legitimate PAC, it is indistinguishable from a ticket
 obtained through normal logon.
@@ -27,8 +27,8 @@ RC4 key = MD4(UTF-16LE(password)) = NT hash
 ```
 
 This is the same NT hash used for NTLM authentication. The two protocols share a key. An attacker
-who obtains the NT hash through any means -- LSASS memory dump, DCSync, Kerberoasting, NTDS.dit
-extraction -- can use it directly as the RC4 Kerberos key to request a TGT. This is why the
+who obtains the NT hash through any means - LSASS memory dump, DCSync, Kerberoasting, NTDS.dit
+extraction - can use it directly as the RC4 Kerberos key to request a TGT. This is why the
 technique is called "overpass-the-hash": it converts an NTLM hash into Kerberos access.
 
 ### AES: Different Keys, Same Problem
@@ -42,7 +42,7 @@ still extractable from:
 - NTDS.dit with offline extraction tools
 - DCSync with `lsadump::dcsync`
 
-Once obtained, AES keys work identically -- the attacker encrypts the `PA-ENC-TIMESTAMP` with the
+Once obtained, AES keys work identically - the attacker encrypts the `PA-ENC-TIMESTAMP` with the
 stolen AES key and the KDC issues a TGT.
 
 ### Why It Works
@@ -50,7 +50,7 @@ stolen AES key and the KDC issues a TGT.
 The [AS Exchange](../../protocol/as-exchange.md) validates pre-authentication by decrypting the
 timestamp with the user's stored key. If decryption succeeds and the timestamp is within the
 5-minute skew window, the KDC issues a TGT. The KDC has no way to distinguish between a key
-derived from a password typed by the user and a key injected by an attacker -- they are
+derived from a password typed by the user and a key injected by an attacker - they are
 cryptographically identical.
 
 ```
@@ -74,7 +74,7 @@ Attacker                                 KDC
 ## Defend
 
 Preventing pass-the-key requires protecting the key material from extraction in the first place.
-The attack itself is a legitimate use of the Kerberos protocol -- the defense is to deny attackers
+The attack itself is a legitimate use of the Kerberos protocol - the defense is to deny attackers
 access to keys.
 
 ### Credential Guard
@@ -139,7 +139,7 @@ on pre-authentication; this site's lab test of that was inconclusive.
 
 Detection focuses on correlating credential theft indicators with subsequent TGT requests.
 
-### Event ID 4768 -- TGT Request Anomalies
+### Event ID 4768 - TGT Request Anomalies
 
 Every issued TGT generates a 4768 event on the domain controller, provided the **Audit Kerberos
 Authentication Service** subcategory is enabled (see
@@ -205,34 +205,34 @@ This correlation requires a SIEM that can link events across data sources.
 
 ### Step-by-Step
 
-1. **Obtain the key** -- extract the NT hash or AES key from one of these sources:
+1. **Obtain the key** - extract the NT hash or AES key from one of these sources:
     - LSASS memory: `mimikatz sekurlsa::logonpasswords` or `sekurlsa::ekeys`
     - DCSync: `mimikatz lsadump::dcsync /user:admin`
     - NTDS.dit extraction: offline parsing with `secretsdump.py`
     - Kerberoasting: crack a service ticket to recover the password, then derive the key
 
-2. **Build the AS-REQ** -- construct a `PA-ENC-TIMESTAMP` pre-authentication data block,
+2. **Build the AS-REQ** - construct a `PA-ENC-TIMESTAMP` pre-authentication data block,
    encrypting the current timestamp with the stolen key.
 
-3. **Send to the KDC** -- the KDC decrypts the timestamp, validates it, and returns an AS-REP
+3. **Send to the KDC** - the KDC decrypts the timestamp, validates it, and returns an AS-REP
    containing a TGT and session key.
 
-4. **Use the TGT** -- the TGT is now cached (in a ccache file on Linux or in LSASS on Windows)
-   and can be used for any [TGS Exchange](../../protocol/tgs-exchange.md) -- requesting service
+4. **Use the TGT** - the TGT is now cached (in a ccache file on Linux or in LSASS on Windows)
+   and can be used for any [TGS Exchange](../../protocol/tgs-exchange.md) - requesting service
    tickets to access file shares, databases, remote management interfaces, or any other
    Kerberos-authenticated service.
 
 ### Protocol View
 
 The AS-REQ sent by the attacker is structurally identical to a legitimate one. The only difference
-is that the key was not derived from a password typed by the user -- it was injected from a
+is that the key was not derived from a password typed by the user - it was injected from a
 stolen credential. The KDC cannot tell the difference.
 
 ---
 
 ## Tools
 
-### kerbwolf -- kw-tgt
+### kerbwolf - kw-tgt
 
 `kw-tgt` performs the complete AS Exchange using a password, NT hash, or AES key. It outputs a
 ccache file that can be used with other kerbwolf tools or any tool that reads `KRB5CCNAME`.

@@ -10,7 +10,7 @@ and clients.  These settings interact with each other and with the
 matters more than any single value.
 
 Statements marked "lab" were observed on the builds listed under
-[Registry Audit Results — Lab builds](registry-audit.md#lab-builds).  Nothing here has
+[Registry Audit Results - Lab builds](registry-audit.md#lab-builds).  Nothing here has
 been lab-verified on a July 2026 or later update; those statements cite Microsoft instead.
 
 ---
@@ -49,7 +49,7 @@ does not have an explicit `msDS-SupportedEncryptionTypes` value.
 | **Path** | `HKLM\SYSTEM\CurrentControlSet\Services\Kdc` (key names are case-insensitive; Microsoft writes `services\KDC`) |
 | **Value name** | `DefaultDomainSupportedEncTypes` |
 | **Type** | `REG_DWORD` |
-| **Default** | The value is not present.  What the KDC assumes instead depends on the installed update — see below. |
+| **Default** | The value is not present.  What the KDC assumes instead depends on the installed update - see below. |
 | **Recommended** | `0x18` (24) = AES128 + AES256 |
 | **Takes effect** | Immediately, on the next TGS-REQ (lab) |
 | **Scope** | Per DC.  Not replicated, and not written by any Group Policy setting. |
@@ -127,7 +127,7 @@ Controls whether the KDC honors the client's etype preference list when selectin
 | Value | Behavior |
 |---|---|
 | `0` or not set | The KDC ignores the client's order and picks the **strongest** etype in the target account's effective set. |
-| `1` | The KDC picks the ticket etype from the **client's** preference list.  How far that reaches depends on the build — see below. |
+| `1` | The KDC picks the ticket etype from the **client's** preference list.  How far that reaches depends on the build - see below. |
 
 !!! danger "KdcUseRequestedEtypesForTickets=1 lets a client choose RC4"
     With the value at `1`, a client that asks for RC4 first gets an RC4 **ticket** for any
@@ -138,7 +138,7 @@ Controls whether the KDC honors the client's etype preference list when selectin
 
     | Build | Account at `msDS-SET = 28` (RC4 + AES) | Account at `msDS-SET = 24` (AES-only) | Unset account |
     |---|---|---|---|
-    | Pre-enforcement (the 6-7 April 2026 tests) | RC4 | **RC4** — the account's own setting was bypassed | not tested |
+    | Pre-enforcement (the 6-7 April 2026 tests) | RC4 | **RC4** - the account's own setting was bypassed | not tested |
     | Enforcing (20348.5020, June 2026) | RC4 | AES256 | AES256 |
 
     On the enforcing build the override only reaches accounts that actually list RC4.
@@ -173,8 +173,8 @@ One value name with two jobs, depending on the machine:
 | **Value name** | `SupportedEncryptionTypes` |
 | **Type** | `REG_DWORD` |
 | **Default** | Not present (no filter; the client advertises its built-in list) |
-| **Policies path** | `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters` — written by the GPO *Network security: Configure encryption types allowed for Kerberos* |
-| **Lsa path** | `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters` — manual or Group Policy Preferences |
+| **Policies path** | `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters` - written by the GPO *Network security: Configure encryption types allowed for Kerberos* |
+| **Lsa path** | `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Kerberos\Parameters` - manual or Group Policy Preferences |
 | **Takes effect (KDC filter)** | Only when the KDC service starts.  Adding, changing or removing the value does nothing until `Restart-Service kdc`. |
 
 ### Which path the KDC reads
@@ -234,7 +234,7 @@ common source of "I changed the value but nothing happened."
 
 | Registry Value | Timing | Evidence |
 |---|---|---|
-| `DefaultDomainSupportedEncTypes` | **Immediate** — the next TGS-REQ. | Lab: setting DDSET = 24 changed the ticket from RC4 to AES256 within seconds; removing it reverted immediately. |
+| `DefaultDomainSupportedEncTypes` | **Immediate** - the next TGS-REQ. | Lab: setting DDSET = 24 changed the ticket from RC4 to AES256 within seconds; removing it reverted immediately. |
 | `KdcUseRequestedEtypesForTickets` | **Immediate**. | Lab: an RC4 + AES account flipped to RC4 as soon as the value was set. |
 | `SupportedEncryptionTypes` (Policies path) | **KDC restart required**. | Lab: no effect until `Restart-Service kdc`; removing the value also had no effect until the next restart.  The filter applies to AS pre-authentication as well as TGS. |
 | `SupportedEncryptionTypes` (Lsa path) | **KDC restart required**. | Lab: identical to the Policies path. |
@@ -393,7 +393,7 @@ is the most common cause of "I set AES-only but nothing changed."
 | `DefaultDomainSupportedEncTypes` | `...\Services\Kdc` | DC only | Manual / GPP | The **assumed** etypes for accounts with no `msDS-SupportedEncryptionTypes`.  No GPO setting writes it. | Immediate |
 
 For the value/path combinations that do nothing, see
-[Registry Audit Results — Non-Functional Registry Paths](registry-audit.md#non-functional-registry-paths).
+[Registry Audit Results - Non-Functional Registry Paths](registry-audit.md#non-functional-registry-paths).
 
 !!! warning "GPO does not set `DefaultDomainSupportedEncTypes`"
     Applying the *Configure encryption types allowed for Kerberos* GPO to domain controllers
@@ -417,5 +417,5 @@ For the value/path combinations that do nothing, see
 | `SupportedEncryptionTypes` | `...\Policies\...\Kerberos\Parameters` | No filter | Any machine | KDC restart | Machine's etype list (written by GPO).  On a DC, the KDC filter. |
 | `SupportedEncryptionTypes` | `...\Lsa\Kerberos\Parameters` | No filter | Any machine | KDC restart | Same filter; the only path honored on the Server 2025 build tested. |
 | `RC4DefaultDisablementPhase` | `...\Policies\...\Kerberos\Parameters` | Behavior set by the installed update | KDC (per DC) | KDC restart | Historical audit / rollback switch; per Microsoft, not read from the July 2026 update on |
-| `DefaultEncryptionType` | `...\Lsa\Kerberos\Parameters` | 18 (AES256) | Client | — | Default pre-auth etype (Microsoft); the values tried in the lab did not change KDC ticket issuance |
-| `LogLevel` | `...\Lsa\Kerberos\Parameters` | `0` | Client / server | — | Verbose Kerberos logging |
+| `DefaultEncryptionType` | `...\Lsa\Kerberos\Parameters` | 18 (AES256) | Client | - | Default pre-auth etype (Microsoft); the values tried in the lab did not change KDC ticket issuance |
+| `LogLevel` | `...\Lsa\Kerberos\Parameters` | `0` | Client / server | - | Verbose Kerberos logging |

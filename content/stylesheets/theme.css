@@ -1,4 +1,4 @@
-/* Kerberos -- site theme.
+/* Kerberos - site theme.
  *
  * The only place this site's colour is defined. mkdocs.yml sets `primary: custom`
  * and `accent: custom`, which make Material emit the palette attributes but ship
@@ -10,7 +10,7 @@
  * to a named colour. Plain `:root` targets <html> and would be overridden.
  *
  * Material already paints .md-header and .md-tabs from --md-primary-fg-color.
- * Do not add direct background-color rules for them -- that is what let the
+ * Do not add direct background-color rules for them - that is what let the
  * header drift away from the variable that claims to define it.
  */
 
@@ -42,7 +42,7 @@
 
 [data-md-color-scheme="slate"] {
   /* Material's own default. Deliberately NOT the site hue: --md-hue drives all 19
-   * hsl-derived slate surfaces -- page, code blocks, footer, tables -- so tinting
+   * hsl-derived slate surfaces - page, code blocks, footer, tables - so tinting
    * it per site colours the entire page and hurts readability. Backgrounds are
    * identical and neutral across all eleven sites; only the header and accent
    * carry the site identity. */

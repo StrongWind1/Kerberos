@@ -1,5 +1,5 @@
 ---
-description: The Kerberos S4U extensions in Active Directory -- S4U2Self and S4U2Proxy, the FORWARDABLE flag rules, and how constrained delegation and RBCD use them.
+description: The Kerberos S4U extensions in Active Directory - S4U2Self and S4U2Proxy, the FORWARDABLE flag rules, and how constrained delegation and RBCD use them.
 ---
 
 # S4U Extensions
@@ -24,12 +24,12 @@ if the user had directly requested a service ticket for that service through the
 
 ### Why It Exists
 
-Consider a web server that authenticates users via forms-based login or client certificates --
+Consider a web server that authenticates users via forms-based login or client certificates -
 mechanisms that produce a username but not a Kerberos ticket. If the web server needs to delegate
 that user's identity to a back-end service via [S4U2Proxy](#s4u2proxy-service-for-user-to-proxy),
 it first needs a Kerberos service ticket representing the user. S4U2Self bridges this gap: the
 service says to the KDC, "give me a ticket to myself, as if this user had authenticated to me
-via Kerberos." This process is called **protocol transition** -- converting a non-Kerberos
+via Kerberos." This process is called **protocol transition** - converting a non-Kerberos
 authentication into a Kerberos ticket that can participate in delegation.
 
 ### Protocol Flow
@@ -48,10 +48,10 @@ sequenceDiagram
 
 The S4U2Self request is a standard TGS-REQ with two additions per [MS-SFU &sect;2.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/aceb70de-40f0-4409-87fa-df00ca145f5a):
 
-1. **PA-FOR-USER** (`padata` type 129) -- identifies the user being impersonated. Contains
+1. **PA-FOR-USER** (`padata` type 129) - identifies the user being impersonated. Contains
    the user's principal name and realm, plus an HMAC-MD5 checksum over those fields keyed with
    the session key of the service's TGT.
-2. The **sname** in `req-body` is the service's **own SPN** -- the service is requesting a
+2. The **sname** in `req-body` is the service's **own SPN** - the service is requesting a
    ticket to itself.
 
 !!! warning "PA-FOR-USER is being phased out in favor of PA-S4U-X509-USER (CVE-2026-20849)"
@@ -87,9 +87,9 @@ it:
 
 | Situation | FORWARDABLE on the S4U2Self ticket | Source |
 |---|---|---|
-| The requesting service has `TRUSTED_TO_AUTH_FOR_DELEGATION` (protocol transition enabled) | **Set** -- the KDC MUST set it | [MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642) |
-| The requesting service does not have that flag, and its `msDS-AllowedToDelegateTo` is non-empty ("Kerberos only" constrained delegation) | **Not set** -- the KDC MUST NOT set it | [MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642) |
-| The **user** being impersonated is marked "Account is sensitive and cannot be delegated" | **Not set** -- the KDC SHOULD NOT set it, whatever the service's configuration. Protected Users membership has the same effect through a different rule: the KDC MUST NOT set FORWARDABLE on tickets for a member when the domain controller functional level is 6 or higher | [MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642); for Protected Users, [MS-KILE &sect;3.3.5.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/f5993d64-a280-4555-9fcc-922fb934fc27) |
+| The requesting service has `TRUSTED_TO_AUTH_FOR_DELEGATION` (protocol transition enabled) | **Set** - the KDC MUST set it | [MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642) |
+| The requesting service does not have that flag, and its `msDS-AllowedToDelegateTo` is non-empty ("Kerberos only" constrained delegation) | **Not set** - the KDC MUST NOT set it | [MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642) |
+| The **user** being impersonated is marked "Account is sensitive and cannot be delegated" | **Not set** - the KDC SHOULD NOT set it, whatever the service's configuration. Protected Users membership has the same effect through a different rule: the KDC MUST NOT set FORWARDABLE on tickets for a member when the domain controller functional level is 6 or higher | [MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642); for Protected Users, [MS-KILE &sect;3.3.5.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-kile/f5993d64-a280-4555-9fcc-922fb934fc27) |
 | The requesting service has neither the flag nor any `msDS-AllowedToDelegateTo` entries | Not prohibited. The specification names no rule that clears the flag in this case. | [MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642) |
 
 The last row is the one that matters for resource-based constrained delegation. An ordinary
@@ -132,10 +132,10 @@ is where the specification stops being consistent.
 
 Any account with an SPN can perform S4U2Self. In practice, this means:
 
-- **Computer accounts** -- every domain-joined computer has SPNs (`HOST/<hostname>`,
+- **Computer accounts** - every domain-joined computer has SPNs (`HOST/<hostname>`,
   `RestrictedKrbHost/<hostname>`) registered at join time
-- **User accounts with SPNs** -- user service accounts with manually registered SPNs
-- **Microsoft Virtual Accounts** -- `NT AUTHORITY\NETWORK SERVICE`, `defaultapppool`,
+- **User accounts with SPNs** - user service accounts with manually registered SPNs
+- **Microsoft Virtual Accounts** - `NT AUTHORITY\NETWORK SERVICE`, `defaultapppool`,
   `NT SERVICE\MSSQLSERVER`, etc. authenticate to the KDC as the computer account. Microsoft's
   [service accounts overview](https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-service-accounts)
   puts it this way: "Services that run as virtual accounts access network resources by using
@@ -180,11 +180,11 @@ sequenceDiagram
 
 Per [MS-SFU &sect;3.1.5.2.1](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ddb2cafd-1f01-4834-b52a-d4a5b34cd960), the S4U2Proxy request is a TGS-REQ with:
 
-1. The **`cname-in-addl-tkt`** KDC option (bit 14, [MS-SFU &sect;2.2.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/17b9af82-d45a-437d-a05c-79547fe969f5)) -- this option is what
+1. The **`cname-in-addl-tkt`** KDC option (bit 14, [MS-SFU &sect;2.2.3](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/17b9af82-d45a-437d-a05c-79547fe969f5)) - this option is what
    marks the request as S4U2Proxy
-2. **additional-tickets** -- contains the user's service ticket (the "evidence ticket") proving
+2. **additional-tickets** - contains the user's service ticket (the "evidence ticket") proving
    the user authenticated to the front-end service
-3. **sname** in `req-body` -- the SPN of the **target** service (e.g., `MSSQLSvc/sql.corp.local`)
+3. **sname** in `req-body` - the SPN of the **target** service (e.g., `MSSQLSvc/sql.corp.local`)
 4. A **`PA-PAC-OPTIONS`** padata element (type 167) with the resource-based constrained
    delegation bit set ([MS-SFU &sect;2.2.5](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/aeecfd82-a5e4-474c-92ab-8df9022cf955)), which tells the KDC that the client understands
    RBCD
@@ -235,14 +235,14 @@ Certain accounts cannot be impersonated through S4U2Proxy:
 
 When S4U2Self is used for these accounts, the resulting ticket does **not** have the
 FORWARDABLE flag ([MS-SFU &sect;3.2.5.1.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/ad98268b-f75b-42c3-b09b-959282770642)). Without that flag the ticket is rejected as
-S4U2Proxy evidence, both for classic constrained delegation and -- on domain controllers
-enforcing the CVE-2020-16996 fix -- for RBCD.
+S4U2Proxy evidence, both for classic constrained delegation and - on domain controllers
+enforcing the CVE-2020-16996 fix - for RBCD.
 
 !!! warning "What these protections do not cover"
     The non-forwardable S4U2Self ticket is still a valid service ticket **to the requesting
     service itself**. A service, or anything running with a computer account's identity, can
     still obtain a ticket to itself in the name of a protected or sensitive user and use it
-    locally -- see [S4U2Self Abuse](../attacks/delegation/s4u2self-abuse.md). The protection is
+    locally - see [S4U2Self Abuse](../attacks/delegation/s4u2self-abuse.md). The protection is
     against delegating that identity onward to another service.
 
     On a domain controller that predates the CVE-2020-16996 fix, or where enforcement has been

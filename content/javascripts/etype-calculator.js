@@ -1,5 +1,5 @@
 /**
- * Etype bitmask calculator — interactive converter for the three Kerberos
+ * Etype bitmask calculator - interactive converter for the three Kerberos
  * encryption type settings: msDS-SupportedEncryptionTypes,
  * DefaultDomainSupportedEncTypes, and SupportedEncryptionTypes (GPO).
  *
@@ -35,7 +35,7 @@
   var LOW_ETYPE_MASK = 0x1F;
 
   /* ------------------------------------------------------------------ */
-  /*  Bit definitions — [MS-KILE] §2.2.7                                */
+  /*  Bit definitions - [MS-KILE] §2.2.7                                */
   /*                                                                    */
   /*  The same table (bit + name) exists in event-decoder.js as         */
   /*  SET_BITS, and as checkbox rows in security/etype-calculator.md.   */
@@ -81,10 +81,10 @@
   /* ------------------------------------------------------------------ */
   /*  Setting profiles                                                  */
   /*                                                                    */
-  /*  ignoredMask   — bits that have no meaning for this setting.  They */
+  /*  ignoredMask   - bits that have no meaning for this setting.  They */
   /*                  stay in the stored value and are shown as ignored. */
-  /*  inactiveBits  — rows the user cannot tick for this setting.        */
-  /*  futureActive  — whether the "Future encryption types" row is a     */
+  /*  inactiveBits  - rows the user cannot tick for this setting.        */
+  /*  futureActive  - whether the "Future encryption types" row is a     */
   /*                  real control (only the Group Policy has it).       */
   /* ------------------------------------------------------------------ */
 
@@ -300,22 +300,22 @@
     v = v >>> 0;
     if (v === 0) {
       if (settingId === "msds") {
-        return { cls: "etype-status--notset", text: "Not set — the KDC uses DefaultDomainSupportedEncTypes, or the build default" };
+        return { cls: "etype-status--notset", text: "Not set - the KDC uses DefaultDomainSupportedEncTypes, or the build default" };
       }
       if (settingId === "default") {
-        return { cls: "etype-status--notset", text: "Not set — the build default applies" };
+        return { cls: "etype-status--notset", text: "Not set - the build default applies" };
       }
-      return { cls: "etype-status--notset", text: "Not set — no etype filter configured" };
+      return { cls: "etype-status--notset", text: "Not set - no etype filter configured" };
     }
     var e = effectiveValue(v, settingId);
     var hasDES = (e & 0x3) !== 0;
     var hasRC4 = (e & 0x4) !== 0;
     var hasAES = (e & 0x18) !== 0;
 
-    if (hasDES) return { cls: "etype-status--insecure", text: "Insecure — DES enabled" };
-    if (hasRC4 && !hasAES) return { cls: "etype-status--insecure", text: "Insecure — RC4 without AES" };
-    if (hasRC4) return { cls: "etype-status--transitional", text: "Transitional — RC4 still permitted" };
-    if (hasAES) return { cls: "etype-status--secure", text: "Secure — AES only" };
+    if (hasDES) return { cls: "etype-status--insecure", text: "Insecure - DES enabled" };
+    if (hasRC4 && !hasAES) return { cls: "etype-status--insecure", text: "Insecure - RC4 without AES" };
+    if (hasRC4) return { cls: "etype-status--transitional", text: "Transitional - RC4 still permitted" };
+    if (hasAES) return { cls: "etype-status--secure", text: "Secure - AES only" };
     return { cls: "etype-status--notset", text: "No DES, RC4 or AES-SHA1 etype bit set" };
   }
 
@@ -556,7 +556,7 @@
    */
   var editBase = null;
 
-  /** Safe querySelector — returns null instead of crashing on missing markup. */
+  /** Safe querySelector - returns null instead of crashing on missing markup. */
   function q(sel) { return root ? root.querySelector(sel) : null; }
   function qa(sel) { return root ? Array.prototype.slice.call(root.querySelectorAll(sel)) : []; }
 
@@ -600,10 +600,10 @@
         note = setting.inactiveNote;
       }
       /* An inactive row that is set stays clickable so the stray bit can be
-         cleared — except under a complete Group Policy "Future" range, where
+         cleared - except under a complete Group Policy "Future" range, where
          the Future checkbox is the control for those bits. */
       var locked = inactive && (!isSet || (currentSetting === "gpo" && whole));
-      if (inactive && isSet && !locked) note += " — untick to clear";
+      if (inactive && isSet && !locked) note += " - untick to clear";
 
       cb.checked = isSet;
       cb.disabled = locked;
@@ -926,7 +926,7 @@
       readState();
       updateUI();
     } catch (err) {
-      /* Degrade gracefully — log but do not break the page */
+      /* Degrade gracefully - log but do not break the page */
       if (typeof console !== "undefined" && console.error) {
         console.error("etype-calculator init failed:", err);
       }
@@ -959,7 +959,7 @@
 
   if (typeof document === "undefined") return;
 
-  /* Run after DOM is ready — covers the first page load. */
+  /* Run after DOM is ready - covers the first page load. */
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {

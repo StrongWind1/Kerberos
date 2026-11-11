@@ -1,9 +1,9 @@
 name: CodeQL
 
-# GitHub CodeQL static analysis -- workflow files, the browser tools in
+# GitHub CodeQL static analysis - workflow files, the browser tools in
 # content/javascripts/, and the MkDocs hook in hooks/.
 
-run-name: CodeQL -- ${{ github.event.head_commit.message || github.ref_name }}
+run-name: CodeQL - ${{ github.event.head_commit.message || github.ref_name }}
 
 "on":
   push:

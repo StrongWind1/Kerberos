@@ -12,7 +12,7 @@ cumulative update; pages say so wherever it matters.
 
 ### Added
 
-- **RC4 Enforcement: Am I Affected?** (`security/enforcement-triage.md`) -- symptom-to-fix runbook for `KDC_ERR_ETYPE_NOSUPP` and Kdcsvc 203/204/208/209
+- **RC4 Enforcement: Am I Affected?** (`security/enforcement-triage.md`) - symptom-to-fix runbook for `KDC_ERR_ETYPE_NOSUPP` and Kdcsvc 203/204/208/209
 - `scripts/Get-KdcKerberosRegistryAudit.ps1` 1.0.0, now linked from the site, with a README, exit codes (`-FailOn`), per-DC effective state, a build map for Server 2016-2025, and 88 Pester tests
 - Shared includes so each rule is stated once: etype bit table, common values, default by DC patch level, KDC filter matrix, lab build table, RC4 timeline, `RC4DefaultDisablementPhase` values, Kdcsvc events, PAC hardening timeline, spec link references
 - One guarded bulk-update script for all account types (dry run by default, CSV backup, allow-list, `krbtgt` and exception exclusions) and a restore script
@@ -73,31 +73,31 @@ Initial release.
 
 **Protocol section** (13 pages):
 
-- Protocol Overview -- the three-party model, ticket exchange sequence, and session key flow
-- Active Directory -- how AD maps onto Kerberos principals and realms
-- Principals & Realms -- naming format, SPN structure, and all five AD account types that can bear SPNs
-- AS Exchange -- TGT acquisition, pre-authentication, PA-ETYPE-INFO2, and krbtgt key handling
-- TGS Exchange -- service ticket issuance and etype selection logic
-- AP Exchange -- client-to-service authentication and mutual auth
-- Ticket Structure -- wire format, PAC contents, PAC signatures, and KB5008380 impact
-- Pre-Authentication -- PA-ENC-TIMESTAMP, FAST, and no-preauth accounts
-- Encryption Types -- per-etype number reference and the November 2022 split-etype behavior
-- S4U Extensions -- S4U2Self, S4U2Proxy, FORWARDABLE flag, and RBCD vs constrained delegation
-- Cross-Realm Auth -- referral flow and inter-realm trust keys
-- Delegation -- unconstrained, constrained, and resource-based constrained delegation mechanics
+- Protocol Overview - the three-party model, ticket exchange sequence, and session key flow
+- Active Directory - how AD maps onto Kerberos principals and realms
+- Principals & Realms - naming format, SPN structure, and all five AD account types that can bear SPNs
+- AS Exchange - TGT acquisition, pre-authentication, PA-ETYPE-INFO2, and krbtgt key handling
+- TGS Exchange - service ticket issuance and etype selection logic
+- AP Exchange - client-to-service authentication and mutual auth
+- Ticket Structure - wire format, PAC contents, PAC signatures, and KB5008380 impact
+- Pre-Authentication - PA-ENC-TIMESTAMP, FAST, and no-preauth accounts
+- Encryption Types - per-etype number reference and the November 2022 split-etype behavior
+- S4U Extensions - S4U2Self, S4U2Proxy, FORWARDABLE flag, and RBCD vs constrained delegation
+- Cross-Realm Auth - referral flow and inter-realm trust keys
+- Delegation - unconstrained, constrained, and resource-based constrained delegation mechanics
 
 **Security section** (10 pages):
 
-- Encryption Type Negotiation -- step-by-step KDC decision logic for AS and TGS exchanges
-- Etype Decision Guide -- all 12 inputs with decision flowcharts and worked examples
-- Algorithms & Keys -- DES/RC4/AES key derivation, cracking speed comparison, key storage in AD, the double-reset problem, and KRBTGT considerations
-- msDS-SupportedEncryptionTypes -- bit flags, defaults per account type, bulk queries, and bulk update scripts for all five SPN-bearing account types
-- Registry Settings -- DefaultDomainSupportedEncTypes, KdcUseRequestedEtypesForTickets, RC4DefaultDisablementPhase
-- Group Policy -- etype GPO mechanics, SYSVOL scanner, and per-DC verification
-- RC4 Deprecation (CVE-2026-20833) -- full timeline through July 2026, Kdcsvc events 201-209, pre-enforcement checklist
-- Auditing Kerberos Keys -- four methods: PowerShell date comparison, DSInternals, impacket secretsdump, ntdswolf
-- Standardization Guide -- complete AES migration playbook with two paths (AES-only and RC4 fallback), all commands, all verification steps
-- Mitigations -- ten prioritized defenses from gMSA deployment to KRBTGT rotation
+- Encryption Type Negotiation - step-by-step KDC decision logic for AS and TGS exchanges
+- Etype Decision Guide - all 12 inputs with decision flowcharts and worked examples
+- Algorithms & Keys - DES/RC4/AES key derivation, cracking speed comparison, key storage in AD, the double-reset problem, and KRBTGT considerations
+- msDS-SupportedEncryptionTypes - bit flags, defaults per account type, bulk queries, and bulk update scripts for all five SPN-bearing account types
+- Registry Settings - DefaultDomainSupportedEncTypes, KdcUseRequestedEtypesForTickets, RC4DefaultDisablementPhase
+- Group Policy - etype GPO mechanics, SYSVOL scanner, and per-DC verification
+- RC4 Deprecation (CVE-2026-20833) - full timeline through July 2026, Kdcsvc events 201-209, pre-enforcement checklist
+- Auditing Kerberos Keys - four methods: PowerShell date comparison, DSInternals, impacket secretsdump, ntdswolf
+- Standardization Guide - complete AES migration playbook with two paths (AES-only and RC4 fallback), all commands, all verification steps
+- Mitigations - ten prioritized defenses from gMSA deployment to KRBTGT rotation
 
 **Attacks section** (14 pages):
 

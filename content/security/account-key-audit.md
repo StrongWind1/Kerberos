@@ -10,13 +10,13 @@ description: >-
 An account without AES keys cannot be issued an AES ticket.  On a domain controller with
 the April 2026 update or later that is no longer a theoretical concern: an account with no
 AES keys and no explicit RC4 configuration **fails** with `KDC_ERR_ETYPE_NOSUPP` when a
-service ticket is requested for it — the KDC does not fall back to RC4.  (That is the case
+service ticket is requested for it - the KDC does not fall back to RC4.  (That is the case
 the lab ran, on Server 2022 build 20348.5020; a logon by such an account was not tested.)
 So the question this page answers is both "what must be
 fixed before I tighten anything" and "what is already broken, or only working because of an
 RC4 exception".
 
-There is no AD attribute that exposes an account's stored key types -- the keys are part of
+There is no AD attribute that exposes an account's stored key types - the keys are part of
 the replicated secret data in `ntds.dit`.  This page covers five ways to surface that
 information, each with different trade-offs.
 
@@ -132,7 +132,7 @@ Get-ADReplAccount -All -Server dc1.corp.local |
 ```
 
 This outputs every enabled account that has no AES key in its supplemental credentials.
-The `HasSPN` column tells you whether the KDC issues service tickets for the account —
+The `HasSPN` column tells you whether the KDC issues service tickets for the account -
 those are the ones that fail on a patched DC, and the highest priority to fix.
 
 `krbtgt` is a disabled account, so it does not appear in this list.  Check it on its own
@@ -141,7 +141,7 @@ with the single-account command above.
 ### Alert implications
 
 !!! warning "This triggers DCSync detection"
-    `Get-ADReplAccount` uses the MS-DRSR replication protocol -- the same protocol used
+    `Get-ADReplAccount` uses the MS-DRSR replication protocol - the same protocol used
     by the DCSync attack.  Running it will trigger:
 
     - **Event 4662** (Directory Service Access) on the DC for each replicated object
@@ -284,7 +284,7 @@ any local administrator of that DC.  It stays there until you delete it (Step 6)
 
 Copy `ntds.dit` and `SYSTEM` to a secure Linux workstation.  Use whatever transfer
 method your environment allows (SCP, USB, SMB share).  These files contain every
-credential in the domain -- treat them accordingly.
+credential in the domain - treat them accordingly.
 
 ```bash title="Copy ntds.dit and SYSTEM hive from DC for offline analysis"
 # Example: SCP from the DC
@@ -346,7 +346,7 @@ jq -r '
   column -t -s$'\t' -N 'Account,PasswordLastSet,SPNCount'
 ```
 
-### Step 6: Clean up — on the DC first
+### Step 6: Clean up - on the DC first
 
 The copy on the domain controller is the one most likely to be forgotten.  Remove it as
 soon as the transfer has been verified:
@@ -371,7 +371,7 @@ encrypted volume whose key you destroy is the dependable option.
 
 - **No DCSync alerts.**  No DRSUAPI traffic crosses the network.
 - **Event 327** (ESENT) on the DC when ntdsutil creates the IFM backup.  This is a
-  standard administrative operation -- DCs generate IFM backups for RODC deployment and
+  standard administrative operation - DCs generate IFM backups for RODC deployment and
   disaster recovery.  Most SOCs do not alert on this.
 - The extracted files (`ntds.dit`, `SYSTEM`) contain the full domain credential set.
   Handle them with the same security controls as a domain controller.
@@ -407,7 +407,7 @@ adds a field.
 | `ServiceAvailableKeys` | Key types stored for `krbtgt` | Key types stored for the target service account |
 | `ServiceSupportedEncryptionTypes` | `krbtgt`'s effective etype set | The target's **effective** set, after the DC has substituted its fallback for an unset attribute |
 | `ClientAdvertizedEncryptionTypes` | Etypes the client offered | Etypes the client offered |
-| `PreAuthEncryptionType` | Etype used for pre-authentication | — |
+| `PreAuthEncryptionType` | Etype used for pre-authentication | - |
 | `TicketEncryptionType` | TGT etype | Service ticket etype; `0xFFFFFFFF` when no ticket was issued |
 | `SessionKeyEncryptionType` | Session key etype | Session key etype |
 | `Status` | `0x0` on success | `0x0` on success; `0xE` is `KDC_ERR_ETYPE_NOSUPP` |
@@ -505,7 +505,7 @@ $noAes | Sort-Object Account, Role, LastSeen -Descending |
 
 How to read the result:
 
-- **Every row is an account that needs a password reset** to gain AES keys — or, if it is
+- **Every row is an account that needs a password reset** to gain AES keys - or, if it is
   a service that genuinely cannot use AES, a recorded RC4 exception.
 - **`LastStatus` of `0xE`** means the most recent request involving that account was
   refused: the KDC wanted AES for it and had no AES key.  These accounts are broken now.
@@ -513,7 +513,7 @@ How to read the result:
   for the account (its own `msDS-SupportedEncryptionTypes`, or a
   `DefaultDomainSupportedEncTypes` that includes RC4).  It works today and stops working
   the moment that allowance is removed.
-- **A row for `krbtgt`** means the domain's TGT key has no AES — fix that first, using the
+- **A row for `krbtgt`** means the domain's TGT key has no AES - fix that first, using the
   [KRBTGT rotation procedure](mitigations.md#priority-9-krbtgt-password-rotation).
 - **A DC that printed `NOT CHECKED` contributed nothing.**  An empty result is only clean
   if every DC was read.
@@ -535,7 +535,7 @@ client talks to it.
 |---|---|
 | Quick estimate of how many accounts might lack AES keys | Method 1 (PowerShell dates) |
 | Accounts in active use, without requesting replication rights | Method 5 (event fields) |
-| Definitive audit, SOC can whitelist DCSync alerts | Method 2 (DSInternals) -- best PowerShell integration |
+| Definitive audit, SOC can whitelist DCSync alerts | Method 2 (DSInternals) - best PowerShell integration |
 | Definitive audit from a Linux audit workstation | Method 3 (secretsdump) |
 | Definitive audit, cannot trigger DCSync alerts | Method 4 (ntdsutil + ntdswolf) |
 | Regular ongoing monitoring (scheduled task) | Method 5 for continuous coverage, Method 2 or 4 for periodic verification of dormant accounts |
@@ -546,7 +546,7 @@ client talks to it.
 
 Some service accounts cannot have their password changed without coordinated downtime
 across multiple systems.  In these cases, you can generate AES keys by resetting the
-password **to the same value** — AD derives a complete new set of keys on every password
+password **to the same value** - AD derives a complete new set of keys on every password
 set operation, whether or not the password string changed.
 
 ### No temporary password policy is needed
@@ -564,8 +564,8 @@ that: the policy is unnecessary, and if the session dies half-way it leaves a
 precedence-1 policy that removes every password rule from the account.
 
 This statement is from the protocol specification, not from this site's lab.  If a reset
-to the same value is refused in your environment — a password filter, or an identity
-product that sends the policy-hints control — do not weaken policy to force it through.
+to the same value is refused in your environment - a password filter, or an identity
+product that sends the policy-hints control - do not weaken policy to force it through.
 Schedule a real password change instead.
 
 ### Step-by-Step
@@ -634,8 +634,8 @@ What to expect:
 - **The DC does not accept it.**  The script stops with `STOPPED: nothing was changed`.
   The account's password is untouched.  The check is a real sign-in attempt, so a wrong
   password counts towards the
-  [account lockout threshold](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/account-lockout-threshold)
-  — at least once; Microsoft notes that Kerberos "can automatically retry account sign-in
+  [account lockout threshold](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/account-lockout-threshold) -
+  at least once; Microsoft notes that Kerberos "can automatically retry account sign-in
   attempts that count toward the threshold limits that you set in this policy setting".
   Look at what you typed before you try again.
 - **The DC refuses the sign-in although the password is right.**  The message is the same.
@@ -657,7 +657,7 @@ What to expect:
 Run the block as one piece.  The password prompt reads the next thing that reaches the
 console, so nothing else may be pasted after the closing brace.
 
-Verify the result by reading the keys — with
+Verify the result by reading the keys - with
 [DSInternals](#method-2-dsinternals-definitive-online),
 [ntdswolf](#method-4-ntdsutil-ntdswolf-definitive-offline), or the
 `ServiceAvailableKeys` field of the next
@@ -668,7 +668,7 @@ Verify the result by reading the keys — with
 !!! warning "Same password, but not a no-op"
     - **The key version number goes up.**  `msDS-KeyVersionNumber` increments on every
       password set, including this one.  Any **keytab** exported for the account now
-      carries the wrong version and usually has to be regenerated — so "without changing
+      carries the wrong version and usually has to be regenerated - so "without changing
       the password" does not mean "without touching a keytab-based service".
     - **The RC4 key is unchanged.**  The RC4 key is derived from the password alone, so
       the same password gives the same key (and the same NT hash).  Anyone who captured or

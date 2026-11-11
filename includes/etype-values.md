@@ -13,5 +13,5 @@ Results are for a target account that **has AES keys**, requested by a client th
 | 39 | `0x27` | DES + RC4 + AES-SK | RC4 | AES256 | The built-in default before the April 2026 update (KB5021131).  Do not set it. |
 | 56 | `0x38` | AES128 + AES256 + AES-SK | AES256 | AES256 | Microsoft's suggested DDSET for AES-only domains (KB5021131).  No observed difference from `0x18` in the lab. |
 | 60 | `0x3C` | RC4 + AES128 + AES256 + AES-SK | AES256 | AES256 | Microsoft's suggested transitional DDSET (KB5021131).  Lab-tested only with clients whose list includes AES256; behavior with an RC4-only client is **not lab-verified**. |
-| 2147483640 | `0x7FFFFFF8` | AES128 + AES256 + bits 5-30 | — | — | Registry value written by the GPO with AES128, AES256 and "Future encryption types" ticked.  The computer account's AD attribute becomes `0x18`. |
-| 2147483647 | `0x7FFFFFFF` | every checkbox | — | — | Registry value with all GPO boxes ticked.  The computer account's AD attribute becomes `0x1F` (lab). |
+| 2147483640 | `0x7FFFFFF8` | AES128 + AES256 + bits 5-30 | - | - | Registry value written by the GPO with AES128, AES256 and "Future encryption types" ticked.  The computer account's AD attribute becomes `0x18`. |
+| 2147483647 | `0x7FFFFFFF` | every checkbox | - | - | Registry value with all GPO boxes ticked.  The computer account's AD attribute becomes `0x1F` (lab). |

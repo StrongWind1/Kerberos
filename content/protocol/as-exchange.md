@@ -1,10 +1,10 @@
 ---
-description: Step-by-step walkthrough of the Kerberos AS exchange in Active Directory -- pre-authentication, PA-ETYPE-INFO2, the TGT, and the TGT session key.
+description: Step-by-step walkthrough of the Kerberos AS exchange in Active Directory - pre-authentication, PA-ETYPE-INFO2, the TGT, and the TGT session key.
 ---
 
 # AS Exchange (Authentication Service)
 
-The AS exchange is the first step in Kerberos authentication. It is how a client proves its identity to the KDC and obtains a **Ticket-Granting Ticket (TGT)** -- the credential that unlocks access to everything else. This exchange typically happens once per login session.
+The AS exchange is the first step in Kerberos authentication. It is how a client proves its identity to the KDC and obtains a **Ticket-Granting Ticket (TGT)** - the credential that unlocks access to everything else. This exchange typically happens once per login session.
 
 Per [RFC 4120 &sect;3.1](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1): "The Authentication Service (AS) Exchange between the client and the Kerberos Authentication Server is initiated by a client when it wishes to obtain authentication credentials for a given server but currently holds no credentials."
 
@@ -33,7 +33,7 @@ When Alice types her password and hits Enter, the workstation sends a `KRB-AS-RE
 |-------|-------|-------------|
 | `cname` | `alice` | Client principal name (sAMAccountName) |
 | `realm` | `CORP.LOCAL` | The Kerberos realm |
-| `sname` | `krbtgt/CORP.LOCAL` | The service being requested -- always the TGS for the AS exchange |
+| `sname` | `krbtgt/CORP.LOCAL` | The service being requested - always the TGS for the AS exchange |
 | `etype` | `[18, 17, 23, ...]` | List of encryption types the client supports, in preference order |
 | `nonce` | (random) | A random number to match the request with the response |
 
@@ -51,7 +51,7 @@ The KDC finds Alice's account in Active Directory and sees that pre-authenticati
 The salt is critical. For AES encryption types in Active Directory, the salt is typically `CORP.LOCALalice` (realm + sAMAccountName). The client needs this salt to correctly derive the secret key from the password. Per [RFC 4120 &sect;3.1.3](https://datatracker.ietf.org/doc/html/rfc4120#section-3.1.3), the KDC sends PA-ETYPE-INFO2 to provide the salt and encryption type parameters.
 
 !!! info "Why the salt matters"
-    The salt ensures that two users with the same password end up with different secret keys. Without a salt, identical passwords would produce identical keys, making dictionary attacks easier. For the RC4-HMAC encryption type, no salt is used -- the key is simply `MD4(password)` -- which is one reason RC4 is considered weaker. See the [Encryption Types](encryption.md) page for details.
+    The salt ensures that two users with the same password end up with different secret keys. Without a salt, identical passwords would produce identical keys, making dictionary attacks easier. For the RC4-HMAC encryption type, no salt is used - the key is simply `MD4(password)` - which is one reason RC4 is considered weaker. See the [Encryption Types](encryption.md) page for details.
 
 ### Step 3: Client derives secret key and encrypts timestamp
 
@@ -108,10 +108,10 @@ The KDC constructs the **Ticket-Granting Ticket (TGT)**, which contains:
 | &nbsp;&nbsp;`renew-till` | `2026-04-10T08:00:00Z` | Maximum renewal time (default 7 days) |
 | &nbsp;&nbsp;`authorization-data` | PAC | Microsoft extension: contains SIDs, group memberships, user info |
 
-The entire encrypted part of the TGT is encrypted with the **KRBTGT key** -- the secret key of the `krbtgt` account. Only the KDC knows this key, so no client, service, or attacker can decrypt or modify the TGT.
+The entire encrypted part of the TGT is encrypted with the **KRBTGT key** - the secret key of the `krbtgt` account. Only the KDC knows this key, so no client, service, or attacker can decrypt or modify the TGT.
 
 !!! warning "The KRBTGT key protects every TGT"
-    If an attacker compromises the KRBTGT key (by dumping it from a Domain Controller), they can forge TGTs for any user -- a **Golden Ticket** attack. The krbtgt account password should be rotated periodically and protected as the most sensitive secret in the domain.
+    If an attacker compromises the KRBTGT key (by dumping it from a Domain Controller), they can forge TGTs for any user - a **Golden Ticket** attack. The krbtgt account password should be rotated periodically and protected as the most sensitive secret in the domain.
 
 ### Step 8: KDC sends KRB-AS-REP
 
@@ -206,7 +206,7 @@ sequenceDiagram
 ## Summary
 
 - The password is used **only on the workstation** to derive a secret key. It never leaves the machine.
-- The KDC validates the client by decrypting a timestamp -- not by receiving the password.
+- The KDC validates the client by decrypting a timestamp - not by receiving the password.
 - The TGT is encrypted with the KRBTGT key, making it **opaque to the client** and tamper-proof.
 - After obtaining the TGT, the protocol no longer needs the password-derived key. This is what enables Single Sign-On. Windows still caches that key in LSASS for the logon session.
 - The TGT has a finite lifetime (default 10 hours). Once it expires, it has to be renewed or replaced through a new AS exchange.

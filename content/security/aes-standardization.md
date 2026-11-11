@@ -16,8 +16,8 @@ deadline.  It is clean-up work with four goals:
 
 1. Make the AES configuration **explicit** on every SPN-bearing account, so behavior does
    not depend on which update a particular DC has installed.
-2. Find the accounts and services that **cannot** use AES yet — accounts without AES keys,
-   services with RC4-only keytabs, clients that only offer RC4 — and fix them.
+2. Find the accounts and services that **cannot** use AES yet - accounts without AES keys,
+   services with RC4-only keytabs, clients that only offer RC4 - and fix them.
 3. Close the **KDC etype filter** on the domain controllers so DES and RC4 cannot be issued
    even by mistake.
 4. Shrink the list of **RC4 exceptions** to zero.
@@ -31,9 +31,9 @@ For background on how the KDC chooses an etype and what Microsoft changed in 202
 
 Two deployment paths are covered, based on whether all accounts have AES keys:
 
-1. **[Path 1: Modern AES-Only](#path-1-modern-aes-only-environment)** — every account
+1. **[Path 1: Modern AES-Only](#path-1-modern-aes-only-environment)** - every account
    has AES keys, RC4 is fully disabled.  The target state for all domains.
-2. **[Path 2: AES Opportunistic with RC4 Fallback](#path-2-aes-opportunistic-with-rc4-fallback)** —
+2. **[Path 2: AES Opportunistic with RC4 Fallback](#path-2-aes-opportunistic-with-rc4-fallback)** -
    all manually-managed SPN-bearing accounts and computer accounts use AES, but some regular user accounts
    (no SPNs) lack AES keys and their passwords cannot be reset yet.  RC4 remains enabled
    solely for those users' pre-authentication.
@@ -43,7 +43,7 @@ differ in two places: the checkboxes of the workstation/server GPO (Step 4) and 
 domain controller filter (Step 6, with Step 6a for Path 1 and Step 6b for Path 2).
 
 !!! warning "Every bulk command on this page is a dry run until you say otherwise"
-    The scripts that change something — accounts, a DC's registry, a test account — start
+    The scripts that change something - accounts, a DC's registry, a test account - start
     with `$DryRun = $true`: they print what they would do and write nothing.  The bulk
     scripts change only accounts whose current value you have listed, skip `krbtgt`, and on
     a real run save the old values to a CSV before writing.  Read the plan they print
@@ -61,7 +61,7 @@ domain controller filter (Step 6, with Step 6a for Path 1 and Step 6b for Path 2
 These settings decide which encryption type ends up in a Kerberos ticket, and all of them
 must be right for AES to work.  For the exhaustive reference (including auto-derived
 values), see the
-[Etype Decision Guide — All the Inputs](etype-decision-guide.md#all-the-inputs).
+[Etype Decision Guide - All the Inputs](etype-decision-guide.md#all-the-inputs).
 
 ### 1. krbtgt account keys
 
@@ -90,19 +90,19 @@ applied:
   advertises in AS-REQ and TGS-REQ.  The machine also writes the low five bits of the value
   to its own computer account's `msDS-SupportedEncryptionTypes` in AD.
 - **On domain controllers**: does the same client-side work **and** acts as a KDC etype
-  filter — but only after the KDC service has been restarted, and not identically on every
+  filter - but only after the KDC service has been restarted, and not identically on every
   OS version (see [Step 6](#step-6-apply-etype-gpo-to-domain-controllers)).
 
 You typically apply **two separate GPOs**: one for the Domain Controllers OU and one for
 workstation/server OUs.  They can have different etype selections (for example, the DC GPO
-may need to keep RC4 while legacy users exist -- see
+may need to keep RC4 while legacy users exist - see
 [Path 2](#path-2-aes-opportunistic-with-rc4-fallback)).
 
 ### 3. `DefaultDomainSupportedEncTypes` (KDC fallback)
 
 A per-DC registry value at `HKLM\SYSTEM\CurrentControlSet\Services\Kdc`.  When a target
 account has `msDS-SupportedEncryptionTypes` unset or `0`, the KDC uses this value
-instead.  It is **not** replicated -- you must set it on every DC individually, and verify
+instead.  It is **not** replicated - you must set it on every DC individually, and verify
 every DC has the same value.  It takes effect immediately, without a KDC restart.
 
 When the value is absent, the KDC falls back to a built-in default that depends on the
@@ -135,7 +135,7 @@ since
 ([event 4768 reference](https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4768)).
 Accounts whose passwords predate that have only RC4 and DES keys.
 
-An account without AES keys **fails** when the KDC wants AES for it — whether that is
+An account without AES keys **fails** when the KDC wants AES for it - whether that is
 because you set `msDS-SupportedEncryptionTypes = 0x18`, or because the attribute is unset
 and the DC applies the AES-only default.  The KDC returns `KDC_ERR_ETYPE_NOSUPP`; it does
 not quietly fall back to RC4 (lab: Server 2022 build 20348.5020).
@@ -184,8 +184,8 @@ Most domains use three GPOs to cover AES-only and mixed-etype environments:
 | AES-only machines | Workstations/Servers (modern) | AES128 + AES256 + Future | Restricts client etype advertisement; the machine writes `0x18` to its own account |
 | AES+RC4 machines | Workstations/Servers (legacy) | RC4 + AES128 + AES256 + Future | Lets these clients still offer RC4 while preferring AES |
 
-For any SPN-bearing account that is not a computer account — user service accounts, gMSA,
-MSA, dMSA — set `msDS-SupportedEncryptionTypes` directly in AD.  The Kerberos GPO does not
+For any SPN-bearing account that is not a computer account - user service accounts, gMSA,
+MSA, dMSA - set `msDS-SupportedEncryptionTypes` directly in AD.  The Kerberos GPO does not
 manage these account types.
 
 ### How service ticket etypes are selected
@@ -198,7 +198,7 @@ for, and picks the strongest one the KDC filter allows.
 This has three practical implications:
 
 1. **Adding RC4 to an account does not produce RC4 tickets.**  An account with
-   `msDS-SET = 28` (RC4 + AES) and AES keys still gets AES256 tickets — the strongest
+   `msDS-SET = 28` (RC4 + AES) and AES keys still gets AES256 tickets - the strongest
    etype wins.  The ticket is RC4 only when the account's value has no AES bits (`4`,
    `36`) or the account has no AES keys.
 2. **The client's etype list decides the session key, and whether the request succeeds at
@@ -219,7 +219,7 @@ Before changing anything, understand what your domain looks like today.
 
 ### SPN-bearing user accounts
 
-User accounts with SPNs (objectCategory=person) are the primary Kerberoasting target —
+User accounts with SPNs (objectCategory=person) are the primary Kerberoasting target -
 their human-set passwords make a cracked ticket actionable.  Start with a summary of
 every distinct `msDS-SupportedEncryptionTypes` value to see what you are working with:
 
@@ -238,7 +238,7 @@ Get-ADUser -Filter 'servicePrincipalName -like "*"' `
 `krbtgt` is filtered out on purpose: it has an SPN (`kadmin/changepw`), it will always show
 as unset, and it must stay that way.
 
-A finished domain shows every account at `24` (`0x18` -- AES128 + AES256), plus the
+A finished domain shows every account at `24` (`0x18` - AES128 + AES256), plus the
 exceptions you have recorded.  Anything else needs investigation.  What each value does:
 
 --8<-- "includes/etype-values.md"
@@ -273,10 +273,10 @@ unset value still leaves the ticket etype to each DC's fallback.
 ### Computer accounts
 
 A Windows machine writes its own `msDS-SupportedEncryptionTypes`.  With no Kerberos etype
-policy it typically registers `28` (`0x1C` -- RC4 + AES128 + AES256); with a policy it
+policy it typically registers `28` (`0x1C` - RC4 + AES128 + AES256); with a policy it
 registers the low five bits of the policy value.  In a well-configured domain the Windows
 computers in one OU therefore all show the same value.  (The `28` figure is Windows'
-commonly documented behavior and was not separately verified in this site's lab — run the
+commonly documented behavior and was not separately verified in this site's lab - run the
 summary below to see what your own machines register.)
 
 ```powershell title="Summary: group all computer accounts by msDS-SET value"
@@ -317,7 +317,7 @@ Get-ADComputer -Filter * `
 
 ### Find accounts missing AES keys
 
-See [Auditing Kerberos Keys](account-key-audit.md) for the full guide — from a quick
+See [Auditing Kerberos Keys](account-key-audit.md) for the full guide - from a quick
 PowerShell estimate, through the event-log fields, to definitive offline extraction with
 ntdswolf.  The results of that audit determine which path you follow:
 
@@ -333,7 +333,7 @@ Configuration queries tell you what *should* happen.  The domain controllers' lo
 what clients and services are actually doing.
 
 **The KDC's own RC4 events.**  Since the January 2026 update, DCs log System events for
-requests the RC4 change affects — but not on every DC.  Per KB5073381, the events for
+requests the RC4 change affects - but not on every DC.  Per KB5073381, the events for
 unconfigured accounts (201-204) require that the DC has no `DefaultDomainSupportedEncTypes`
 value ("Warning Event 201 is NOT logged if DefaultDomainSupportedEncTypes is manually
 defined"), so a DC with an explicit value stays silent about them:
@@ -361,7 +361,7 @@ Both subcategories must show **Success and Failure**.
 
 ### Check current DC registry state
 
-`DefaultDomainSupportedEncTypes` and `SupportedEncryptionTypes` are **per-DC** values --
+`DefaultDomainSupportedEncTypes` and `SupportedEncryptionTypes` are **per-DC** values -
 they are not replicated.  Check every DC individually:
 
 --8<-- "includes/ddset-per-dc-check.md"
@@ -384,7 +384,7 @@ matter:
 
 - the security option *Configure encryption types allowed for Kerberos*, stored in each
   GPO's `GptTmpl.inf` (the approach [PingCastle](https://www.pingcastle.com/) uses), and
-- **Group Policy Preferences registry items**, stored in `Registry.xml` — the usual way to
+- **Group Policy Preferences registry items**, stored in `Registry.xml` - the usual way to
   deliver `DefaultDomainSupportedEncTypes`, or a filter value at the `Lsa` path.
 
 ```powershell title="Find every GPO that delivers a Kerberos etype value, and where it is linked"
@@ -466,16 +466,16 @@ Legacy App Servers   SupportedEncryptionTypes       0x7FFFFFFC RC4, AES128, AES2
 
 What to look for:
 
-- **No results at all** -- no GPO delivers a Kerberos etype value.  Every machine uses its
+- **No results at all** - no GPO delivers a Kerberos etype value.  Every machine uses its
   local default, and the KDC has no etype filter.
-- **RC4 or DES in `Etypes`** -- that GPO allows legacy encryption.  Check `Linked To` to
+- **RC4 or DES in `Etypes`** - that GPO allows legacy encryption.  Check `Linked To` to
   see whether it targets DCs (KDC filter) or workstations (client advertisement).
-- **Multiple GPOs linked to the same OU** -- GPO precedence applies.  The GPO with the
+- **Multiple GPOs linked to the same OU** - GPO precedence applies.  The GPO with the
   lowest link order wins.  Verify with `gpresult /R` on a target machine.
 - **A GPO linked to `Domain Controllers` with a different value than one linked to
-  workstations** -- this is expected in [Path 2](#path-2-aes-opportunistic-with-rc4-fallback)
+  workstations** - this is expected in [Path 2](#path-2-aes-opportunistic-with-rc4-fallback)
   but should not happen in [Path 1](#path-1-modern-aes-only-environment).
-- **A leftover `RC4DefaultDisablementPhase` or `KdcUseRequestedEtypesForTickets` item** --
+- **A leftover `RC4DefaultDisablementPhase` or `KdcUseRequestedEtypesForTickets` item** -
   neither belongs in a finished configuration.
 
 The scan lists what a GPO **contains**, not what is applied: it also lists GPOs whose link or
@@ -485,7 +485,7 @@ it).  Treat each row as a place to look, and take the value in force from the pe
 registry check.
 
 This scan reads the two standard locations.  It does not see values pushed by scripts,
-configuration-management tools, or hand edits — the per-DC registry check above does.
+configuration-management tools, or hand edits - the per-DC registry check above does.
 
 ---
 
@@ -493,7 +493,7 @@ configuration-management tools, or hand edits — the per-DC registry check abov
 
 AES keys are generated when a password is set in a domain at functional level 2008 or
 higher.  If an account's password predates that, the account has **no AES keys** in
-`ntds.dit` --
+`ntds.dit` -
 regardless of what `msDS-SupportedEncryptionTypes` says.  Setting the attribute on a
 keyless account does not create keys; it just makes ticket requests for it fail with
 `KDC_ERR_ETYPE_NOSUPP`.
@@ -513,16 +513,16 @@ generated with AES keys.
 ### How many resets: one { #password-resets-and-aes-keys }
 
 <a id="the-double-reset-problem"></a>**One password reset is enough.**  Every password set on an AES-capable DC writes the full
-set of keys for the new password — RC4, AES128 and AES256 — in one operation.  Microsoft's
+set of keys for the new password - RC4, AES128 and AES256 - in one operation.  Microsoft's
 guidance for an account that only has RC4 keys is the same: reset the password once.
 
 The "reset twice" advice that circulates belongs to a different problem.  AD keeps the
 previous password's keys alongside the current ones, and for two kinds of account that
 history matters:
 
-- **`krbtgt`** — tickets issued under the previous key stay valid until a second rotation
+- **`krbtgt`** - tickets issued under the previous key stay valid until a second rotation
   replaces it.
-- **Trust accounts** — the same, for inter-realm tickets.
+- **Trust accounts** - the same, for inter-realm tickets.
 
 For an ordinary service account, reset once, verify the keys (below), and reset again only
 if the verification shows AES keys are still missing.
@@ -541,7 +541,7 @@ if the verification shows AES keys are still missing.
     4. Reset the password.
     5. Update the password in every service configuration, and redeploy keytabs.
     6. Restart the services.
-    7. Verify authentication worked -- check that tickets are being issued and accepted,
+    7. Verify authentication worked - check that tickets are being issued and accepted,
        not just that the service started.
 
 A new password exists only on the DC that processed the reset until replication carries it
@@ -555,11 +555,11 @@ The quickest check is the `ServiceAvailableKeys` field of Security event 4769 on
 Trigger a service ticket request for the account (connect to the service), then look at
 the newest event for that service name:
 
-```text title="Event 4769 — service keys after a successful reset"
+```text title="Event 4769 - service keys after a successful reset"
 ServiceAvailableKeys: AES-SHA1, RC4
 ```
 
-If the field shows only `RC4`, AES keys were not generated — the reset was processed by a
+If the field shows only `RC4`, AES keys were not generated - the reset was processed by a
 DC that cannot generate them, or it did not happen.
 
 For verification without waiting for an authentication event, use DSInternals to read
@@ -592,7 +592,7 @@ An explicit `24` gives the same answer on every DC.
 |---|---|---|
 | Account has AES keys and the service can decrypt AES | `24` (`0x18`) | The target.  AES256 ticket, AES256 session key. |
 | Service is fine with AES, but some **clients** can only offer RC4 | `28` (`0x1C`) | Ticket stays AES256; the RC4 bit lets those clients agree a session key.  Record it as an exception. |
-| The **service** cannot decrypt AES tickets at all | `36` (`0x24`) or `4` | A value with the RC4 bit and neither AES cipher bit makes the KDC issue an RC4 ticket for an account that has AES keys (`4`, `36` and the old default `39` all do); `28` does not.  `36` is Microsoft's suggestion in KB5073381 (RC4 ticket; AES256 session key for a client that lists AES256 first — that split was seen in the lab on the pre-April build only).  The DC filter must also allow RC4. |
+| The **service** cannot decrypt AES tickets at all | `36` (`0x24`) or `4` | A value with the RC4 bit and neither AES cipher bit makes the KDC issue an RC4 ticket for an account that has AES keys (`4`, `36` and the old default `39` all do); `28` does not.  `36` is Microsoft's suggestion in KB5073381 (RC4 ticket; AES256 session key for a client that lists AES256 first - that split was seen in the lab on the pre-April build only).  The DC filter must also allow RC4. |
 | Account has no AES keys yet | Leave it and go back to [Step 2](#step-2-generate-aes-keys-password-resets) | No value fixes missing keys.  Until the reset, `28` keeps the account working on its RC4 key (lab: build 20348.5020, RC4 ticket); `24` or unset fails. |
 
 Do **not** use `16` (`0x10`, AES256 only) unless you are certain no client needs AES128.
@@ -641,7 +641,7 @@ Verify:
 ### Bulk update { #bulk-update-script }
 
 Use the summary query from [Step 1](#spn-bearing-user-accounts) to see what you are
-working with, then run the bulk script — first as it is, to read the plan.
+working with, then run the bulk script - first as it is, to read the plan.
 
 --8<-- "includes/set-aes-user-accounts.md"
 
@@ -663,7 +663,7 @@ A sensible order of work:
    that reads keys: the [event fields](account-key-audit.md#detecting-accounts-that-need-password-reset-via-event-logs)
    for accounts in use, [DSInternals](account-key-audit.md#method-2-dsinternals-definitive-online)
    or an offline audit for the rest.  The script's password-date check is a heuristic, not
-   a key check — see
+   a key check - see
    [why it is only approximate](account-key-audit.md#why-this-is-only-approximate).  An
    account without AES keys that is set to `24` stops working.
 4. Set `$SearchBase` to one OU, set `$DryRun = $false`, and run the pilot.
@@ -682,7 +682,7 @@ writes no file.  To put the old values back:
 ### When the change takes effect
 
 The KDC reads the attribute on every request, so a DC applies the new value as soon as the
-change has replicated to it — there is nothing to restart.  Two delays remain:
+change has replicated to it - there is nothing to restart.  Two delays remain:
 
 - **Replication.**  Other DCs keep answering from the old value until they receive the
   change.
@@ -705,9 +705,9 @@ DCs, compare the service's effective value with the keys it has:
 
 | Account state | `ServiceSupportedEncryptionTypes` | `ServiceAvailableKeys` | Result |
 |---|---|---|---|
-| Unset, patched DC, has AES keys | `0x18 (AES128-SHA96, AES256-SHA96)` | `AES-SHA1, RC4` | AES256 ticket — identical to the next row |
+| Unset, patched DC, has AES keys | `0x18 (AES128-SHA96, AES256-SHA96)` | `AES-SHA1, RC4` | AES256 ticket - identical to the next row |
 | `24`, has AES keys | `0x18 (AES128-SHA96, AES256-SHA96)` | `AES-SHA1, RC4` | AES256 ticket |
-| `24` or unset on a patched DC, **no AES keys** | — | `RC4` | Request fails: `Status` `0xE`, `TicketEncryptionType` `0xFFFFFFFF` |
+| `24` or unset on a patched DC, **no AES keys** | - | `RC4` | Request fails: `Status` `0xE`, `TicketEncryptionType` `0xFFFFFFFF` |
 
 The [event-based query on the key audit page](account-key-audit.md#detecting-accounts-that-need-password-reset-via-event-logs)
 lists exactly those accounts.
@@ -719,14 +719,14 @@ from Step 1 and look for new 204, 208 or 209 events naming the accounts you chan
 that is handed an AES ticket it cannot decrypt: the KDC issued the ticket and has nothing
 to log.  KB5073381 describes the keytab case this way: "This will most likely manifest in
 the form of authentication failures from the target service rather than from the KDC."
-Ask each service owner to confirm a fresh logon to the service after the change — fresh
+Ask each service owner to confirm a fresh logon to the service after the change - fresh
 meaning after `klist purge` on the client, or after the old tickets have expired.
 
 ### Verify with klist
 
 On a client machine, purge the cache and request a fresh service ticket:
 
-```text title="klist — service ticket for an AES-only account"
+```text title="klist - service ticket for an AES-only account"
 klist purge
 klist get HTTP/svc-example.corp.local
 
@@ -787,7 +787,7 @@ value, the machine writes the matching value to its account in AD.
 
     RC4 must be enabled in the workstation GPO so the Kerberos client includes RC4 in
     its AS-REQ etype list.  Without it, users who only have RC4 keys cannot
-    pre-authenticate from these machines -- the KDC has no common etype to use for the
+    pre-authenticate from these machines - the KDC has no common etype to use for the
     AS-REP and returns `KDC_ERR_ETYPE_NOSUPP`.
 
     This does **not** weaken service ticket security.  Service ticket encryption is
@@ -889,7 +889,7 @@ Get-ADComputer -Filter 'OperatingSystem -like "Windows*"' `
 | GPO is blocked or overridden by a higher GPO | Run `gpresult /r` on the machine | Fix GPO precedence / remove block |
 | GPO applied but the account was not updated yet | `LastLogonDate` is recent | Run `gpupdate /force`, then restart the machine if the value does not change |
 
-Accounts with **no value at all** are a different population — objects that never
+Accounts with **no value at all** are a different population - objects that never
 registered one:
 
 ```powershell title="Computer objects with no msDS-SET (non-Windows, pre-staged, or never booted)"
@@ -993,7 +993,7 @@ If you have either, clear this gate first:
 !!! warning "Per-DC, not replicated"
     This is a **local registry value** on each DC.  It is not replicated through AD.
     You must set it on every DC individually.  If you add a new DC later, you must set
-    it on the new DC as well — or deliver it with a Group Policy Preferences registry item
+    it on the new DC as well - or deliver it with a Group Policy Preferences registry item
     linked to the Domain Controllers OU so new DCs receive it automatically.
 
 ### Verify on all DCs
@@ -1011,7 +1011,7 @@ issue a ticket, or accept pre-authentication, with an etype the value does not a
 workstations the same GPO only controls the client's etype advertisement.  Different OU,
 different impact.
 
-The checkboxes differ by path — see [Step 6a](#step-6-apply-aes-only-gpo-to-domain-controllers)
+The checkboxes differ by path - see [Step 6a](#step-6-apply-aes-only-gpo-to-domain-controllers)
 and [Step 6b](#step-6-apply-rc4-aes-gpo-to-domain-controllers).  The rollout procedure is
 the same for both and is described here once.
 
@@ -1086,7 +1086,7 @@ not a gate there; its AES256 TGTs still depend on `krbtgt` having AES keys.
 
 !!! warning "The filter is read only when the KDC service starts"
     `gpupdate` delivers the registry value, but the running KDC keeps using the filter it
-    loaded at start-up — or no filter at all.  Until the service is restarted, nothing
+    loaded at start-up - or no filter at all.  Until the service is restarted, nothing
     changes and every verification passes vacuously.  Then the filter switches on DC by DC,
     whenever each one happens to reboot.  Control that moment yourself.
 
@@ -1127,10 +1127,10 @@ klist purge_bind
 
 Microsoft describes the binding as a *preferred* domain controller, so treat it as a
 request, not as proof: after each test, confirm on the DC itself that it logged the
-request.  Leave no binding behind — `klist purge_bind` removes it.
+request.  Leave no binding behind - `klist purge_bind` removes it.
 
 **Positive test (AES-only filter).**  A registry value proves delivery, not activation.
-To prove the KDC is filtering, ask it for something the filter must refuse — from a client
+To prove the KDC is filtering, ask it for something the filter must refuse - from a client
 that would otherwise be given it.
 
 The client is the part that is easy to get wrong.  A client that offers only AES is
@@ -1276,7 +1276,7 @@ $Since = (Get-Date).AddMinutes(-10)   # must be later than the KDC restart on $T
 request the DC may write `-` there, as it does in Microsoft's published example of a failed
 4769.
 
-**Clean-up.**  Remove the account when the last DC has passed — and also when you stop for
+**Clean-up.**  Remove the account when the last DC has passed - and also when you stop for
 any other reason: a `FAIL` you cannot resolve today, a rollback, an abandoned change, or a
 pause of more than the working day (create it again when you resume).  Nothing removes it
 for you.
@@ -1317,7 +1317,7 @@ two traps:
 1. Change the GPO back by **re-ticking RC4**.  Do not unlink the GPO or set the policy to
    "Not Defined" and expect the value to go away.  Microsoft documents that a security
    setting which is no longer defined, and has no earlier value to return to, "doesn't
-   revert to anything and remains defined as is" — the behavior known as tattooing.  The
+   revert to anything and remains defined as is" - the behavior known as tattooing.  The
    registry value stays, and it is the registry value the KDC loads.
 2. Run `gpupdate /force` on the affected DCs and confirm with the
    [per-DC registry check](#check-current-dc-registry-state) that `Filter (Pol)` changed.
@@ -1401,8 +1401,8 @@ after the next policy refresh to see which value is in place.
 The KDC has not read the filter from the same place on every OS build.  In this site's
 lab, a Windows Server 2022 DC honored the value at both the Policies path (where the GPO
 writes it) and the `Lsa` path, with Policies taking precedence.  The one Windows Server
-2025 build tested — 26100.32522, the **March 2026** update, so before the April 2026
-cumulative update — honored **only** the `Lsa` path: the value the standard GPO wrote was
+2025 build tested - 26100.32522, the **March 2026** update, so before the April 2026
+cumulative update - honored **only** the `Lsa` path: the value the standard GPO wrote was
 present in the registry and ignored by the KDC.
 
 Microsoft's April 2026 cumulative update for Server 2025 (KB5082063, build 26100.32690)
@@ -1415,7 +1415,7 @@ been retested here**.
 Do not assume either behavior.  On every Server 2025 DC, whatever its update level:
 
 1. Run the positive test above after the KDC restart.
-2. If the verdict is `FAIL` — the test account still receives an RC4 ticket — the filter is
+2. If the verdict is `FAIL` - the test account still receives an RC4 ticket - the filter is
    not being read from the Policies path on that build.  First bring the DC up to the April 2026 cumulative update
    (KB5082063) or later, restart the KDC service and repeat the test.  If it still fails,
    deliver the same value to
@@ -1441,7 +1441,7 @@ Before entering this path, confirm:
 - No recorded exception still depends on RC4.  An account at `4` or `36` stops working
   behind an AES-only filter, and the RC4-only clients that a `28` exception exists for can
   no longer authenticate through it (the filter also applies to the AS exchange)
-- `krbtgt` has AES keys on every DC — run the
+- `krbtgt` has AES keys on every DC - run the
   [`krbtgt` key check](#check-krbtgt-keys) before the first KDC restart
 - All computer accounts have been reviewed (Step 4 complete)
 - `DefaultDomainSupportedEncTypes = 0x18` on every DC (Step 5 complete).  An absent value
@@ -1478,7 +1478,7 @@ Before entering this path, confirm:
 After full standardization (Steps 1-6 complete), a 4769 event for a service ticket request
 should look like:
 
-```text title="Event 4769 — fully standardized AES-only environment"
+```text title="Event 4769 - fully standardized AES-only environment"
 ServiceName:                      svc_example
 ServiceSupportedEncryptionTypes:  0x18 (AES128-SHA96, AES256-SHA96)
 ServiceAvailableKeys:             AES-SHA1, RC4
@@ -1489,7 +1489,7 @@ SessionKeyEncryptionType:         0x12
 
 Every field confirms AES: the account is configured for AES (`0x18`), the ticket is
 AES256 (`0x12`), and the session key is AES256 (`0x12`).  `RC4` under
-`ServiceAvailableKeys` is expected — every password still produces an RC4 key; it is
+`ServiceAvailableKeys` is expected - every password still produces an RC4 key; it is
 simply never selected.
 
 ### Path 1: Verification Checklist
@@ -1502,7 +1502,7 @@ simply never selected.
 - [ ] All SPN-bearing user accounts have AES keys (verified, not inferred from dates)
 - [ ] All regular user accounts have AES keys
 - [ ] Every keytab-based service has been confirmed to decrypt AES tickets
-- [ ] `DefaultDomainSupportedEncTypes = 0x18` on **every** DC — or absent on every DC, all on
+- [ ] `DefaultDomainSupportedEncTypes = 0x18` on **every** DC - or absent on every DC, all on
       the April 2026 update or later (per-DC check shows no errors)
 - [ ] AES-only filter delivered to every DC **and** the KDC service restarted on every DC
 - [ ] Positive test passed on every DC, including every Windows Server 2025 DC
@@ -1613,7 +1613,7 @@ These are common misconceptions for this scenario:
 
 The DC filter must include RC4 so the KDC can use RC4 for the AS exchange when users
 with only RC4 keys log in.  If the DC filter blocks RC4, these users get
-`KDC_ERR_ETYPE_NOSUPP` at login -- the KDC has no common etype to encrypt the AS-REP.
+`KDC_ERR_ETYPE_NOSUPP` at login - the KDC has no common etype to encrypt the AS-REP.
 
 1. Open **Group Policy Management** → create or edit a GPO linked to the **Domain Controllers** OU.
 2. Set the checkboxes:
@@ -1647,7 +1647,7 @@ with only RC4 keys log in.  If the DC filter blocks RC4, these users get
     [When to use this path](#when-to-use-this-path).
 
 !!! info "RC4 in the DC filter does not weaken service tickets"
-    The filter allowing RC4 means the KDC **can** use RC4 -- not that it **will**.
+    The filter allowing RC4 means the KDC **can** use RC4 - not that it **will**.
     Service ticket etype is controlled by the target account's
     `msDS-SupportedEncryptionTypes`.  Since all manually-managed SPN-bearing accounts have `msDS-SET = 0x18`
     (Step 3), service tickets are AES256.  The filter allowing RC4 only matters for
@@ -1676,7 +1676,7 @@ The 2026 RC4 change altered one thing: the etype set the KDC assumes for a **ser
 ticket target** that has no `msDS-SupportedEncryptionTypes`.  In the lab it left the AS
 exchange alone: on an enforcing Server 2022 DC (build 20348.5020) a TGT request that asked
 for RC4 was still answered with RC4, at every setting of the rollout gate.  The lab did
-**not** run the case this path rests on — a logon by an account that has only RC4 keys —
+**not** run the case this path rests on - a logon by an account that has only RC4 keys -
 so for that case the result is an inference, not an observation.
 
 So for these legacy users:
@@ -1688,7 +1688,7 @@ So for these legacy users:
   under [When to use this path](#when-to-use-this-path).
 
 None of this has been tested on a DC with the July 2026 update or later.  Confirm it on
-your own canary DC — a legacy user logging on through it — before you rely on this path,
+your own canary DC - a legacy user logging on through it - before you rely on this path,
 and again whenever you install a new cumulative update while it is in use.
 
 ### Identifying and tracking legacy users
@@ -1753,15 +1753,15 @@ $rc4PreAuth | Group-Object Account, AccountKeys |
 
 How to read it:
 
-- **`AccountKeys` without AES** — the account genuinely has no AES keys.  It leaves the
+- **`AccountKeys` without AES** - the account genuinely has no AES keys.  It leaves the
   list when its password is changed.
-- **`AccountKeys` with AES, RC4 pre-auth anyway** — the account is fine; the **client** is
+- **`AccountKeys` with AES, RC4 pre-auth anyway** - the account is fine; the **client** is
   the problem.  `ClientOffered` shows what it advertised.  Look at the machine at
   `ClientAddress` (an etype policy that lists only RC4, a non-Windows client, an old
   application).
-- **A DC printed `NOT CHECKED`** — you have no data from that DC.  Its events are not
+- **A DC printed `NOT CHECKED`** - you have no data from that DC.  Its events are not
   covered by an empty result.
-- **Nothing from any DC, including in normal operation** — check that the DCs are logging
+- **Nothing from any DC, including in normal operation** - check that the DCs are logging
   the January 2025 event format at all: open one recent 4768 and confirm it contains a
   `PreAuthEncryptionType` field.  The Security log must also reach back as far as `$Since`.
 
@@ -1806,7 +1806,7 @@ Then update both GPOs:
 
 1. **Workstation/server GPO**: remove RC4 from the checkboxes (AES128 + AES256 + Future
    only).
-2. **Domain Controllers GPO**: remove RC4, and roll the change out as a filter change —
+2. **Domain Controllers GPO**: remove RC4, and roll the change out as a filter change -
    [canary DC first, KDC restart, positive test](#rolling-out-a-filter-change).  Removing
    RC4 from the DC filter is the step that locks out anyone you missed.
 3. Verify: confirm no `KDC_ERR_ETYPE_NOSUPP` errors or Event 4768 failures after each DC
@@ -1820,7 +1820,7 @@ Then update both GPOs:
 - [ ] All dMSA accounts have `msDS-SupportedEncryptionTypes = 0x18`
 - [ ] All SPN-bearing user accounts have AES keys (verified, not inferred from dates)
 - [ ] Every keytab-based service has been confirmed to decrypt AES tickets
-- [ ] `DefaultDomainSupportedEncTypes = 0x18` on **every** DC — or absent on every DC, all on
+- [ ] `DefaultDomainSupportedEncTypes = 0x18` on **every** DC - or absent on every DC, all on
       the April 2026 update or later (per-DC check shows no errors)
 - [ ] RC4 + AES filter delivered to every DC **and** the KDC service restarted on every DC (DES disabled)
 - [ ] RC4 + AES GPO applied to workstation/server OUs (so legacy users can pre-auth from any machine)
@@ -1864,7 +1864,7 @@ What that means for this playbook:
 
 ### How DDSET interacts with enforcement { #how-ddset-interacts-with-enforcement }
 
-Microsoft's change replaced the KDC's **built-in** default — the value it uses when both
+Microsoft's change replaced the KDC's **built-in** default - the value it uses when both
 `msDS-SupportedEncryptionTypes` and `DefaultDomainSupportedEncTypes` are absent.  An
 explicit `DefaultDomainSupportedEncTypes` is still honored, including one that contains
 RC4; the DC logs System event 205 as a standing warning.  The lab confirmed this on an
@@ -1899,7 +1899,7 @@ The short version:
 |---|---|---|
 | A **client** that only offers RC4, talking to a service that is fine with AES | `28` on the service account | Nothing on the DC filter for the ticket; the filter must allow RC4 for the session key |
 | The **service** itself cannot decrypt AES tickets | `36` (`0x24`, Microsoft's recommendation in KB5073381) on the service account | RC4 in the DC filter (Path 2 filter).  The RC4 ticket with an AES256 session key was seen in the lab on the pre-April build only |
-| The account has **no AES keys** | None — reset the password.  Until then `28` on the account keeps it working on its RC4 key (lab: build 20348.5020) | RC4 in the DC filter while the bridge is in place |
+| The account has **no AES keys** | None - reset the password.  Until then `28` on the account keeps it working on its RC4 key (lab: build 20348.5020) | RC4 in the DC filter while the bridge is in place |
 
 Two things an exception does **not** do:
 

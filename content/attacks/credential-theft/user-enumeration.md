@@ -1,6 +1,6 @@
 # User Enumeration via Kerberos
 
-Kerberos user enumeration exploits the different error codes the KDC returns for valid and invalid principal names. An attacker with nothing more than network access to the domain controller on port 88 can determine which usernames exist in the domain -- no credentials, no LDAP bind, no domain membership required.
+Kerberos user enumeration exploits the different error codes the KDC returns for valid and invalid principal names. An attacker with nothing more than network access to the domain controller on port 88 can determine which usernames exist in the domain - no credentials, no LDAP bind, no domain membership required.
 
 **MITRE ATT&CK:** [T1087.002](https://attack.mitre.org/techniques/T1087/002/) Account Discovery: Domain Account
 
@@ -15,7 +15,7 @@ When the KDC receives an AS-REQ, it must look up the requested client principal 
 | Principal **exists**, pre-auth not required | Full AS-REP (TGT returned) | N/A |
 | Principal **exists**, account disabled, locked, or expired | `KDC_ERR_CLIENT_REVOKED` | 18 |
 
-The attacker sends AS-REQs **without any pre-authentication data**. For a non-existent principal, the KDC returns error 6 immediately. For an existing principal that requires pre-authentication (the default), the KDC returns error 25 -- telling the client to come back with pre-auth data. The difference between error 6 and error 25 reveals whether the username is valid.
+The attacker sends AS-REQs **without any pre-authentication data**. For a non-existent principal, the KDC returns error 6 immediately. For an existing principal that requires pre-authentication (the default), the KDC returns error 25 - telling the client to come back with pre-auth data. The difference between error 6 and error 25 reveals whether the username is valid.
 
 ```mermaid
 sequenceDiagram
@@ -34,7 +34,7 @@ sequenceDiagram
 
 ### Bonus: AS-REP Roasting Discovery
 
-When the KDC returns a full AS-REP (no error), the account exists **and** has `DONT_REQUIRE_PREAUTH` set. This simultaneously discovers the username and produces a crackable hash -- effectively combining user enumeration with [AS-REP Roasting](../roasting/asrep-roasting.md) in a single request.
+When the KDC returns a full AS-REP (no error), the account exists **and** has `DONT_REQUIRE_PREAUTH` set. This simultaneously discovers the username and produces a crackable hash - effectively combining user enumeration with [AS-REP Roasting](../roasting/asrep-roasting.md) in a single request.
 
 !!! tip "Use TCP transport for reliable results"
     Kerberos user enumeration over UDP may return `KRB_ERR_RESPONSE_TOO_BIG` for accounts without pre-authentication, because the full AS-REP exceeds the UDP datagram limit (~1470 bytes). Use TCP transport (`--transport tcp`) for reliable results.
@@ -103,9 +103,9 @@ index=security EventCode=4768 Status=0x6
 
 During enumeration, the attacker hits both valid and invalid usernames. Look for a single source producing a mix of:
 
-- Status `0x6` (principal unknown) -- invalid usernames
-- Status `0x19` (preauth required, logged as failure in some configurations) -- valid usernames
-- Successful 4768 events (for no-preauth accounts) -- valid usernames
+- Status `0x6` (principal unknown) - invalid usernames
+- Status `0x19` (preauth required, logged as failure in some configurations) - valid usernames
+- Successful 4768 events (for no-preauth accounts) - valid usernames
 
 ```text
 index=security EventCode=4768
@@ -210,7 +210,7 @@ credwolf -d CORP.LOCAL userenum --kdc-ip 192.0.2.10 -U users.txt --delay 2 --jit
 
 Key features for enumeration:
 
-- **Automatic ASREProastable detection**: accounts with `DONT_REQUIRE_PREAUTH` are flagged as `no_preauth (ASREProastable)` during the enumeration pass -- no separate AS-REP roasting step needed
+- **Automatic ASREProastable detection**: accounts with `DONT_REQUIRE_PREAUTH` are flagged as `no_preauth (ASREProastable)` during the enumeration pass - no separate AS-REP roasting step needed
 - **Full account status detection**: distinguishes between disabled, expired, locked, and non-existent accounts based on KDC error codes, rather than just "exists" vs "doesn't exist"
 - **UDP and TCP transport**: UDP by default for speed, TCP with `--transport tcp` when needed
 - **Rate limiting**: `--delay` (seconds between requests) and `--jitter` (random additional delay) to control request rate

@@ -1,5 +1,5 @@
 ---
-description: How Kerberos authentication crosses domain and forest boundaries in Active Directory -- referral TGTs, inter-realm trust keys, trust types, SID filtering, and TGT delegation across trusts.
+description: How Kerberos authentication crosses domain and forest boundaries in Active Directory - referral TGTs, inter-realm trust keys, trust types, SID filtering, and TGT delegation across trusts.
 ---
 
 # Cross-Realm Authentication
@@ -7,7 +7,7 @@ description: How Kerberos authentication crosses domain and forest boundaries in
 How Kerberos works across domain and forest boundaries.
 
 When a user in one domain needs to access a service in a different domain, the local KDC cannot
-issue a service ticket for a foreign service -- it does not know the foreign service's secret key.
+issue a service ticket for a foreign service - it does not know the foreign service's secret key.
 Kerberos solves this through **referrals**: the local KDC gives the client a special TGT for the
 foreign realm's KDC, and the client uses that to request a service ticket from the foreign realm.
 
@@ -15,8 +15,8 @@ foreign realm's KDC, and the client uses that to request a service ticket from t
 
 ## When Cross-Realm Authentication Is Needed
 
-A single Kerberos realm (Active Directory domain) has its own KDC -- in Active Directory, the KDC
-service on every domain controller of that domain -- that knows all the secret keys for
+A single Kerberos realm (Active Directory domain) has its own KDC - in Active Directory, the KDC
+service on every domain controller of that domain - that knows all the secret keys for
 accounts in that domain. The KDC can only issue service tickets for services registered in its own
 domain, because it needs the service's secret key to encrypt the ticket.
 
@@ -33,8 +33,8 @@ Cross-realm authentication is required whenever:
 [RFC 4120 &sect;1.2](https://datatracker.ietf.org/doc/html/rfc4120#section-1.2) lets a client obtain, from its local realm, a TGT for a remote realm's
 ticket-granting service, encrypted with an **inter-realm key** the two realms share. [RFC 6806 &sect;8](https://datatracker.ietf.org/doc/html/rfc6806#section-8)
 adds the referral mechanism Active Directory uses: when a KDC receives a TGS-REQ for a service it
-does not find in its own realm, it can return a **referral TGT** -- a cross-realm TGT for the
-next realm on the trust path -- instead of an error.
+does not find in its own realm, it can return a **referral TGT** - a cross-realm TGT for the
+next realm on the trust path - instead of an error.
 
 ### Basic Two-Domain Flow
 
@@ -61,21 +61,21 @@ sequenceDiagram
 
 ### Step by Step
 
-**Step 1** -- The client has a TGT for `CORP.LOCAL` and needs a service ticket for
+**Step 1** - The client has a TGT for `CORP.LOCAL` and needs a service ticket for
 `CIFS/fs.partner.local`. It sends a TGS-REQ to the `CORP.LOCAL` KDC with the foreign SPN.
 
-**Step 2** -- The `CORP.LOCAL` KDC looks up the SPN and finds it is not in its domain. It checks
+**Step 2** - The `CORP.LOCAL` KDC looks up the SPN and finds it is not in its domain. It checks
 its trust relationships and finds a trust with `PARTNER.LOCAL`. The KDC issues a **referral TGT**:
 a TGT with `sname = krbtgt/PARTNER.LOCAL@CORP.LOCAL`, encrypted with the **inter-realm key**
 shared between the two domains.
 
-**Step 3** -- The client presents the referral TGT to the `PARTNER.LOCAL` KDC in a new TGS-REQ.
+**Step 3** - The client presents the referral TGT to the `PARTNER.LOCAL` KDC in a new TGS-REQ.
 
-**Step 4** -- The `PARTNER.LOCAL` KDC decrypts the referral TGT with its copy of the inter-realm
+**Step 4** - The `PARTNER.LOCAL` KDC decrypts the referral TGT with its copy of the inter-realm
 key, validates the request, and issues a service ticket for `CIFS/fs.partner.local` (encrypted
 with the service's secret key).
 
-**Step 5** -- The client performs the normal [AP Exchange](ap-exchange.md) with the service.
+**Step 5** - The client performs the normal [AP Exchange](ap-exchange.md) with the service.
 
 !!! info "The client drives the process"
     The client follows the referral chain automatically. When it receives a TGS-REP with a
@@ -88,7 +88,7 @@ with the service's secret key).
 
 ## Inter-Realm Keys
 
-The trust between two Active Directory domains is backed by a shared secret -- the **inter-realm
+The trust between two Active Directory domains is backed by a shared secret - the **inter-realm
 key**, derived from the trust password.
 
 Two different kinds of object are involved, and they are easy to confuse. The trusted domain
@@ -193,7 +193,7 @@ Transitive trust
     All trusts within an Active Directory forest are transitive by default.
 
 Non-transitive trust
-:   Trust is limited to the two domains involved. External trusts are non-transitive -- if
+:   Trust is limited to the two domains involved. External trusts are non-transitive - if
     `CORP.LOCAL` has an external trust with `LEGACY.LOCAL`, and `LEGACY.LOCAL` trusts
     `OTHER.LOCAL`, `CORP.LOCAL` does **not** automatically trust `OTHER.LOCAL`.
 
@@ -244,7 +244,7 @@ and the client realm named in the cross-realm TGT ([MS-PAC &sect;4.1.2.3](https:
 
 !!! warning "Untrusted realms in the path"
     If a trust path passes through a compromised intermediate realm, that realm's KDC could modify
-    the PAC or issue tickets with elevated privileges. This is why trust topology matters -- only
+    the PAC or issue tickets with elevated privileges. This is why trust topology matters - only
     establish trusts with realms you actually trust. Forest trusts and external trusts limit the
     exposure by not being transitive beyond their defined scope.
 
@@ -260,7 +260,7 @@ removed and added:
   the PAC and drops SIDs that the trusted domain is not allowed to assert
   ([MS-PAC &sect;4.1.2.2](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/55fc19f2-55ba-4251-8a6a-103dd7c66280)). Across a forest
   trust or a quarantined external trust, that means SIDs outside the trusted forest's or
-  domain's own SID namespace -- which is what stops a `sIDHistory` entry or an injected
+  domain's own SID namespace - which is what stops a `sIDHistory` entry or an injected
   `ExtraSids` value for a privileged group in the *trusting* forest from taking effect.
 - **The resource domain adds its own domain-local groups.** When the KDC of the service's domain
   issues the final service ticket, it adds the domain-local groups of that domain that the user

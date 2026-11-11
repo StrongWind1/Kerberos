@@ -1,4 +1,4 @@
-/* Kerberos -- layout for wide content: tables, diagrams, long identifiers.
+/* Kerberos - layout for wide content: tables, diagrams, long identifiers.
  *
  * Three things the stylesheet cannot do on its own, each a small pass over
  * the article after it is rendered (and again after every instant
@@ -257,7 +257,7 @@
      Mermaid 11 prefixes every marker id with the diagram id
      ("__mermaid_0-arrowhead"); the theme still selects "#arrowhead", so its
      colours never reach them and Mermaid's built-in #333 and black show
-     through -- invisible on the dark scheme.  !important because Mermaid's
+     through - invisible on the dark scheme.  !important because Mermaid's
      own rules carry the diagram id and outrank anything written here. */
   var LINE = "var(--md-mermaid-sequence-message-line-color)";
   var EDGE = "var(--md-mermaid-edge-color)";

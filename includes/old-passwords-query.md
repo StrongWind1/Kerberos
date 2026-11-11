@@ -1,5 +1,5 @@
 The `Read-only Domain Controllers` group (RID 521) is created when the domain is prepared
-for Windows Server 2008 domain controllers — the earliest point at which a password change
+for Windows Server 2008 domain controllers - the earliest point at which a password change
 can generate AES keys.  An account whose `passwordLastSet` predates that timestamp has no
 AES keys.  One set after it may still have none: Microsoft's condition is a domain
 functional level of 2008 or higher **and** a password change since
@@ -28,7 +28,7 @@ $oldPasswords | Sort-Object @{E = 'HasSPN'; Descending = $true }, PasswordLastSe
     Format-Table -AutoSize
 ```
 
-This is an **approximation** — it infers key presence from password age instead of reading
+This is an **approximation** - it infers key presence from password age instead of reading
 the stored keys, so an empty result is not proof that every account has AES keys.  It
 reads **user objects only**: computer objects (non-Windows hosts, appliances) and managed
 service accounts are not checked.  Accounts that have never had a password set are shown as

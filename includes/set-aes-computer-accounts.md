@@ -24,13 +24,13 @@ value in place.
 
 In addition to the safeguards of the user-account script, the computer run always skips:
 
-- **Domain controllers and RODCs** (`primaryGroupID` 516 / 521) — their value is set by the
+- **Domain controllers and RODCs** (`primaryGroupID` 516 / 521) - their value is set by the
   DC itself and by the Domain Controllers GPO.
-- **`AZUREADSSOACC` and `AzureADKerberos`** — Entra ID objects with their own key
+- **`AZUREADSSOACC` and `AzureADKerberos`** - Entra ID objects with their own key
   management; follow Microsoft's rollover procedure for those instead.
 - **Failover-cluster name objects** (CNO/VCO, recognized by their `MSClusterVirtualServer/`
-  SPN) — the cluster service owns these accounts.
+  SPN) - the cluster service owns these accounts.
 - **Anything whose `operatingSystem` is not Windows** (NAS, Linux, appliances, pre-staged
   objects).  Those hosts decrypt tickets with a keytab or a vendor implementation; check
   each one by hand before you change what the KDC issues for it.
-- **A domain-root `$SearchBase`** — the script refuses to run against the whole domain.
+- **A domain-root `$SearchBase`** - the script refuses to run against the whole domain.

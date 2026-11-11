@@ -6,13 +6,13 @@ This section covers the most common attacks against Kerberos authentication in A
 
 !!! warning "Scope: key-based (symmetric) authentication only"
     Every attack in this section targets the password-derived secret keys (DES, RC4, AES) used in
-    standard Kerberos exchanges -- the symmetric pre-authentication flow, the encrypted ticket
+    standard Kerberos exchanges - the symmetric pre-authentication flow, the encrypted ticket
     fields, and the key material derived from passwords and hashes.  For background on the three
     authentication methods Kerberos supports, see
     [Authentication Methods](../protocol/index.md#authentication-methods).
 
     Certificate-based attacks (PKINIT abuse, shadow credentials, UnPAC the Hash,
-    pass-the-certificate, AD CS ESC1--ESC13) are out of scope and will be covered in a separate
+    pass-the-certificate, AD CS ESC1-ESC13) are out of scope and will be covered in a separate
     guide.
 
 ---
@@ -33,7 +33,7 @@ These attacks extract encrypted material from Kerberos messages and crack it off
 
 ### Credential Theft & Reconnaissance
 
-These attacks use Kerberos as an oracle to discover information, test credentials, or replay stolen key material -- without cracking anything offline.
+These attacks use Kerberos as an oracle to discover information, test credentials, or replay stolen key material - without cracking anything offline.
 
 | Attack | Technique | Auth Required |
 |--------|-----------|---------------|
@@ -44,7 +44,7 @@ These attacks use Kerberos as an oracle to discover information, test credential
 
 ### Ticket Forgery
 
-With knowledge of the right key material, an attacker can forge Kerberos tickets without involving the KDC -- or modify legitimate tickets to escalate privileges.
+With knowledge of the right key material, an attacker can forge Kerberos tickets without involving the KDC - or modify legitimate tickets to escalate privileges.
 
 | Attack | Forged Artifact | Key Required |
 |--------|----------------|--------------|
@@ -82,11 +82,11 @@ Before working through this section, you should understand:
 
 Every attack page follows the same five-part format:
 
-1. **How It Works** -- protocol-level explanation of the vulnerability and why the attack is possible
-2. **Defend** -- configuration changes that eliminate or mitigate the attack surface
-3. **Detect** -- event log IDs, SIEM queries, and honeypot strategies
-4. **Exploit** -- step-by-step theory of the attack procedure
-5. **Tools** -- how [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impacket](https://github.com/fortra/impacket) implement the attack, with command-line examples. See [Tools Setup](tools.md) for installation.
+1. **How It Works** - protocol-level explanation of the vulnerability and why the attack is possible
+2. **Defend** - configuration changes that eliminate or mitigate the attack surface
+3. **Detect** - event log IDs, SIEM queries, and honeypot strategies
+4. **Exploit** - step-by-step theory of the attack procedure
+5. **Tools** - how [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impacket](https://github.com/fortra/impacket) implement the attack, with command-line examples. See [Tools Setup](tools.md) for installation.
 
 ---
 
@@ -172,7 +172,7 @@ flowchart LR
 ```
 
 !!! info "Color Legend"
-    **Red** -- Roasting attacks that extract encrypted material for offline cracking.
-    **Orange** -- Credential theft and reconnaissance attacks that use error codes, pre-auth, or stolen material.
-    **Purple** -- Ticket forgery attacks that bypass the KDC or service.
-    **Blue** -- Delegation abuse attacks that exploit S4U extensions and SPN manipulation.
+    **Red** - Roasting attacks that extract encrypted material for offline cracking.
+    **Orange** - Credential theft and reconnaissance attacks that use error codes, pre-auth, or stolen material.
+    **Purple** - Ticket forgery attacks that bypass the KDC or service.
+    **Blue** - Delegation abuse attacks that exploit S4U extensions and SPN manipulation.
