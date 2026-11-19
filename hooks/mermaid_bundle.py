@@ -66,8 +66,9 @@ def patch(script: str, site_url: str) -> tuple[str, list[str]]:
 
 def on_post_build(config: MkDocsConfig, **kwargs: Any) -> None:  # noqa: ARG001
     """Patch the bundle in the built site, after the ``privacy`` plugin has written it."""
-    # Without a site_url the plugin writes the path with no prefix at all.
-    site_url = config.site_url.rstrip("/") + "/" if config.site_url else ""
+    # Without a site_url (unset or empty) the plugin writes the path with no prefix at all.
+    configured = config.site_url
+    site_url = "" if configured is None or configured == "" else configured.rstrip("/") + "/"
     bundles = sorted(Path(config.site_dir).glob("assets/javascripts/bundle.*.min.js"))
     if len(bundles) != 1:
         log.warning("mermaid_bundle: expected one theme bundle, found %d", len(bundles))

@@ -27,6 +27,7 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypedDict
 
 ROOT = Path(__file__).resolve().parent.parent
 SETTINGS = ROOT / "PSScriptAnalyzerSettings.psd1"
@@ -72,6 +73,15 @@ $results = foreach ($b in $blocks) {
 }
 ConvertTo-Json -InputObject @($results) -Depth 4 | Set-Content -LiteralPath $Out -Encoding utf8
 """
+
+
+class Result(TypedDict):
+    """What the PowerShell pass reports for one block."""
+
+    id: str
+    formatted: str
+    parse: list[str]
+    findings: list[str]
 
 
 @dataclass
@@ -147,7 +157,7 @@ def _fenced_blocks(path: Path, lines: list[str]) -> list[Block]:
 
 def _raw_includes(files: list[Path]) -> set[Path]:
     """Includes with no fence of their own that some ``powershell`` fence pulls in."""
-    raw = set()
+    raw: set[Path] = set()
     for path in files:
         for block in _fenced_blocks(path, path.read_text(encoding="utf-8").split("\n")):
             for ref in _SNIPPET_REF.finditer(_restore_snippets(block.code)):
@@ -163,7 +173,7 @@ def collect(only: list[Path] | None = None) -> list[Block]:
     raw = _raw_includes(files)
     blocks = []
     for path in files:
-        if only and path not in only:
+        if only is not None and path not in only:
             continue
         lines = path.read_text(encoding="utf-8").split("\n")
         if path in raw:
@@ -174,7 +184,7 @@ def collect(only: list[Path] | None = None) -> list[Block]:
     return blocks
 
 
-def run_pwsh(blocks: list[Block]) -> dict[str, dict]:
+def run_pwsh(blocks: list[Block]) -> dict[str, Result]:
     """Format and analyse all blocks in one PowerShell process."""
     with tempfile.TemporaryDirectory() as tmp:
         manifest, out, script = (Path(tmp) / name for name in ("in.json", "out.json", "run.ps1"))
@@ -194,10 +204,41 @@ def run_pwsh(blocks: list[Block]) -> dict[str, dict]:
             ],
             check=True,
         )
-        return {item["id"]: item for item in json.loads(out.read_text(encoding="utf-8-sig"))}
+        return _load_results(out.read_text(encoding="utf-8-sig"))
 
 
-def apply(blocks: list[Block], results: dict[str, dict]) -> int:
+def _text(value: object) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"PowerShell output: expected a string, got {value!r}")
+    return value
+
+
+def _lines(value: object) -> list[str]:
+    if not isinstance(value, list):
+        raise TypeError(f"PowerShell output: expected a list, got {value!r}")
+    return [_text(line) for line in value]
+
+
+def _load_results(text: str) -> dict[str, Result]:
+    """Parse the JSON the PowerShell pass wrote, checking the shape of every entry."""
+    data: object = json.loads(text)
+    if not isinstance(data, list):
+        raise TypeError("PowerShell output: expected a list of results")
+    results: dict[str, Result] = {}
+    for entry in data:
+        if not isinstance(entry, dict):
+            raise TypeError(f"PowerShell output: expected an object, got {entry!r}")
+        result = Result(
+            id=_text(entry.get("id")),
+            formatted=_text(entry.get("formatted")),
+            parse=_lines(entry.get("parse")),
+            findings=_lines(entry.get("findings")),
+        )
+        results[result["id"]] = result
+    return results
+
+
+def apply(blocks: list[Block], results: dict[str, Result]) -> int:
     """Write the formatter's output back into the source files."""
     changed = 0
     by_file: dict[Path, list[Block]] = {}
