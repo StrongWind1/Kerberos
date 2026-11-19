@@ -73,7 +73,7 @@
   /*  Encryption types - etype number to name and security assessment   */
   /* ------------------------------------------------------------------ */
 
-  /* IANA Kerberos Encryption Type Numbers - 
+  /* IANA Kerberos Encryption Type Numbers -
      https://www.iana.org/assignments/kerberos-parameters
      plus the negative Windows-internal RC4 variants.  Keys are unsigned
      32-bit values, so -128 is 0xFFFFFF80. */
