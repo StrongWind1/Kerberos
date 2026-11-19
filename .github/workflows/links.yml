@@ -31,6 +31,9 @@ jobs:
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8  # v2.9.0
         with:
           # corp.local hosts are documentation examples, not real sites.
+          # Relative links in includes/ are written for the page that pulls the
+          # snippet in, so they resolve only there, never next to the snippet
+          # file itself; mkdocs build --strict checks them in that context.
           args: >-
             --no-progress
             --max-concurrency 8
@@ -38,5 +41,6 @@ jobs:
             --exclude 'corp\.local'
             --exclude '^https://strongwind\.dev/Kerberos/'
             --exclude 'schemas\.microsoft\.com'
+            --exclude '^file://.*/includes/'
             content includes README.md
           fail: true
