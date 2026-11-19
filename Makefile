@@ -13,8 +13,8 @@ serve:
 # --- lint ---------------------------------------------------------------------
 lint: lint-ps
 	uvx yamllint@1.38.0 --strict -c .yamllint.yml .
-	uvx ruff@0.17.3 check hooks tools
-	uvx ruff@0.17.3 format --check hooks tools
+	uvx ruff@0.17.5 check hooks tools
+	uvx ruff@0.17.5 format --check hooks tools
 	npm run --silent lint
 
 # Every PowerShell file and every powershell block in the docs must be unchanged by
