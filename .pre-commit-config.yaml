@@ -19,3 +19,8 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
         exclude: \.ps1$ # PowerShell is deliberately CRLF; see .gitattributes
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.24.1
+    hooks:
+      - id: markdownlint-cli2

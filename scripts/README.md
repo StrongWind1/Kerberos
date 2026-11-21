@@ -61,7 +61,7 @@ A file downloaded with a browser carries the Mark of the Web, and the script is 
 Authenticode-signed**:
 
 | Execution policy | What to do |
-|---|---|
+| --- | --- |
 | `RemoteSigned` (the Windows Server default) | `Unblock-File .\Get-KdcKerberosRegistryAudit.ps1` after reviewing it |
 | `AllSigned` | Sign it with your own code-signing certificate, or run it from a host with a different policy |
 | One-off run | `powershell.exe -ExecutionPolicy Bypass -File .\Get-KdcKerberosRegistryAudit.ps1` |
@@ -96,7 +96,7 @@ Get-ADDomainController -Filter * | .\Get-KdcKerberosRegistryAudit.ps1
 ### Parameters
 
 | Parameter | Purpose |
-|---|---|
+| --- | --- |
 | `-ComputerName` | Hosts to audit. Accepts pipeline input (strings, or objects with `HostName` / `DNSHostName`). Omit to audit every DC in the domain. Duplicate names, and two names for the same machine, are audited once. |
 | `-Domain` | Domain to discover DCs in. Defaults to the current domain. |
 | `-Credential` | Credential for discovery and the remote read. Not used for the local machine. |
@@ -112,7 +112,7 @@ Get-ADDomainController -Filter * | .\Get-KdcKerberosRegistryAudit.ps1
 ### Status values
 
 | Status | Meaning |
-|---|---|
+| --- | --- |
 | `Secure` | AES-only, or a setting in its safe state. |
 | `Transitional` | RC4 is still permitted alongside AES (for example `0x1C`, `0x3C`). Not broken, not finished. |
 | `Insecure` | DES, RC4 without AES, RC4 still the default for unset accounts, or `KdcUseRequestedEtypesForTickets = 1`. |
@@ -130,7 +130,7 @@ Only set when `-FailOn` is given. List the status classes that should fail the r
 (`Insecure`, `Invalid`, `Transitional`, `Unknown`, `Error`, `Unreachable`, `NotDC`, or `Any`).
 
 | Code | Meaning |
-|---|---|
+| --- | --- |
 | `0` | None of the listed classes is present. |
 | `1` | A listed security class is present (`Insecure`, `Invalid`, `Transitional`, `Unknown`). |
 | `2` | A listed coverage class is present (`Error`, `Unreachable`, `NotDC`), or no domain controller could be audited. |

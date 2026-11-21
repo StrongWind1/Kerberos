@@ -247,9 +247,9 @@ keys.
 
 - **Regular user or computer account with no AES keys**: what breaks depends on the DC
   etype filter.
-    - **Filter blocks RC4**: the user cannot log in.  Pre-authentication needs a key the
+  - **Filter blocks RC4**: the user cannot log in.  Pre-authentication needs a key the
       account does not have.
-    - **Filter allows RC4**: the user logs in using RC4 pre-authentication.  The TGT itself
+  - **Filter allows RC4**: the user logs in using RC4 pre-authentication.  The TGT itself
       is still AES256, because it is encrypted with the `krbtgt` key.  The user can reach
       AES-only services, since the service ticket etype comes from the target account.
 

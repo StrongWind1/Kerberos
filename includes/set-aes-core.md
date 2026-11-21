@@ -1,6 +1,9 @@
 # ---- Logic: no edits needed below this line ----------------------------------
+
 # One block on purpose: paste the whole script, or save it as a .ps1 and run that.
+
 # Every check below throws when it fails, and nothing after a throw runs.
+
 & {
     $ErrorActionPreference = 'Stop'
     $attr = 'msDS-SupportedEncryptionTypes'

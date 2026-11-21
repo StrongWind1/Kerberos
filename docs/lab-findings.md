@@ -23,7 +23,7 @@ validation against Server 2022 (Build 20348, April 2026 CU).
 ### Functional paths (5 total)
 
 | Path | Value | What it does | Timing |
-|------|-------|-------------|--------|
+| ------ | ------- | ------------- | -------- |
 | Services\Kdc | DefaultDomainSupportedEncTypes | Fallback etype set for msDS-SET=0 accounts | Immediate |
 | Policies\...\Kerberos\Parameters | SupportedEncryptionTypes | Hard KDC etype filter (AS + TGS) | KDC restart |
 | Lsa\Kerberos\Parameters | SupportedEncryptionTypes | Same filter, lower precedence than Pol | KDC restart |
@@ -169,6 +169,7 @@ failed to authenticate after the filter was applied.
 When the client's etype list and the target's supported etypes have no
 overlap, the KDC returns KDC_ERR_ETYPE_NOSUPP. This is the expected
 failure mode - not a silent fallback:
+
 - svc_check_02 (msDS-SET=4, RC4 only) with client requesting only AES256: FAIL
 - svc_check_05 (msDS-SET=8, AES128 only) with client requesting only AES256: FAIL
 
@@ -184,7 +185,7 @@ The April 2026 CU introduces Kdcsvc events in the System log.
 Updated after April 2026 patch validation (2026-04-14) - see `april-2026-findings.md` for full event text.
 
 | Event | Phase | Trigger | Type | Notes |
-|-------|-------|---------|------|-------|
+| ------- | ------- | --------- | ------ | ------- |
 | 16 | any | TGS failure (any cause) | error | Pre-existing event; fires alongside 203/208 for blocked requests |
 | 201 | 1 (audit) | RC4 request for blank/0 account | audit | RC4 allowed but logged; shows internal default 0x27 |
 | 203 | absent/2 | RC4 request blocked, blank/0 account | block | RC4 denied; shows effective DDSET 0x18 |
@@ -206,7 +207,7 @@ Events 202, 204, 206, 207, 209 not triggered in either testing session.
 > removal on 2025 also remain untested.
 
 | Claim | Why untestable |
-|-------|---------------|
+| ------- | --------------- |
 | Server 2025 default DDSET=0x24 | Lab DC is Server 2022 |
 | Server 2025 deprecates Lsa path | Lab DC is Server 2022 |
 | dMSA defaults | Requires Server 2025 / DFL 2025 |
@@ -235,7 +236,7 @@ Events 202, 204, 206, 207, 209 not triggered in either testing session.
 ### Monitoring events
 
 | Event | Log | What to watch for |
-|-------|-----|-------------------|
+| ------- | ----- | ------------------- |
 | 4769 | Security | Ticket Encryption Type: 0x17 = RC4, 0x12 = AES256 |
 | 205 | System (Kdcsvc) | KDC start with RC4 in DDSET - investigate |
 | 206 | System (Kdcsvc) | Service is AES but client lacks AES - upgrade client |
@@ -244,7 +245,7 @@ Events 202, 204, 206, 207, 209 not triggered in either testing session.
 ### Recommended DDSET values
 
 | Value | Hex | Use case |
-|-------|-----|----------|
+| ------- | ----- | ---------- |
 | 24 | 0x18 | AES128 + AES256 (recommended, blocks RC4) |
 | 56 | 0x38 | AES128 + AES256 + AES-SK (new deployments) |
 | 60 | 0x3C | RC4 + AES + AES-SK (transitional only) |
@@ -265,7 +266,7 @@ which means enforcement is active - Phase=absent == Phase=2.
 Corrected behavior:
 
 | Phase | RC4 for blank/0 account | Internal fallback DDSET |
-|-------|------------------------|-------------------------|
+| ------- | ------------------------ | ------------------------- |
 | absent (no key) | BLOCKED | 0x18 (AES-only) |
 | 0 | ALLOWED | 0x27 (old RC4-inclusive) |
 | 1 (audit) | ALLOWED | 0x27 (old RC4-inclusive) |
@@ -292,6 +293,7 @@ RC4DefaultDisablementPhase) because those live at different registry paths
 and are not client settings. PSKerb is not wrong, just different scope.
 
 Two values PSKerb manages at the Pol path that may only work client-side:
+
 - DefaultEncryptionType: no effect on KDC ticket issuance (tested). May
   affect client pre-auth etype selection (untested).
 - LogLevel: typically documented at the Lsa path. Whether it works from
@@ -310,6 +312,7 @@ when KDC=AES and target=RC4, but the actual KDC issues an AES ticket.
 > describes the whole behaviour.
 
 The calculator also:
+
 - Uses 0x24 as the DDSET default (Server 2025). Server 2022 uses 0x27.
 - Has no 0x20 checkbox and doesn't model per-account AES-SK behavior.
 - Doesn't account for the filter being read only at KDC startup.
@@ -350,6 +353,7 @@ wmiexec creates ephemeral sessions without Kerberos tickets. To test
 klist from a domain-joined client, we used scheduled tasks running under
 the interactive Administrator session. This works for baseline tests but
 has limitations:
+
 - Cached tickets are reused within a logon session (klist get returns
   cached entries for the same SPN)
 - Client SupportedEncryptionTypes changes don't take effect within an

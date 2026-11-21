@@ -16,7 +16,7 @@ Test date: 2026-04-14. All tests run with reg.py (impacket) and kw-roast.
 Test accounts created for this session:
 
 | Account | msDS-SupportedEncryptionTypes | SPN |
-|---------|-------------------------------|-----|
+| --------- | ------------------------------- | ----- |
 | svc_matrix_01 | blank (no attribute) | HTTP/app-01.corp.local |
 | svc_matrix_02 | 0 (explicit integer) | HTTP/app-02.corp.local |
 | svc_matrix_03 | 4 (RC4 only) | HTTP/app-03.corp.local |
@@ -34,7 +34,7 @@ Test accounts created for this session:
 Baseline test (clean registry - no DDSET, no Phase key, `Pol\SupportedEncryptionTypes=0x7fffffff`):
 
 | Account | msDS-SET | RC4 forced (kw-roast) | AES256 forced | Ticket via getST.py |
-|---------|----------|----------------------|---------------|---------------------|
+| --------- | ---------- | ---------------------- | --------------- | --------------------- |
 | svc_matrix_01 | blank | **BLOCKED** | ALLOWED | AES256 (etype 18) |
 | svc_matrix_02 | 0 | **BLOCKED** | ALLOWED | AES256 (etype 18) |
 | svc_matrix_03 | 4 | ALLOWED | BLOCKED | RC4 (etype 23) |
@@ -64,13 +64,14 @@ Explicit `msDS-SET=0` is NOT the same as `msDS-SET=4 (RC4-only)`. Setting a 0 do
 With the patch installed, the key meaning has flipped from what was previously documented.
 
 | Phase value | RC4 for blank/0 accounts | Events generated | Internal DDSET fallback |
-|-------------|--------------------------|------------------|-------------------------|
+| ------------- | -------------------------- | ------------------ | ------------------------- |
 | absent (no key) | **BLOCKED** (enforcement active) | 203/208 per blocked request | 0x18 (AES-only) |
 | 0 | **ALLOWED** (rollback) | none | 0x27 (old RC4-inclusive) |
 | 1 | **ALLOWED** (audit) | 201/202 per RC4 request | 0x27 (old RC4-inclusive) |
 | 2 | **BLOCKED** (enforcement, same as absent) | 203/208 per blocked request | 0x18 (AES-only) |
 
 Key observations:
+
 - **Phase=absent == Phase=2.** The patch makes enforcement the default. The key is only needed to opt into rollback or audit.
 - **Phase=0 is the emergency rollback.** Sets internal default back to 0x27, allows RC4 for all unconfigured accounts. Valid until July 2026.
 - **Phase=1 is audit.** RC4 is allowed but Event 201/202 fire for each RC4 request on an unconfigured account.
@@ -101,7 +102,7 @@ Previously documented as: "Explicit DDSET with RC4 overrides enforcement (Phase=
 DDSET tested against blank/0 accounts under enforcement (Phase=absent/2):
 
 | DDSET value | RC4 for blank/0 account | Notes |
-|-------------|------------------------|-------|
+| ------------- | ------------------------ | ------- |
 | not set | BLOCKED | enforcement applies |
 | 4 (RC4 only) | BLOCKED | DDSET ignored for enforcement decision |
 | 28 (RC4+AES) | BLOCKED | same |
@@ -111,6 +112,7 @@ DDSET tested against blank/0 accounts under enforcement (Phase=absent/2):
 DDSET still affects which AES etype is selected (AES128 vs AES256), but it cannot restore RC4 for accounts without an explicit `msDS-SupportedEncryptionTypes`.
 
 DDSET DOES still work as expected for explicit accounts:
+
 - msDS-SET=4 + DDSET=24 → RC4 ticket (explicit msDS-SET wins over DDSET)
 
 Event 203 under Phase=2 + DDSET=4 reports `DefaultDomainSupportedEncTypes: 0x18` - the enforcement effective DDSET - not the registry value of 4. The enforcement substitutes its own value regardless of what's in the registry.
@@ -122,7 +124,7 @@ Event 203 under Phase=2 + DDSET=4 reports `DefaultDomainSupportedEncTypes: 0x18`
 Accounts with `msDS-SupportedEncryptionTypes=4` (explicit RC4-only) continue to receive RC4 tickets regardless of Phase setting. This is by design - the enforcement only applies to **unconfigured** accounts (blank or 0).
 
 | Account | msDS-SET | Phase=absent | Phase=2 |
-|---------|----------|-------------|---------|
+| --------- | ---------- | ------------- | --------- |
 | blank | - | BLOCKED | BLOCKED |
 | 0 | explicit 0 | BLOCKED | BLOCKED |
 | 4 | RC4 only | ALLOWED | ALLOWED |
@@ -144,7 +146,7 @@ All events from `Microsoft-Windows-Kerberos-Key-Distribution-Center` in the Syst
 ### Per-request events (fire on each blocked/audited TGS or AS request)
 
 | Event ID | Phase | Trigger | Message summary |
-|----------|-------|---------|-----------------|
+| ---------- | ------- | --------- | ----------------- |
 | 201 | 1 (audit) | RC4 request for blank/0 account | "detected RC4-HMAC-NT usage that will be unsupported in enforcement phase because msds-SupportedEncryptionTypes is not defined" |
 | 202 | 1 (audit) | RC4 request for AES-configured account | Not triggered in this session (account had RC4 keys) |
 | 203 | absent/2 | RC4 request blocked, blank/0 account | "blocked cipher usage because msds-SupportedEncryptionTypes is not defined and the client only supports insecure encryption types" |
@@ -152,29 +154,32 @@ All events from `Microsoft-Windows-Kerberos-Key-Distribution-Center` in the Syst
 
 ### Startup event (fires once per KDC start, not per request)
 
-| Event ID | Trigger | Message summary |
-|----------|---------|-----------------|
-| 205 | KDC start, DDSET contains RC4 | "detected explicit insecure cipher enablement in the DefaultDomainSupportedEncTypes policy configuration. Cipher(s): RC4-HMAC-NT" |
+| Event ID | Trigger                       | Message summary                                                                                                                   |
+| -------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 205      | KDC start, DDSET contains RC4 | "detected explicit insecure cipher enablement in the DefaultDomainSupportedEncTypes policy configuration. Cipher(s): RC4-HMAC-NT" |
 
 ### Accompanying event (fires alongside 203/208)
 
-| Event ID | Trigger | Message summary |
-|----------|---------|-----------------|
-| 16 | TGS failure (any cause) | "While processing a TGS request... did not have a suitable key for generating a Kerberos ticket. The requested etypes were 23. The accounts available etypes were 23 18 17." |
+| Event ID | Trigger                 | Message summary                                                                                                                                                              |
+| -------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 16       | TGS failure (any cause) | "While processing a TGS request... did not have a suitable key for generating a Kerberos ticket. The requested etypes were 23. The accounts available etypes were 23 18 17." |
 
 Event 16 is a pre-existing event. With enforcement, it fires alongside 203/208 for the same blocked request.
 
 ### Event 201 vs 203 field comparison
 
 Event 201 (Phase=1 audit, RC4 allowed):
+
 - `Service Information: msds-SupportedEncryptionTypes: 0x27 (DES, RC4, AES-Sk)` - old default shown
 - `Domain Controller Information: DefaultDomainSupportedEncTypes: 0x27` - internal 0x27 in effect
 
 Event 203 (Phase=absent/2 enforcement, RC4 blocked):
+
 - `Service Information: msds-SupportedEncryptionTypes: 0x18 (AES128-SHA96, AES256-SHA96)` - enforcement default shown
 - `Domain Controller Information: DefaultDomainSupportedEncTypes: 0x18` - internal 0x18 in effect (regardless of registry DDSET)
 
 Both events include:
+
 - `Account Information: Account Name, Supplied Realm Name` - who made the request
 - `Service Information: Service Name, Service ID, Available Keys` - target account
 - `Network Information: Client Address, Client Port, Advertized Etypes` - client's etype list
@@ -184,11 +189,13 @@ Both events include:
 ## Event 4769 behavior under enforcement
 
 When an RC4 request is blocked, Event 4769 still fires but shows:
+
 - `Service Name` = full SPN string (e.g. `HTTP/app-01.corp.local`), not the resolved account name
 - `TicketEncryptionType` = `0xffffffff` (failure indicator)
 - `ServiceSupportedEncryptionTypes` = blank/dash
 
 When allowed:
+
 - `Service Name` = resolved account name (e.g. `svc_matrix_01`)
 - `TicketEncryptionType` = actual etype (e.g. `0x12` for AES256, `0x17` for RC4)
 - `ServiceSupportedEncryptionTypes` = the effective bitmask (e.g. `0x18 (AES128-SHA96, AES256-SHA96)`)
@@ -244,15 +251,18 @@ Microsoft has confirmed a rollback window between April and July 2026.
 
 ## Operational summary
 
-### RC4 is blocked for these accounts immediately after the patch:
+### RC4 is blocked for these accounts immediately after the patch
+
 - msDS-SupportedEncryptionTypes = blank (no attribute ever set)
 - msDS-SupportedEncryptionTypes = 0 (explicit integer 0)
 
-### RC4 still works for these accounts after the patch:
+### RC4 still works for these accounts after the patch
+
 - msDS-SupportedEncryptionTypes = 4 (explicit RC4-only)
 - msDS-SupportedEncryptionTypes = 28 (RC4+AES)
 
-### To re-enable RC4 temporarily (until July 2026):
+### To re-enable RC4 temporarily (until July 2026)
+
 ```powershell
 # On each DC, run as admin:
 Set-ItemProperty `
@@ -261,7 +271,8 @@ Set-ItemProperty `
 Restart-Service kdc
 ```
 
-### To check current enforcement state:
+### To check current enforcement state
+
 ```powershell
 Get-ItemProperty `
   -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters' `
@@ -270,7 +281,8 @@ Get-ItemProperty `
 # If the value is 0 or 1: enforcement is disabled/audit
 ```
 
-### To identify services that will break:
+### To identify services that will break
+
 Event 203 fires for every blocked RC4 request. Monitor the System log for Event 203 to find which services are being blocked. Alternatively, set Phase=1 (audit) to generate Event 201 for all RC4 requests without blocking them.
 
 ```powershell

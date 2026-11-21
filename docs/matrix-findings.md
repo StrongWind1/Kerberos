@@ -20,7 +20,7 @@ Tool: kw-roast. Hash prefix checked to determine the **actual etype returned**, 
 ## Test accounts
 
 | Account | msDS-SupportedEncryptionTypes | SPN |
-|---------|-------------------------------|-----|
+| --------- | ------------------------------- | ----- |
 | svc_matrix_01 | blank (no attribute) | HTTP/app-01.corp.local |
 | svc_matrix_02 | 0 (explicit integer) | HTTP/app-02.corp.local |
 | svc_matrix_03 | 4 (RC4 only) | HTTP/app-03.corp.local |
@@ -56,7 +56,7 @@ issued:
 ### Phase=absent and Phase=2 - enforcement (identical results)
 
 | msDS-SET | RC4 requested → actual | AES256 requested → actual |
-|---------|----------------------|--------------------------|
+| --------- | ---------------------- | -------------------------- |
 | blank | **BLOCKED** | AES256 |
 | 0 | **BLOCKED** | AES256 |
 | 4 (RC4-only) | RC4 | **BLOCKED** |
@@ -71,7 +71,7 @@ issued:
 ### Phase=0 and Phase=1 - rollback/audit (identical results)
 
 | msDS-SET | RC4 requested → actual | AES256 requested → actual |
-|---------|----------------------|--------------------------|
+| --------- | ---------------------- | -------------------------- |
 | blank | RC4 | RC4 (!≠req) |
 | 0 | RC4 | RC4 (!≠req) |
 | 4 (RC4-only) | RC4 | **BLOCKED** |
@@ -93,7 +93,7 @@ DDSET effect on blank/0 accounts is superseded by the 2026-04-25 retesting - see
 ### Pol=4 (RC4-only hard KDC filter)
 
 | msDS-SET | RC4 req | AES256 req |
-|---------|---------|-----------|
+| --------- | --------- | ----------- |
 | blank | **BLOCKED** | **BLOCKED** |
 | 0 | **BLOCKED** | **BLOCKED** |
 | 4 | RC4 | **BLOCKED** |
@@ -131,7 +131,7 @@ back to 0x27 (old default, RC4-capable).  Accounts with an explicit msDS-SET beh
 identically in all phases:
 
 | Account type | Phase=absent/2 | Phase=0/1 | Change on rollback? |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | blank / 0 | AES256 only | RC4 only | Yes - rolls back to old 0x27 default |
 | msDS=4 (RC4-only) | RC4 | RC4 | No |
 | msDS=24 (AES-only) | AES256 | AES256 | No |
@@ -164,7 +164,7 @@ msDS=28 accounts survive (RC4 only).
 ## Corrections to v1 matrix and site documentation
 
 | Previous claim | Correct |
-|---|---|
+| --- | --- |
 | "Phase=0/1 allows RC4 for msDS=24 (AES-only)" | False - DC returns AES256 regardless; requesting RC4 gets AES256, not RC4 |
 | "Phase=0/1 re-enables RC4 for ALL accounts" | False - only blank/0 accounts are affected; explicitly configured accounts unchanged |
 | "RC4=ALLOWED for msDS=28 under enforcement" | False - DC always returns AES256 for msDS=28; the v1 hash was AES256(!≠req), not RC4 |

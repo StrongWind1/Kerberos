@@ -35,7 +35,7 @@ the [Standardization Guide](security/aes-standardization.md).
 
 <div class="grid cards" markdown>
 
--   **[Protocol](protocol/index.md)**
+- **[Protocol](protocol/index.md)**
 
     ---
 
@@ -43,7 +43,7 @@ the [Standardization Guide](security/aes-standardization.md).
 
     Start here if you are new to Kerberos.
 
--   **[Security](security/index.md)**
+- **[Security](security/index.md)**
 
     ---
 
@@ -55,7 +55,7 @@ the [Standardization Guide](security/aes-standardization.md).
     [Encryption Type Calculator](security/etype-calculator.md) and the
     [Event Decoder](security/event-decoder.md).
 
--   **[Attacks](attacks/index.md)**
+- **[Attacks](attacks/index.md)**
 
     ---
 
