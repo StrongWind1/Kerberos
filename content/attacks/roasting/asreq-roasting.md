@@ -175,8 +175,8 @@ hashcat -m 7500 hashes.txt wordlist.txt -r rules/best64.rule
 hashcat -m 19900 hashes.txt wordlist.txt -r rules/best64.rule
 ```
 
-!!! info "The same capture can hold AS-REP and TGS-REP data"
-    AS-REQ Roasting can also capture AS-REP and TGS-REP data from the same traffic. If the capture includes responses to no-preauth accounts, you get AS-REP hashes as well. If it includes TGS-REP traffic, you get Kerberoast-equivalent hashes. kw-extract handles all three types automatically.
+!!! info "One capture holds more than AS-REQ data"
+    The same traffic carries other crackable fields, and kw-extract pulls them all from one file. A captured AS-REP gives an AS-REP Roasting hash for every user who logs on, not only no-preauth accounts. A captured TGS-REP gives a Kerberoast hash. And a service ticket presented in an AP-REQ over SMB, HTTP, LDAP or DCE-RPC gives the same Kerberoast hash without any port 88 traffic. See [Crackable Fields](crackable-fields.md) for which field each capture point yields.
 
 ---
 
@@ -184,7 +184,7 @@ hashcat -m 19900 hashes.txt wordlist.txt -r rules/best64.rule
 
 ### kerbwolf: kw-extract
 
-`kw-extract` is an offline hash extraction tool that parses pcap and pcapng files. It extracts all Kerberos hash types (AS-REQ pre-auth, AS-REP, TGS-REP) as well as MS-SNTP (timeroast) and NTLM hashes from a single capture file.
+`kw-extract` is an offline hash extraction tool that parses pcap and pcapng files. It extracts every Kerberos hash type (AS-REQ pre-auth, AS-REP, TGS-REP, and service tickets from AP-REQs off port 88) as well as MS-SNTP (timeroast), NTLM and LDAP simple-bind credentials from a single capture file.
 
 #### Extract from a Saved Capture
 
@@ -210,22 +210,17 @@ kw-extract *.pcap -o all-hashes.txt
 
 Processes all pcap files in the directory and consolidates hashes into a single output file.
 
-#### John Format Output
-
-```bash
-kw-extract capture.pcapng --format john
-```
-
 ### What kw-extract Extracts
 
 | Hash Type | Source | Hashcat Mode |
 |-----------|--------|-------------|
 | `$krb5pa$` | PA-ENC-TIMESTAMP in AS-REQ | 7500 / 19800 / 19900 |
-| `$krb5asrep$` | enc-part in AS-REP (no-preauth) | 18200 / 32100 / 32200 |
+| `$krb5asrep$` | enc-part in every AS-REP | 18200 / 32100 / 32200 |
 | `$krb5tgs$` | Service ticket enc-part in TGS-REP | 13100 / 19600 / 19700 |
+| `$krb5tgs$` | Service ticket in an AP-REQ (SMB/HTTP/LDAP/DCE-RPC) | 13100 / 19600 / 19700 |
 | `$sntp-ms$` | MS-SNTP authenticator | 31300 |
 
-kw-extract handles TCP stream reassembly, Ethernet/Raw IP/VLAN encapsulation, and IPv4/IPv6 automatically.
+The table lists the RC4, AES128 and AES256 modes; kw-extract also writes the DES and NT-hash formats. Hashes are always written in the hashcat layout. It handles TCP stream reassembly, Ethernet/Raw IP/VLAN encapsulation, and IPv4/IPv6 automatically.
 
 ### Other Tools
 

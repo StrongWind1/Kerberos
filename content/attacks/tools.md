@@ -35,7 +35,7 @@ uv tool install git+https://github.com/StrongWind1/KerbWolf
 |---------|---------|
 | `kw-roast` | Kerberoasting - requests TGS-REP tickets and outputs hashcat-compatible hashes |
 | `kw-asrep` | AS-REP roasting - requests AS-REPs for no-preauth accounts |
-| `kw-extract` | Offline pcap parser - extracts AS-REQ, AS-REP, and TGS-REP hashes from captures |
+| `kw-extract` | Offline pcap parser - extracts AS-REQ, AS-REP, TGS-REP and AP-REQ hashes from captures |
 | `kw-tgt` | TGT acquisition - requests TGTs using passwords, NT hashes, or AES keys (pass-the-key) |
 
 ### Verify

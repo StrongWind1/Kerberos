@@ -231,10 +231,10 @@ kw-roast -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin -p '<password>' --ldap -e rc4
 
 Explicitly requests RC4-encrypted tickets via the etype field in TGS-REQ. The request does not decide the outcome: the KDC encrypts the ticket according to the target account's effective encryption types, not the client's list.
 
-#### AES256 with John Output Format
+#### Request an AES256 Ticket
 
 ```bash
-kw-roast -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin -p '<password>' -t MSSQLSvc/db01 -e aes256 --format john
+kw-roast -d CORP.LOCAL --dc-ip 192.0.2.10 -u admin -p '<password>' -t MSSQLSvc/db01 -e aes256
 ```
 
 #### Save Hashes to File

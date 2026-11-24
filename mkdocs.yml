@@ -183,6 +183,7 @@ nav:
       - Tools Setup: attacks/tools.md
       - Roasting:
           - attacks/roasting/index.md
+          - Crackable Fields: attacks/roasting/crackable-fields.md
           - Kerberoasting: attacks/roasting/kerberoasting.md
           - AS-REP Roasting: attacks/roasting/asrep-roasting.md
           - AS-REQ Roasting: attacks/roasting/asreq-roasting.md
