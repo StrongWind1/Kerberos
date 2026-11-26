@@ -68,16 +68,16 @@ RC4 key = MD4(UTF-16LE(password))
 
 ### Cracking speed comparison
 
-Approximate hashcat figures for a single high-end GPU.  They are **indicative only**: this site has not benchmarked them, and published results for the same card vary by a factor of two or more with hashcat version and driver.  For real numbers, run `hashcat -b -m 13100`, `hashcat -b -m 19600` and `hashcat -b -m 19700` on your own hardware, one mode per command (when `-m` is repeated, hashcat benchmarks only the last mode).
+hashcat on one NVIDIA GeForce RTX 4090, measured on 2026-11-15 with hashcat master for kerbwolf's [Cracking Speed](https://strongwind.dev/KerbWolf/cracking/speed/) page, which has every Kerberos mode and the method.  They are one data point: another card, driver or hashcat version moves them.  For your own numbers, run `hashcat -b -m 13100`, `hashcat -b -m 19600` and `hashcat -b -m 19700`, one mode per command (when `-m` is repeated, hashcat benchmarks only the last mode).
 
 | Algorithm | Hashcat mode | Speed | Relative |
 |---|---|---|---|
-| RC4-HMAC (TGS-REP etype 23) | 13100 | ~2.5 billion H/s | baseline |
-| AES128-CTS-HMAC-SHA1-96 (etype 17) | 19600 | a few million H/s | ~400× slower or more |
-| AES256-CTS-HMAC-SHA1-96 (etype 18) | 19700 | ~1.5-3 million H/s | ~800× slower or more |
+| RC4-HMAC (TGS-REP etype 23) | 13100 | 4.0 billion H/s with `-O`, 3.6 billion without | baseline |
+| AES128-CTS-HMAC-SHA1-96 (etype 17) | 19600 | 5.3 million H/s | ~760× slower (~680× without `-O`) |
+| AES256-CTS-HMAC-SHA1-96 (etype 18) | 19700 | 2.6 million H/s | ~1,500× slower (~1,350× without `-O`) |
 
 !!! info "About 800× at least"
-    This site quotes **~800×** as a conservative figure for RC4 versus AES256; the real ratio may be nearer 1,500×.  At 800×, a password that falls to RC4 cracking in one hour takes about 33 days via AES256 under the same conditions.  AES does not eliminate Kerberoasting - it makes strong passwords a viable defense.  Combined with a 25+ character random password, AES makes offline cracking infeasible in practice.
+    This site quotes **~800×** as a conservative figure for RC4 versus AES256; the measured ratio above is 1,350× to 1,500×.  At 800×, a password that falls to RC4 cracking in one hour takes about 33 days via AES256 under the same conditions.  AES does not eliminate Kerberoasting - it makes strong passwords a viable defense.  Combined with a 25+ character random password, AES makes offline cracking infeasible in practice.
 
 **Stream cipher weaknesses.**  RC4 has well-documented statistical biases in its keystream output.  These do not directly apply to offline ticket cracking but contributed to its deprecation in TLS (RFC 7465) and its classification as cryptographically weak by NIST.
 
