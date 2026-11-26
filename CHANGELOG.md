@@ -33,8 +33,14 @@ cumulative update; pages say so wherever it matters.
 - Theme colors are opaque and meet AAA contrast in both schemes; inactive header tabs are no longer dimmed
 - Protocol pages: spec citations are links to the exact section; consistent summary and next-page footers; descriptions on every page
 - Site banner, home page and README no longer count down to dates that have passed
+- Roasting pages show the one hash layout kerbwolf writes, `$prefix$etype$user$realm$<checksum>$<data>`, with the older Impacket shapes beside it; Tools Setup builds hashcat from source and says which lines a v8.0.0 build rejects
+- Cracking speed table holds figures measured on an RTX 4090 in place of estimates; `kw-timeroast` is in the tool lists
 
 ### Fixed
+
+- RC4 pre-authentication hash format: the shape shown is rejected by hashcat releases, and in wire order it loads and never cracks
+- Computer accounts are no longer called uncrackable without exception: a pre-created account that still has its own name as password cracked in the lab
+- Hashcat mode availability by release (35300, 35400, 38500 and 38600 need v8.0.0; 39000 to 39400 need master); a `kw-roast` example with no target; where `kw-roast` finds the DC when given a ccache; kw-extract's "NT-hash formats"; DES key search told apart from hashcat's DES modes
 
 - `DefaultDomainSupportedEncTypes` registry path (`Services\Kdc`, not `Services\Kdc\Parameters`)
 - Bulk "set AES" commands that matched `krbtgt`, overwrote deliberate exceptions and had no backup; two snippets that did not parse; queries that silently returned nothing (`-eq 0` on an unset attribute, wrong event provider name, a filter matching `klist` text in event logs)
