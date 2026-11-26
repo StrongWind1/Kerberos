@@ -1,8 +1,6 @@
 # Tools Setup
 
-Installation and verification of the tools referenced throughout the Attacks section. All Python
-tools are installed with [uv](https://docs.astral.sh/uv/) as isolated tool environments - no
-virtual environment management or `pip install` required.
+Installation and verification of the tools referenced throughout the Attacks section. All Python tools are installed with [uv](https://docs.astral.sh/uv/) as isolated tool environments - no virtual environment management or `pip install` required.
 
 --8<-- "includes/authorized-use.md"
 
@@ -20,8 +18,7 @@ uv tool install git+https://github.com/StrongWind1/CredWolf
 
 ## kerbwolf
 
-[kerbwolf](https://github.com/StrongWind1/KerbWolf) is the primary toolkit for Kerberos roasting
-and TGT operations used throughout this guide.
+[kerbwolf](https://github.com/StrongWind1/KerbWolf) is the primary toolkit for Kerberos roasting and TGT operations used throughout this guide.
 
 ### Install
 
@@ -70,8 +67,7 @@ kw-tgt -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -H <NT_HASH>
 
 ## impacket
 
-[impacket](https://github.com/fortra/impacket) provides the low-level Kerberos and AD tooling
-used for ticket manipulation, delegation testing, and golden/silver ticket operations.
+[impacket](https://github.com/fortra/impacket) provides the low-level Kerberos and AD tooling used for ticket manipulation, delegation testing, and golden/silver ticket operations.
 
 ### Install
 
@@ -122,9 +118,7 @@ ticketer.py -nthash <krbtgt_hash> -domain-sid S-1-5-21-... -domain CORP.LOCAL ad
 ```
 
 !!! tip "Ticket files and `KRB5CCNAME`"
-    Impacket tools write tickets to `.ccache` files and read from the path in the `KRB5CCNAME`
-    environment variable. Always set `export KRB5CCNAME=<path>.ccache` before using `-k -no-pass`
-    to authenticate with a saved ticket.
+    Impacket tools write tickets to `.ccache` files and read from the path in the `KRB5CCNAME` environment variable. Always set `export KRB5CCNAME=<path>.ccache` before using `-k -no-pass` to authenticate with a saved ticket.
 
 ---
 
@@ -203,8 +197,4 @@ The following tools appear in specific attack pages but are not covered in detai
 
 ## CredWolf
 
-[CredWolf](https://github.com/StrongWind1/CredWolf) is referenced in the
-[Password Spraying](credential-theft/password-spraying.md) and
-[User Enumeration](credential-theft/user-enumeration.md) pages for its detailed per-account
-response classification (valid, disabled, expired, locked, ASREProastable). Installed as part
-of the [Quick Install](#quick-install) block above.
+[CredWolf](https://github.com/StrongWind1/CredWolf) is referenced in the [Password Spraying](credential-theft/password-spraying.md) and [User Enumeration](credential-theft/user-enumeration.md) pages for its detailed per-account response classification (valid, disabled, expired, locked, ASREProastable). Installed as part of the [Quick Install](#quick-install) block above.

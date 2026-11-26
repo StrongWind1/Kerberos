@@ -19,15 +19,9 @@ This site is written for three audiences:
 No prior Kerberos knowledge is required. The site starts from first principles and builds up.
 
 !!! warning "RC4 is no longer the default"
-    Domain controllers with the April 2026 cumulative update or later treat accounts that have no
-    explicit `msDS-SupportedEncryptionTypes` as AES-only (CVE-2026-20833), unless
-    `DefaultDomainSupportedEncTypes` is set explicitly or, on the April-June 2026 updates, the
-    temporary `RC4DefaultDisablementPhase` rollback was applied. If a service started
-    failing with `KDC_ERR_ETYPE_NOSUPP`, or you want to confirm you are not affected, start with
-    [RC4 enforcement: am I affected?](security/enforcement-triage.md).
+    Domain controllers with the April 2026 cumulative update or later treat accounts that have no explicit `msDS-SupportedEncryptionTypes` as AES-only (CVE-2026-20833), unless `DefaultDomainSupportedEncTypes` is set explicitly or, on the April-June 2026 updates, the temporary `RC4DefaultDisablementPhase` rollback was applied. If a service started failing with `KDC_ERR_ETYPE_NOSUPP`, or you want to confirm you are not affected, start with [RC4 enforcement: am I affected?](security/enforcement-triage.md).
 
-Already familiar with Kerberos and just need to finish moving your domain to AES? Jump straight to
-the [Standardization Guide](security/aes-standardization.md).
+Already familiar with Kerberos and just need to finish moving your domain to AES? Jump straight to the [Standardization Guide](security/aes-standardization.md).
 
 ---
 
@@ -49,11 +43,7 @@ the [Standardization Guide](security/aes-standardization.md).
 
     Configuring Kerberos for security: encryption type negotiation, key derivation, the `msDS-SupportedEncryptionTypes` attribute, registry and Group Policy settings, the RC4 default removal (CVE-2026-20833), and mitigations.
 
-    New to encryption types? Start with the [Quick Start Guide](security/quick-start.md).
-    Something broke after patching? Go to [enforcement triage](security/enforcement-triage.md).
-    Two interactive tools help along the way: the
-    [Encryption Type Calculator](security/etype-calculator.md) and the
-    [Event Decoder](security/event-decoder.md).
+    New to encryption types? Start with the [Quick Start Guide](security/quick-start.md). Something broke after patching? Go to [enforcement triage](security/enforcement-triage.md). Two interactive tools help along the way: the [Encryption Type Calculator](security/etype-calculator.md) and the [Event Decoder](security/event-decoder.md).
 
 - **[Attacks](attacks/index.md)**
 

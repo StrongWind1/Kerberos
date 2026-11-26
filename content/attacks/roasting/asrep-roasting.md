@@ -97,14 +97,9 @@ That search matches the rendered event text. In the raw event XML the `UserAccou
 ### Why `msDS-SupportedEncryptionTypes` Does Not Help
 
 !!! warning "`msDS-SupportedEncryptionTypes` does NOT prevent RC4 AS-REP roasting"
-    Unlike TGS-REP (where the KDC enforces the target account's `msDS-SupportedEncryptionTypes`
-    for ticket encryption), AS-REP encryption follows the **client's requested etype** intersected
-    with the account's **available keys**.  Since AD generates RC4 keys on every password change,
-    an RC4 key almost always exists.  An attacker requesting RC4 will receive an RC4-encrypted
-    AS-REP regardless of the account's `msDS-SupportedEncryptionTypes` value.
+    Unlike TGS-REP (where the KDC enforces the target account's `msDS-SupportedEncryptionTypes` for ticket encryption), AS-REP encryption follows the **client's requested etype** intersected with the account's **available keys**.  Since AD generates RC4 keys on every password change, an RC4 key almost always exists.  An attacker requesting RC4 will receive an RC4-encrypted AS-REP regardless of the account's `msDS-SupportedEncryptionTypes` value.
 
-    The only effective mitigations are: (1) remove `DONT_REQUIRE_PREAUTH`, or (2) use a 25+
-    character random password that resists offline cracking at any etype speed.
+    The only effective mitigations are: (1) remove `DONT_REQUIRE_PREAUTH`, or (2) use a 25+ character random password that resists offline cracking at any etype speed.
 
 ---
 

@@ -75,8 +75,7 @@ Set `msDS-SupportedEncryptionTypes = 0x18` (AES128 + AES256, no RC4) on all manu
 Set-ADUser svc_sql -Replace @{'msDS-SupportedEncryptionTypes' = 24 }
 ```
 
-For per-type bulk queries covering all five account types, see the
-[SPN-bearing account type taxonomy](../../index.md#spn-bearing-account-types).
+For per-type bulk queries covering all five account types, see the [SPN-bearing account type taxonomy](../../index.md#spn-bearing-account-types).
 
 !!! warning "The account sets the ticket etype, not the client"
     The ticket etype comes from the target account, not from the client's request. The KDC picks the strongest etype in the account's effective set for which the account has a key; the etype list in the TGS-REQ is not consulted unless the `KdcUseRequestedEtypesForTickets` registry value has been set on the DC. The November 2022 security updates ([KB5021131](https://support.microsoft.com/help/5021131), CVE-2022-37966) did not change that: they made AES the default for session keys and introduced `DefaultDomainSupportedEncTypes` with a built-in default of `0x27`, under which an account with no `msDS-SupportedEncryptionTypes` still received RC4-encrypted tickets. See [msDS-SupportedEncryptionTypes](../../security/msds-supported.md) for details.
