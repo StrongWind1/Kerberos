@@ -32,9 +32,11 @@ sequenceDiagram
 
 ### Why Computer Accounts and Managed Service Accounts Are Not Viable Targets
 
-Computer account passwords are 120 random UTF-16 characters (240 bytes), automatically rotated every 30 days.  gMSA passwords are 240 bytes of cryptographically random data, also auto-rotated.  MSA and dMSA passwords follow the same auto-rotation model.  None of these are crackable.
+Computer account passwords are 120 random UTF-16 characters (240 bytes), automatically rotated every 30 days.  gMSA passwords are 240 bytes of cryptographically random data, also auto-rotated.  MSA and dMSA passwords follow the same auto-rotation model.  A password like that is out of reach of any dictionary or brute-force search.
 
-Kerberoasting is only practical against **user service accounts** - accounts whose passwords are set by humans and therefore subject to dictionary and brute-force attacks.
+The exception is a computer account whose password was never randomized.  One pre-created with the "pre-Windows 2000 computer" option keeps its own name in lowercase, without the `$`, as its password until a machine joins with it, and a password an administrator set by hand is whatever was typed.  In a lab with pre-created computer accounts (Server 2022, build 20348.5761), a wordlist of account names cracked one such account's AS-REQ timestamp and its service ticket at RC4 and at AES256, and its AS-REP part at AES256.  A pre-created account that was never joined is worth deleting.
+
+Apart from those, Kerberoasting is only practical against **user service accounts** - accounts whose passwords are set by humans and therefore subject to dictionary and brute-force attacks.
 
 That said, `msDS-SupportedEncryptionTypes = 0x18` should be set on all SPN-bearing account types.  Even though managed service account passwords are uncrackable, an account with no value takes whatever default the answering domain controller applies: `0x18` (AES only) on a DC enforcing the April 2026 default, RC4-encrypted tickets on a DC that predates that update or has an explicit `DefaultDomainSupportedEncTypes` that includes RC4.  An explicit value removes that dependence and keeps audit baselines simple.
 
@@ -176,9 +178,13 @@ Format the extracted data for offline cracking:
 
 | Encryption Type | Hashcat Mode | Hash Format |
 |-----------------|-------------|-------------|
-| RC4-HMAC (etype 23) | 13100 | `$krb5tgs$23$*user$realm$spn*$<first16>$<remaining>` |
-| AES128 (etype 17) | 19600 | `$krb5tgs$17$user$realm$*spn*$<checksum>$<edata>` |
-| AES256 (etype 18) | 19700 | `$krb5tgs$18$user$realm$*spn*$<checksum>$<edata>` |
+| RC4-HMAC (etype 23) | 13100 | `$krb5tgs$23$user$realm$<checksum>$<edata2>` |
+| AES128 (etype 17) | 19600 | `$krb5tgs$17$user$realm$<checksum>$<edata2>` |
+| AES256 (etype 18) | 19700 | `$krb5tgs$18$user$realm$<checksum>$<edata2>` |
+
+The checksum is the first 16 bytes of the cipher for RC4 and the last 12 for AES; `<edata2>` is the rest. In an AES line `user` and `realm` are not labels: hashcat builds the salt from them, so they must be the account's salt name and realm ([Where the salt comes from](crackable-fields.md#the-salt)).
+
+This is the layout `kw-roast` and `kw-extract` write. In mode 13100 it needs a hashcat built from source ([Tools Setup](../tools.md#hashcat)). Impacket's `GetUserSPNs.py` writes an older shape with the SPN in it, `$krb5tgs$23$*user$realm$spn*$<checksum>$<edata2>` for RC4 and `$krb5tgs$18$user$realm$*spn*$<checksum>$<edata2>` for AES, which hashcat releases load as well.
 
 ### 6. Crack with Wordlist and Rules
 
@@ -212,7 +218,7 @@ Authenticates with NTLM credentials, queries LDAP for SPN-bearing accounts, requ
 kw-roast -k -c admin.ccache --ldap
 ```
 
-Uses an existing TGT from a ccache file. Domain and DC are auto-detected from the ccache. Useful when you have a TGT from `kw-tgt` or another tool.
+Uses an existing TGT from a ccache file. The domain and user are read from the ccache, and the DC is found through the domain's DNS SRV record; add `--dc-ip` when that record does not resolve from where you run the tool. Useful when you have a TGT from `kw-tgt` or another tool.
 
 #### No-Preauth Mode (No Credentials Needed)
 

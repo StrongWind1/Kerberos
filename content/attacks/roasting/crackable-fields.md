@@ -5,7 +5,7 @@ Every encrypted field in Kerberos carries an integrity tag made with the same ke
 A full exchange has three fields whose keys come from a password, under two keys:
 
 - **The user's key** encrypts the AS-REQ timestamp and the AS-REP encrypted part. Either one reveals the user's password.
-- **The service account's key** encrypts the service ticket. The same ticket appears in the TGS-REP and again in the AP-REQ, byte for byte. This key is a password only when the account is a user account; a computer or managed account has a random password.
+- **The service account's key** encrypts the service ticket. The same ticket appears in the TGS-REP and again in the AP-REQ, byte for byte. This key is a password only when the account is a user account; a computer or managed account normally has a random password.
 
 Two other long-term keys appear but have random passwords: the `krbtgt` key on the TGT, and (with delegation) a front-end service's key on an extra ticket. Everything else in the exchange uses a session key, which is also random and never comes from a password.
 
@@ -33,7 +33,7 @@ These are the only fields in the exchange with a password-based key. The TGS-REP
 
 The AS-REQ and AS-REP fields use the same user key (with different [key usage numbers](https://datatracker.ietf.org/doc/html/rfc4120#section-7.5.1), 1 and 3), so cracking one is enough. [Password Spraying](../credential-theft/password-spraying.md) guesses the same password as AS-REQ Roasting, but online against the KDC instead of offline.
 
-In this site's lab, both user fields cracked at AES256 and RC4. The service ticket was not tested, because the lab's only SPNs belong to computer accounts, whose keys are random rather than password-based.
+In this site's lab, both user fields cracked at AES256 and RC4. That lab's only SPNs belong to computer accounts, whose keys are random, so the service ticket was tested in a second lab that has user service accounts (Server 2022, build 20348.5761, with DES enabled on the domain controller). Tickets taken from TGS-REPs cracked there at DES-CBC-CRC, DES-CBC-MD5, RC4, AES128 and AES256.
 
 ### Hashcat modes
 
@@ -45,7 +45,7 @@ A ticket cracks from its encrypted part alone, so the TGS-REP modes also take a 
 | AS-REP encrypted part | 18200 | 35400 | 32100 | 32200 | 38600 | 39200 |
 | Service ticket | 13100 | 35300 | 19600 | 19700 | 38500 | 39100 |
 
-Modes 39000 to 39400 are on hashcat's master branch, not in the 7.1.2 release.
+The RC4 and AES password modes are all in hashcat v7.0.0 and later; 6.2.6 lacks 32100 and 32200. Modes 35300, 35400, 38500 and 38600 first shipped in v8.0.0. Modes 39000 to 39400 are on hashcat's master branch and in no release yet. Lines in the layout kerbwolf writes need a build from master in most modes ([Tools Setup](../tools.md#hashcat)).
 
 ---
 
@@ -152,5 +152,5 @@ The rule is not always right. In the lab, the built-in Administrator's salt was 
 - **PKINIT.** The AS exchange uses no password at all, so both user fields disappear ([PKINIT](../../protocol/preauth.md#pkinit-certificate-based-pre-authentication)).
 - **User-to-user.** The service ticket is encrypted with the session key of the target's TGT, not a long-term key, so it is not crackable.
 - **Encryption type.** The client's request sets the etype of the two user fields; the service account's settings set the ticket's ([Encryption Negotiation](../../security/etype-negotiation.md)). In the lab, an RC4-only AS-REQ produced an RC4 timestamp and RC4 AS-REP part while the TGT stayed AES256. An RC4 key is a single unsalted MD4 hash; an AES key runs 4096 PBKDF2 iterations, so RC4 candidates test at a higher rate (see [Cracking speed](../../security/algorithms.md#cracking-speed-comparison)).
-- **DES.** A DES key is 56 bits. Its whole key space can be searched, so the password no longer matters: even computer and `krbtgt` keys fall, wherever DES is still in use.
-- **Random passwords.** Computer accounts, gMSA, dMSA, `krbtgt`, and trust keys all derive keys from passwords, so the check still works. Their passwords are random and long (120 characters for computer accounts, 240 bytes for gMSA), so a dictionary or brute-force search does not reach them ([why computer accounts are not viable targets](kerberoasting.md#why-computer-accounts-and-managed-service-accounts-are-not-viable-targets)).
+- **DES.** A DES key is 56 bits. Its whole key space can be searched, so the password no longer matters: even computer and `krbtgt` keys fall, wherever DES is still in use. The hashcat DES modes in the table above do not do that search. They test passwords, like the RC4 and AES modes; searching the key itself takes a DES key-search tool.
+- **Random passwords.** Computer accounts, gMSA, dMSA, `krbtgt`, and trust keys all derive keys from passwords, so the check still works. Their passwords are random and long (120 characters for computer accounts, 240 bytes for gMSA), so a dictionary or brute-force search does not reach them. The exceptions are passwords a default or a person chose: a pre-created computer account that still has its own name as its password, or a computer or trust password set by hand ([why computer accounts are not viable targets, and when they are](kerberoasting.md#why-computer-accounts-and-managed-service-accounts-are-not-viable-targets)).

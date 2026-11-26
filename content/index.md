@@ -91,6 +91,7 @@ Attack pages use [kerbwolf](https://github.com/StrongWind1/KerbWolf) and [impack
 | `kw-asrep` | AS-REP roasting |
 | `kw-extract` | Offline hash extraction from pcap captures |
 | `kw-tgt` | TGT acquisition (pass-the-key / overpass-the-hash) |
+| `kw-timeroast` | Timeroasting (MS-SNTP hashes of computer, gMSA and trust accounts) |
 
 ### Microsoft Kerberos-Crypto
 

@@ -166,9 +166,13 @@ Parse the AS-REP and extract the outer `enc-part` - the portion encrypted with t
 
 | Encryption Type | Hashcat Mode | Hash Format |
 |-----------------|-------------|-------------|
-| RC4-HMAC (etype 23) | 18200 | `$krb5asrep$23$user@realm:<first16hex>$<remaininghex>` |
-| AES128 (etype 17) | 32100 | `$krb5asrep$17$user$realm$<checksum>$<edata>` |
-| AES256 (etype 18) | 32200 | `$krb5asrep$18$user$realm$<checksum>$<edata>` |
+| RC4-HMAC (etype 23) | 18200 | `$krb5asrep$23$user$realm$<checksum>$<edata2>` |
+| AES128 (etype 17) | 32100 | `$krb5asrep$17$user$realm$<checksum>$<edata2>` |
+| AES256 (etype 18) | 32200 | `$krb5asrep$18$user$realm$<checksum>$<edata2>` |
+
+The checksum is the first 16 bytes of the cipher for RC4 and the last 12 for AES; `<edata2>` is the rest. In an AES line `user` and `realm` are not labels: hashcat builds the salt from them, so they must be the account's salt name and realm ([Where the salt comes from](crackable-fields.md#the-salt)).
+
+This is the layout `kw-asrep` and `kw-extract` write. In mode 18200 it needs a hashcat built from source ([Tools Setup](../tools.md#hashcat)). Impacket's `GetNPUsers.py` writes RC4 in an older shape, `$krb5asrep$23$user@REALM:<checksum>$<edata2>`, which hashcat releases load as well.
 
 ```bash title="Crack AS-REP hashes with wordlist and rules"
 # Crack RC4 AS-REP hashes

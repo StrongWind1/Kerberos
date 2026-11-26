@@ -26,14 +26,17 @@ uv tool install git+https://github.com/StrongWind1/CredWolf
 uv tool install git+https://github.com/StrongWind1/KerbWolf
 ```
 
+This installs the main branch, which these pages follow. The 2.0.0 package on PyPI (`uv tool install kerbwolf`) is older: its `kw-extract` does not read service tickets from AP-REQs.
+
 ### Tools
 
 | Command | Purpose |
 |---------|---------|
 | `kw-roast` | Kerberoasting - requests TGS-REP tickets and outputs hashcat-compatible hashes |
 | `kw-asrep` | AS-REP roasting - requests AS-REPs for no-preauth accounts |
-| `kw-extract` | Offline pcap parser - extracts AS-REQ, AS-REP, TGS-REP and AP-REQ hashes from captures |
+| `kw-extract` | Offline pcap parser - extracts AS-REQ, AS-REP, TGS-REP and AP-REQ hashes from captures, and MS-SNTP, NTLM and LDAP simple-bind credentials |
 | `kw-tgt` | TGT acquisition - requests TGTs using passwords, NT hashes, or AES keys (pass-the-key) |
+| `kw-timeroast` | Timeroasting - requests MS-SNTP hashes of computer, gMSA and trust accounts from a DC's time service. Not a Kerberos attack; see kerbwolf's [Timeroasting](https://strongwind.dev/KerbWolf/background/timeroasting/) page |
 
 ### Verify
 
@@ -42,13 +45,14 @@ kw-roast --help
 kw-asrep --help
 kw-extract --help
 kw-tgt --help
+kw-timeroast --help
 ```
 
 ### Basic Usage
 
 ```bash title="kerbwolf - Kerberoast, AS-REP roast, extract from pcap, and request TGT"
 # Kerberoast all accounts with SPNs
-kw-roast -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -p '<password>' -o hashes.txt
+kw-roast -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -p '<password>' --ldap -o hashes.txt
 
 # AS-REP roast using LDAP discovery
 kw-asrep -d CORP.LOCAL --dc-ip 192.0.2.10 -u user -p '<password>' --ldap -o hashes.txt
@@ -128,6 +132,13 @@ ticketer.py -nthash <krbtgt_hash> -domain-sid S-1-5-21-... -domain CORP.LOCAL ad
 
 ### Install
 
+=== "Linux (from source)"
+    ```bash
+    git clone https://github.com/hashcat/hashcat
+    make -C hashcat
+    ./hashcat/hashcat --version
+    ```
+
 === "Linux (apt)"
     ```bash
     sudo apt install hashcat
@@ -135,9 +146,9 @@ ticketer.py -nthash <krbtgt_hash> -domain-sid S-1-5-21-... -domain CORP.LOCAL ad
 
 === "Linux (binary)"
     ```bash
-    wget https://hashcat.net/files/hashcat-7.1.2.7z
-    7z x hashcat-7.1.2.7z
-    ./hashcat-7.1.2/hashcat --help
+    wget https://hashcat.net/files/hashcat-8.0.0.7z
+    7z x hashcat-8.0.0.7z
+    ./hashcat-8.0.0/hashcat --help
     ```
 
 === "macOS"
@@ -145,7 +156,14 @@ ticketer.py -nthash <krbtgt_hash> -domain-sid S-1-5-21-... -domain CORP.LOCAL ad
     brew install hashcat
     ```
 
+!!! warning "kerbwolf's lines need a build from source"
+    kerbwolf writes every Kerberos hash in one layout, `$krb5tgs$<etype>$user$realm$<checksum>$<edata2>` (and the same with `$krb5asrep$` and `$krb5pa$`). hashcat added that layout to modes 7500, 13100, 18200, 19800, 19900, 35300, 35400 and 38500 on its master branch on 2026-11-04, after the v8.0.0 release. A v8.0.0 build loads kerbwolf's lines only in modes 19600, 19700, 32100, 32200 and 38600, and rejects them in the other eight with `Token length exception` or `Separator unmatched`. Until the next hashcat release, build from source to crack kerbwolf's RC4 hashes and its pre-authentication hashes.
+
+    A packaged or downloaded hashcat is enough for the older shapes that Impacket writes; each roasting page gives them beside the layout above.
+
 ### Hash Modes
+
+The tables below list the RC4, AES128 and AES256 modes. The DES and NT-hash modes, and which hashcat version first has each, are under [Crackable Fields](roasting/crackable-fields.md#hashcat-modes).
 
 **Kerberoasting** (`$krb5tgs$`)
 

@@ -161,9 +161,16 @@ Parse the captured packets and extract the encrypted timestamp from each AS-REQ 
 
 | Encryption | Hashcat Mode | Hash Format |
 |------------|-------------|-------------|
-| RC4-HMAC | 7500 | `$krb5pa$23$user$realm$<cipher_bytes>` |
-| AES128 | 19800 | `$krb5pa$17$user$realm$$<cipher_bytes>` |
-| AES256 | 19900 | `$krb5pa$18$user$realm$$<cipher_bytes>` |
+| RC4-HMAC | 7500 | `$krb5pa$23$user$realm$<checksum>$<encrypted>` |
+| AES128 | 19800 | `$krb5pa$17$user$realm$<checksum>$<encrypted>` |
+| AES256 | 19900 | `$krb5pa$18$user$realm$<checksum>$<encrypted>` |
+
+The checksum is the first 16 bytes of the PA-ENC-TIMESTAMP cipher for RC4 and the last 12 for AES; `<encrypted>` is the rest. In an AES line `user` and `realm` are not labels: hashcat builds the salt from them, so they must be the account's salt name and realm ([Where the salt comes from](crackable-fields.md#the-salt)).
+
+This is the layout `kw-extract` writes, and in all three modes it needs a hashcat built from source ([Tools Setup](../tools.md#hashcat)). The shapes that hashcat releases load put the whole cipher in one field, encrypted part first: `$krb5pa$23$user$realm$salt$<encrypted><checksum>` for RC4, where the salt field is ignored and may be empty, and `$krb5pa$18$user$realm$$<encrypted><checksum>` for AES.
+
+!!! warning "RC4 in one field is not in wire order"
+    On the wire an RC4 cipher starts with its checksum, and the one-field shape wants the checksum last. A line built in wire order loads without an error and never cracks: none of 12 lab hashes cracked that way, on v8.0.0 or on master, while 10 and 11 of them cracked with the checksum last. An AES cipher already ends with its checksum, so wire order is right there.
 
 ### 4. Crack Offline
 
@@ -220,7 +227,7 @@ Processes all pcap files in the directory and consolidates hashes into a single 
 | `$krb5tgs$` | Service ticket in an AP-REQ (SMB/HTTP/LDAP/DCE-RPC) | 13100 / 19600 / 19700 |
 | `$sntp-ms$` | MS-SNTP authenticator | 31300 |
 
-The table lists the RC4, AES128 and AES256 modes; kw-extract also writes the DES and NT-hash formats. Hashes are always written in the hashcat layout. It handles TCP stream reassembly, Ethernet/Raw IP/VLAN encapsulation, and IPv4/IPv6 automatically.
+The table lists the RC4, AES128 and AES256 modes. kw-extract also writes DES lines, and its RC4 lines are what the NT-hash modes read; [Crackable Fields](crackable-fields.md#hashcat-modes) has every mode. All Kerberos hashes are written in one layout, `$prefix$etype$user$realm$<checksum>$<data>`. It handles TCP stream reassembly, Ethernet/Raw IP/VLAN encapsulation, and IPv4/IPv6 automatically.
 
 ### Other Tools
 
