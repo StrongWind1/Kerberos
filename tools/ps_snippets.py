@@ -39,6 +39,8 @@ _OPEN = re.compile(
 _SNIPPET = re.compile(r"^(?P<indent>[ \t]*)--8<--\s+(?P<rest>.+)$")
 _SNIPPET_REF = re.compile(r'--8<--\s+"(?P<path>[^"]+)"')
 _PLACEHOLDER = "# @@SNIPPET@@ "
+_ATTEMPTS = 4
+_PASS_SECONDS = 120
 
 _PWSH = r"""
 param([string]$Manifest, [string]$Settings, [string]$Out)
@@ -54,19 +56,17 @@ $results = foreach ($b in $blocks) {
     $formatted = $code
     $findings = @()
     if ($parse.Count -eq 0 -and $code.Trim()) {
-        # PSScriptAnalyzer occasionally throws a NullReferenceException on input it
-        # handles fine a moment later; retry before treating that as a failure.
-        for ($attempt = 1; $attempt -le 4; $attempt++) {
-            try {
-                $formatted = Invoke-Formatter -ScriptDefinition $code -Settings $Settings
-                $analyse = if ($b.expanded -ne $b.code) { [string]$b.expanded } else { $formatted }
-                $findings = @(Invoke-ScriptAnalyzer -ScriptDefinition $analyse -Settings $Settings |
-                        ForEach-Object { 'line {0}: {1}: {2}' -f $_.Line, $_.RuleName, $_.Message })
-                break
-            }
-            catch {
-                $findings = @("analyzer error: $($_.Exception.Message)")
-            }
+        try {
+            $formatted = Invoke-Formatter -ScriptDefinition $code -Settings $Settings
+            $analyse = if ($b.expanded -ne $b.code) { [string]$b.expanded } else { $formatted }
+            $findings = @(Invoke-ScriptAnalyzer -ScriptDefinition $analyse -Settings $Settings |
+                    ForEach-Object { 'line {0}: {1}: {2}' -f $_.Line, $_.RuleName, $_.Message })
+        }
+        catch {
+            # A failure of the analyzer is not a finding. End without results; any exit
+            # code other than 0 and 1 makes the caller run the pass again in a new process.
+            Write-Warning "PSScriptAnalyzer failed on $($b.id): $($_.Exception.Message)"
+            exit 3
         }
     }
     [PSCustomObject]@{ id = $b.id; formatted = $formatted; parse = $parse; findings = $findings }
@@ -185,26 +185,52 @@ def collect(only: list[Path] | None = None) -> list[Block]:
 
 
 def run_pwsh(blocks: list[Block]) -> dict[str, Result]:
-    """Format and analyse all blocks in one PowerShell process."""
+    """Format and analyse all blocks in one PowerShell process.
+
+    When that process ends without results, or has not ended after ``_PASS_SECONDS``,
+    it is started again, up to ``_ATTEMPTS`` times in all. PSScriptAnalyzer 1.25.0 ends
+    without results in a few runs out of a hundred: a rule throws, its command lookup
+    reports that ``Get-Command`` is not recognized, or an unhandled exception ends the
+    process. Its command cache keeps a failed lookup for as long as the process lives,
+    so only a new process can ask again. A process has also been seen to stand still
+    for fifteen minutes; a pass over every block takes a few seconds.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         manifest, out, script = (Path(tmp) / name for name in ("in.json", "out.json", "run.ps1"))
         payload = [{"id": b.ident, "code": b.code, "expanded": _expand(b.code)} for b in blocks]
         manifest.write_text(json.dumps(payload), encoding="utf-8")
         script.write_text(_PWSH, encoding="utf-8")
-        subprocess.run(
-            [
-                "pwsh",
-                "-NoProfile",
-                "-NonInteractive",
-                "-File",
-                str(script),
-                str(manifest),
-                str(SETTINGS),
-                str(out),
-            ],
-            check=True,
-        )
-        return _load_results(out.read_text(encoding="utf-8-sig"))
+        command = [
+            "pwsh",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(script),
+            str(manifest),
+            str(SETTINGS),
+            str(out),
+        ]
+        outcome = ""
+        for attempt in range(1, _ATTEMPTS + 1):
+            try:
+                completed = subprocess.run(command, check=False, timeout=_PASS_SECONDS)
+            except subprocess.TimeoutExpired:
+                outcome = f"no end after {_PASS_SECONDS} seconds"
+            else:
+                # 0 is results written, and 1 is an error in the pass itself, which a second
+                # run would only repeat. Any other code is the analyzer or the process failing.
+                if completed.returncode in (0, 1):
+                    completed.check_returncode()
+                    return _load_results(out.read_text(encoding="utf-8-sig"))
+                outcome = f"exit code {completed.returncode}"
+            if attempt < _ATTEMPTS:
+                print(
+                    f"No results ({outcome}). "
+                    f"Checking again in a new process: attempt {attempt + 1} of {_ATTEMPTS}.",
+                    flush=True,
+                )
+        msg = f"PSScriptAnalyzer gave no results in {_ATTEMPTS} attempts ({outcome})"
+        raise RuntimeError(msg)
 
 
 def _text(value: object) -> str:
