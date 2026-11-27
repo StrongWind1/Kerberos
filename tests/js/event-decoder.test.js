@@ -2,10 +2,8 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { DECODER_JS, REPO, installDomParser, loadDecoder, read } = require("./helpers");
+const { DECODER_JS, REPO, loadDecoder, read } = require("./helpers");
 const dec = require(`${REPO}/${DECODER_JS}`);
-
-installDomParser();
 
 const EX = dec.EXAMPLES;
 

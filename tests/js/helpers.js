@@ -30,8 +30,9 @@ function toolMarkup(mdFile, id) {
 /**
  * A jsdom window with one tool's markup and script, as a browser would have
  * after page load.  Uncaught errors and console.error output are collected.
+ * prepare, when given, is called with the window before the script runs.
  */
-function loadTool(mdFile, id, jsFile, url) {
+function loadTool(mdFile, id, jsFile, url, prepare) {
   const dom = new JSDOM(`<!doctype html><html><body>${toolMarkup(mdFile, id)}</body></html>`, {
     url,
     runScripts: "outside-only",
@@ -40,6 +41,7 @@ function loadTool(mdFile, id, jsFile, url) {
   const errors = [];
   dom.window.console.error = (...args) => errors.push(args.map(String).join(" "));
   dom.window.addEventListener("error", (e) => errors.push(`uncaught: ${e.message}`));
+  if (prepare) prepare(dom.window);
   dom.window.eval(read(jsFile));
   const doc = dom.window.document;
   return {
@@ -59,16 +61,11 @@ function loadCalculator(url = "https://example.test/security/etype-calculator/")
   return loadTool(CALC_MD, "etype-calculator", CALC_JS, url);
 }
 
-function loadDecoder(url = "https://example.test/security/event-decoder/") {
-  return loadTool(DECODER_MD, "event-decoder", DECODER_JS, url);
-}
-
-/** Give Node a DOMParser so parseEventXml can run outside a window. */
-function installDomParser() {
-  if (!globalThis.DOMParser) globalThis.DOMParser = new JSDOM("").window.DOMParser;
+function loadDecoder(url = "https://example.test/security/event-decoder/", prepare = null) {
+  return loadTool(DECODER_MD, "event-decoder", DECODER_JS, url, prepare);
 }
 
 module.exports = {
   REPO, CALC_JS, DECODER_JS, CALC_MD, DECODER_MD,
-  read, toolMarkup, loadCalculator, loadDecoder, installDomParser,
+  read, toolMarkup, loadCalculator, loadDecoder,
 };

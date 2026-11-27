@@ -449,44 +449,350 @@
     return NaN;
   }
 
+  /* ------------------------------------------------------------------ */
+  /*  XML reader                                                        */
+  /*                                                                    */
+  /*  The event is read here, by scanning the string, and not by the    */
+  /*  browser's own XML parser: text that was pasted or came in a       */
+  /*  shared link is never handed to a DOM parser.  The reader takes    */
+  /*  one element and holds it to the well-formedness rules of XML 1.0  */
+  /*  and of Namespaces in XML 1.0, as a conforming parser does.  It    */
+  /*  knows elements, attributes, text, the five predefined entities,   */
+  /*  character references, CDATA sections, comments and processing     */
+  /*  instructions.  It reads no DTD, so there are no other entities.   */
+  /* ------------------------------------------------------------------ */
+
+  var XML_ENTITIES = { lt: "<", gt: ">", amp: "&", quot: "\"", apos: "'" };
+  var XML_NAMESPACE = "http://www.w3.org/XML/1998/namespace";
+  var XMLNS_NAMESPACE = "http://www.w3.org/2000/xmlns/";
+
+  /* The Name production of XML 1.0 (fifth edition).  Characters above U+FFFF
+     are matched as surrogate pairs. */
+  var XML_NAME_START = ":A-Z_a-z\\u00C0-\\u00D6\\u00D8-\\u00F6\\u00F8-\\u02FF\\u0370-\\u037D\\u037F-\\u1FFF\\u200C\\u200D\\u2070-\\u218F\\u2C00-\\u2FEF\\u3001-\\uD7FF\\uF900-\\uFDCF\\uFDF0-\\uFFFD";
+  var XML_NAME_ASTRAL = "[\\uD800-\\uDB7F][\\uDC00-\\uDFFF]";
+  var XML_NAME = new RegExp("(?:[" + XML_NAME_START + "]|" + XML_NAME_ASTRAL + ")(?:[" + XML_NAME_START + "\\-.0-9\\u00B7\\u0300-\\u036F\\u203F\\u2040]|" + XML_NAME_ASTRAL + ")*", "g");
+
+  /* Outside the Char production: control characters other than tab and line
+     feed, U+FFFE and U+FFFF. */
+  var XML_NOT_CHAR = new RegExp("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\uFFFE\\uFFFF]");
+
+  /* A surrogate pair, which is kept, or half of one, which is no character. */
+  var XML_SURROGATES = new RegExp("[\\uD800-\\uDBFF][\\uDC00-\\uDFFF]|[\\uD800-\\uDFFF]", "g");
+  var XML_REPLACEMENT_CHARACTER = String.fromCharCode(0xFFFD);
+
+  function isXmlChar(code) {
+    return code === 0x9 || code === 0xA || code === 0xD || (code >= 0x20 && code <= 0xD7FF)
+      || (code >= 0xE000 && code <= 0xFFFD) || (code >= 0x10000 && code <= 0x10FFFF);
+  }
+
+  function xmlCharFromCode(code) {
+    if (code < 0x10000) return String.fromCharCode(code);
+    return String.fromCharCode(0xD800 + ((code - 0x10000) >> 10), 0xDC00 + ((code - 0x10000) & 0x3FF));
+  }
+
+  /**
+   * Read one XML element and everything inside it.
+   * Returns every element in document order, the outermost first, each as
+   * { name, local, attributes, text }: the name as written, the name without
+   * a namespace prefix, the attribute values by name as written, and the text
+   * of the element together with the text of everything inside it.
+   * Anything that is not well-formed fails with a message that begins
+   * "Invalid XML:".  So does an XML declaration or a <! declaration, neither
+   * of which is part of an element.
+   * The time taken grows in step with the length of the text, however deep
+   * the elements nest: the text is kept once, and each element's text is cut
+   * from it when it is asked for.
+   */
+  function readXmlElement(xml) {
+    /* Line ends become line feeds.  Half of a surrogate pair is read as
+       U+FFFD, which is what a browser hands to its own XML parser. */
+    var s = String(xml).replace(/\r\n?/g, "\n").replace(XML_SURROGATES, function (found) {
+      return found.length === 2 ? found : XML_REPLACEMENT_CHARACTER;
+    });
+    var elements = [];
+    var open = [];        /* the elements that are not closed yet, outermost first */
+    var declared = [];    /* the namespace prefixes that each of them declares */
+    var bindings = Object.create(null);   /* prefix: the namespaces it is bound to, innermost last */
+    var chunks = [];      /* the text of the whole document, in order */
+    var textLength = 0;
+    var wholeText = "";
+    var rootClosed = false;
+    var i = 0;
+
+    /* What every element inherits: its text, cut from the text of the document. */
+    var withText = Object.defineProperty({}, "text", {
+      enumerable: true,
+      get: function () { return wholeText.substring(this.textStart, this.textEnd); }
+    });
+
+    bindings.xml = [XML_NAMESPACE];
+
+    function bad(what) {
+      fail("Invalid XML: " + (what.length > 300 ? what.substring(0, 300) + "..." : what) + ".");
+    }
+
+    function at(token) {
+      return s.substring(i, i + token.length) === token;
+    }
+
+    function skipSpace() {
+      var from = i;
+      while (i < s.length && " \t\n".indexOf(s.charAt(i)) !== -1) i++;
+      return i > from;
+    }
+
+    /** The name that starts at a position; what is the complaint when none does. */
+    function nameAt(position, what) {
+      XML_NAME.lastIndex = position;
+      var found = XML_NAME.exec(s);
+      if (!found || found.index !== position) bad(what);
+      return found[0];
+    }
+
+    function isName(text) {
+      XML_NAME.lastIndex = 0;
+      var found = XML_NAME.exec(text);
+      return found !== null && found.index === 0 && found[0].length === text.length;
+    }
+
+    /** A name split into its namespace prefix ("" when it has none) and the rest. */
+    function splitName(name) {
+      var colon = name.indexOf(":");
+      if (colon === -1) return { prefix: "", local: name };
+      var parts = { prefix: name.substring(0, colon), local: name.substring(colon + 1) };
+      if (parts.prefix === "" || parts.local === "" || parts.local.indexOf(":") !== -1) {
+        bad("the name " + name + " is not a namespace prefix, one colon and a name");
+      }
+      return parts;
+    }
+
+    /** Text or an attribute value with its entity and character references replaced. */
+    function resolveReferences(text) {
+      if (text.indexOf("&") === -1) return text;
+      return text.replace(/&([^;&]*)(;?)/g, function (_whole, body, semicolon) {
+        var code;
+        if (semicolon && lookup(XML_ENTITIES, body) !== undefined) return XML_ENTITIES[body];
+        if (semicolon && /^#x[0-9A-Fa-f]+$/.test(body)) {
+          code = parseInt(body.substring(2), 16);
+        } else if (semicolon && /^#[0-9]+$/.test(body)) {
+          code = parseInt(body.substring(1), 10);
+        } else if (semicolon && isName(body)) {
+          bad("the entity &" + body + "; is not defined");
+        } else {
+          bad("there is an & that does not begin an entity or a character reference; a literal & is written &amp;");
+        }
+        if (!isXmlChar(code)) bad("the character reference &" + body + "; does not name a character that XML allows");
+        return xmlCharFromCode(code);
+      });
+    }
+
+    function appendText(text) {
+      chunks.push(text);
+      textLength += text.length;
+    }
+
+    function characterData(text) {
+      if (open.length === 0) {
+        if (/[^ \t\n]/.test(text)) bad(rootClosed ? "there is text after the closing tag of the outermost element" : "there is text before the first tag");
+        return;
+      }
+      if (text.indexOf("]]>") !== -1) bad("the text holds ]]>, which may only close a CDATA section");
+      appendText(resolveReferences(text));
+    }
+
+    function comment() {
+      var end = s.indexOf("--", i + 4);
+      if (end === -1) bad("a comment is not closed with -->");
+      if (s.charAt(end + 2) !== ">") bad("a comment holds --, which may only be part of its closing -->");
+      i = end + 3;
+    }
+
+    function cdataSection() {
+      if (open.length === 0) bad("a CDATA section is outside the outermost element");
+      var end = s.indexOf("]]>", i + 9);
+      if (end === -1) bad("a CDATA section is not closed with ]]>");
+      appendText(s.substring(i + 9, end));
+      i = end + 3;
+    }
+
+    function processingInstruction() {
+      var end = s.indexOf("?>", i + 2);
+      if (end === -1) bad("a processing instruction is not closed with ?>");
+      var target = nameAt(i + 2, "a processing instruction has no name");
+      var after = i + 2 + target.length;
+      if (after !== end && " \t\n".indexOf(s.charAt(after)) === -1) bad("the name of a processing instruction is not followed by white space");
+      if (target.indexOf(":") !== -1) bad("the name of a processing instruction holds a colon");
+      if (target.toLowerCase() === "xml") bad("an XML declaration is only allowed at the very start of a document");
+      i = end + 2;
+    }
+
+    /** Bind the namespace prefixes an element declares; returns the prefixes, to unbind when it closes. */
+    function declarePrefixes(attributes, written) {
+      var prefixes = [];
+      for (var n = 0; n < written.length; n++) {
+        var isDefault = written[n] === "xmlns";
+        if (!isDefault && written[n].substring(0, 6) !== "xmlns:") continue;
+        var prefix = isDefault ? "" : written[n].substring(6);
+        var uri = attributes[written[n]].trim();
+        if (uri === XMLNS_NAMESPACE || prefix === "xmlns" || (prefix === "xml") !== (uri === XML_NAMESPACE)) {
+          bad("the declaration " + written[n] + " binds a namespace or a prefix that is reserved");
+        }
+        /* The default namespace applies to names without a prefix, which need no lookup. */
+        if (isDefault) continue;
+        if (uri === "") bad("the declaration " + written[n] + " has no namespace name");
+        if (!bindings[prefix]) bindings[prefix] = [];
+        bindings[prefix].push(uri);
+        prefixes.push(prefix);
+      }
+      return prefixes;
+    }
+
+    function undeclarePrefixes(prefixes) {
+      for (var n = 0; n < prefixes.length; n++) bindings[prefixes[n]].pop();
+    }
+
+    /** The namespace a prefix is bound to. */
+    function namespaceOf(prefix, name) {
+      var bound = bindings[prefix];
+      if (!bound || bound.length === 0) bad("the namespace prefix of " + name + " is not declared");
+      return bound[bound.length - 1];
+    }
+
+    function startTag() {
+      if (rootClosed) bad("there is a second outermost element; a document has one");
+      var name = nameAt(i + 1, "there is a < that does not begin a tag; a literal < is written &lt;");
+      i += 1 + name.length;
+
+      var attributes = Object.create(null);
+      var written = [];
+      var isEmpty = false;
+      for (;;) {
+        var spaced = skipSpace();
+        if (at(">")) { i += 1; break; }
+        if (at("/>")) { i += 2; isEmpty = true; break; }
+        if (i >= s.length) bad("the tag <" + name + " is not finished");
+        if (!spaced) bad("the tag <" + name + " holds something that is neither an attribute nor its end");
+        var attribute = nameAt(i, "the tag <" + name + " holds something that is neither an attribute nor its end");
+        i += attribute.length;
+        skipSpace();
+        if (!at("=")) bad("the attribute " + attribute + " of <" + name + "> has no value");
+        i += 1;
+        skipSpace();
+        var quote = s.charAt(i);
+        if (quote !== "\"" && quote !== "'") bad("the value of the attribute " + attribute + " of <" + name + "> is not in quotes");
+        var close = s.indexOf(quote, i + 1);
+        if (close === -1) bad("the value of the attribute " + attribute + " of <" + name + "> has no closing quote");
+        var value = s.substring(i + 1, close);
+        if (value.indexOf("<") !== -1) bad("the value of the attribute " + attribute + " of <" + name + "> holds a <, which is written &lt;");
+        /* A literal tab or line break in a value is a space; one written as a
+           character reference stays what it is. */
+        attributes[attribute] = resolveReferences(value.replace(/[\t\n]/g, " "));
+        written.push(attribute);
+        i = close + 1;
+      }
+
+      var prefixes = declarePrefixes(attributes, written);
+      var parts = splitName(name);
+      if (parts.prefix === "xmlns") bad("the tag <" + name + "> uses the reserved prefix xmlns");
+      if (parts.prefix !== "") namespaceOf(parts.prefix, "<" + name + ">");
+
+      /* Two attributes are the same one when they have the same name after
+         their prefixes are replaced by namespaces. */
+      var seen = Object.create(null);
+      for (var n = 0; n < written.length; n++) {
+        var attributeParts = splitName(written[n]);
+        var expanded = attributeParts.prefix === "" ? written[n]
+          : "{" + (attributeParts.prefix === "xmlns" ? XMLNS_NAMESPACE : namespaceOf(attributeParts.prefix, "the attribute " + written[n])) + "}" + attributeParts.local;
+        if (seen[expanded]) bad("the attribute " + written[n] + " appears twice in <" + name + ">");
+        seen[expanded] = true;
+      }
+
+      var element = Object.create(withText);
+      element.name = name;
+      element.local = parts.local;
+      element.attributes = attributes;
+      element.textStart = textLength;
+      element.textEnd = textLength;
+      elements.push(element);
+      if (!isEmpty) {
+        open.push(element);
+        declared.push(prefixes);
+        return;
+      }
+      undeclarePrefixes(prefixes);
+      if (open.length === 0) rootClosed = true;
+    }
+
+    function endTag() {
+      var name = nameAt(i + 2, "a closing tag has no name");
+      i += 2 + name.length;
+      skipSpace();
+      if (!at(">")) bad("the closing tag </" + name + " is not finished");
+      i += 1;
+      if (open.length === 0) bad("</" + name + "> closes nothing");
+      var element = open.pop();
+      if (element.name !== name) bad("</" + name + "> closes <" + element.name + ">");
+      element.textEnd = textLength;
+      undeclarePrefixes(declared.pop());
+      if (open.length === 0) rootClosed = true;
+    }
+
+    if (XML_NOT_CHAR.test(s)) bad("it holds a character that XML does not allow, such as a control character");
+
+    while (i < s.length) {
+      var tag = s.indexOf("<", i);
+      if (tag === -1) tag = s.length;
+      characterData(s.substring(i, tag));
+      i = tag;
+      if (i >= s.length) break;
+      if (at("<!--")) comment();
+      else if (at("<![CDATA[")) cdataSection();
+      else if (at("<?")) processingInstruction();
+      else if (at("<!")) bad("a <! declaration is not allowed");
+      else if (at("</")) endTag();
+      else startTag();
+    }
+    if (open.length > 0) bad("<" + open[open.length - 1].name + "> is never closed");
+    if (!rootClosed) bad("there is no element");
+    wholeText = chunks.join("");
+    return elements;
+  }
+
   /**
    * Parse event XML (already isolated by extractEventXml).
    * Returns { eventId, time, computer, fields, fieldOrder, format }.
    */
   function parseEventXml(xml) {
-    /* Defensive validation for untrusted input before XML parsing. */
+    /* The reader refuses a declaration where one stands.  These words are
+       refused anywhere in the text, comments included, and by name. */
     if (/<!DOCTYPE/i.test(xml) || /<!ENTITY/i.test(xml)) {
       fail("Invalid XML: DOCTYPE/ENTITY declarations are not allowed.");
     }
 
-    var doc = new DOMParser().parseFromString(xml, "text/xml");
-    var err = doc.getElementsByTagName("parsererror");
-    if (err.length > 0) {
-      fail("Invalid XML: " + (err[0].textContent || "parse error").replace(/\s+/g, " ").trim().substring(0, 200));
-    }
+    var elements = readXmlElement(xml);
 
-    /* Element lookup that works with or without the event namespace. */
+    /* Element lookup by name as written, or, when no element is written that
+       way, by name without its namespace prefix. */
     function find(localName) {
-      var els = doc.getElementsByTagName(localName);
-      if (els.length === 0) els = doc.getElementsByTagNameNS("*", localName);
-      return els;
+      var exact = elements.filter(function (e) { return e.name === localName; });
+      return exact.length > 0 ? exact : elements.filter(function (e) { return e.local === localName; });
     }
     function getText(localName) {
       var els = find(localName);
-      return els.length > 0 ? (els[0].textContent || "") : "";
+      return els.length > 0 ? els[0].text : "";
     }
 
     var eventId = checkEventId(getText("EventID"));
     var timeEls = find("TimeCreated");
-    var time = timeEls.length > 0 ? (timeEls[0].getAttribute("SystemTime") || "") : "";
+    var time = timeEls.length > 0 ? (lookup(timeEls[0].attributes, "SystemTime") || "") : "";
 
     var fields = {};
     var fieldOrder = [];
     var dataEls = find("Data");
     for (var i = 0; i < dataEls.length; i++) {
-      var name = dataEls[i].getAttribute("Name");
+      var name = lookup(dataEls[i].attributes, "Name");
       if (name && lookup(fields, name) === undefined) {
-        fields[name] = (dataEls[i].textContent || "").trim();
+        fields[name] = dataEls[i].text.trim();
         fieldOrder.push(name);
       }
     }
@@ -1673,6 +1979,7 @@
       fieldSource: fieldSource,
       extractEventXml: extractEventXml,
       extractEventXmls: extractEventXmls,
+      readXmlElement: readXmlElement,
       parseEventXml: parseEventXml,
       splitTextEvents: splitTextEvents,
       parseEventText: parseEventText,

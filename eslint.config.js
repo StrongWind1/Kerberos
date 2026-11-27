@@ -15,7 +15,6 @@ const browserGlobals = {
   location: "readonly",
   console: "readonly",
   setTimeout: "readonly",
-  DOMParser: "readonly",
   btoa: "readonly",
   atob: "readonly",
   escape: "readonly",
@@ -49,11 +48,15 @@ const rules = {
   "guard-for-in": "error",
   eqeqeq: "error",
   /* innerHTML with pasted event data would be DOM XSS; the tools build nodes
-     with createElement/textContent only. */
+     with createElement/textContent only.  For the same reason pasted text is
+     not given to a DOM parser: DOMParser is not among the globals above, and
+     the decoder reads event XML with its own readXmlElement. */
   "no-restricted-properties": ["error",
     { property: "innerHTML", message: "Build DOM nodes with createElement/textContent." },
     { property: "outerHTML", message: "Build DOM nodes with createElement/textContent." },
     { property: "insertAdjacentHTML", message: "Build DOM nodes with createElement/textContent." },
+    { property: "parseFromString", message: "Read XML with readXmlElement; pasted text is not given to a DOM parser." },
+    { property: "createContextualFragment", message: "Build DOM nodes with createElement/textContent." },
   ],
 };
 
