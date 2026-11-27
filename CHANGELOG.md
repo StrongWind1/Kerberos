@@ -35,13 +35,14 @@ cumulative update; pages say so wherever it matters.
 - Site banner, home page and README no longer count down to dates that have passed
 - Roasting pages show the one hash layout kerbwolf writes, `$prefix$etype$user$realm$<checksum>$<data>`, with the older Impacket shapes beside it; Tools Setup builds hashcat from source and says which lines a v8.0.0 build rejects
 - Cracking speed table holds figures measured on an RTX 4090 in place of estimates; `kw-timeroast` is in the tool lists
+- Event decoder: event XML is read by a reader in the script itself, held to the rules of XML 1.0 and Namespaces in XML, and pasted or shared text is no longer given to the browser's `DOMParser` (code-scanning finding `js/xss-through-dom`); a malformed event gets the same message in every browser, and the message names what is wrong
 
 ### Fixed
 
 - RC4 pre-authentication hash format: the shape shown is rejected by hashcat releases, and in wire order it loads and never cracks
 - Computer accounts are no longer called uncrackable without exception: a pre-created account that still has its own name as password cracked in the lab
 - Hashcat mode availability by release (35300, 35400, 38500 and 38600 need v8.0.0; 39000 to 39400 need master); a `kw-roast` example with no target; where `kw-roast` finds the DC when given a ccache; kw-extract's "NT-hash formats"; DES key search told apart from hashcat's DES modes
-
+- PowerShell checks: a failure inside PSScriptAnalyzer 1.25.0 (`The term 'Get-Command' is not recognized`, a `NullReferenceException`, or the process ending) no longer fails the build. `tools/Test-PowerShellStyle.ps1` and `tools/ps_snippets.py` run the analyzer in a second process and start a new one when it ends without a verdict or does not end within two minutes; trying again inside one process could not work, because the analyzer keeps a failed command lookup until the process ends
 - `DefaultDomainSupportedEncTypes` registry path (`Services\Kdc`, not `Services\Kdc\Parameters`)
 - Bulk "set AES" commands that matched `krbtgt`, overwrote deliberate exceptions and had no backup; two snippets that did not parse; queries that silently returned nothing (`-eq 0` on an unset attribute, wrong event provider name, a filter matching `klist` text in event logs)
 - PAC history: four signatures with the right CVE for each; `PAC_REQUESTOR_SID` check described correctly; the "group membership refresh" claim no longer stated as fact (MS-KILE and the one lab run are both given)
